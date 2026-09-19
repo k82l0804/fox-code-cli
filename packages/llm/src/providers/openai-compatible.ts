@@ -1,0 +1,36 @@
+import { ProviderID, type ModelID } from "../schema"
+import * as OpenAICompatibleChat from "../protocols/openai-compatible-chat"
+import type { RouteDefaultsInput } from "../route/client"
+import { AuthOptions, type ProviderAuthOption } from "../route/auth-options"
+
+export const id = ProviderID.make("openai-compatible")
+
+type GenericModelOptions = RouteDefaultsInput &
+  ProviderAuthOption<"optional"> & {
+    readonly provider?: string
+    readonly baseURL: string
+  }
+
+export type FamilyModelOptions = RouteDefaultsInput &
+  ProviderAuthOption<"optional"> & {
+    readonly baseURL?: string
+  }
+
+export const routes = [OpenAICompatibleChat.route]
+
+export const configure = (input: GenericModelOptions) => {
+  const provider = input.provider ?? "openai-compatible"
+  const { provider: _, baseURL, apiKey: _apiKey, auth: _auth, ...rest } = input
+  const route = OpenAICompatibleChat.route.with({
+    ...rest,
+    provider,
+    endpoint: { baseURL },
+    auth: AuthOptions.bearer(input, []),
+  })
+  return {
+    id: ProviderID.make(provider),
+    model: (modelID: string | ModelID) => route.model({ id: modelID, provider: ProviderID.make(provider) }),
+    configure,
+  }
+}
+

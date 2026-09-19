@@ -1,0 +1,16 @@
+{
+  "name": "@foxcode/indexing",
+  "version": "7.7.3",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./detect": "./src/detect.ts",
+    "./status": "./src/status.ts",
+    "./engine": "./src/engine.ts"
+  },
+  "dependencies": {
+    "effect": "catalog:",
+    "zod": "catalog:"
+  }
+}

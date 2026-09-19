@@ -1,0 +1,15 @@
+# Logs & build outputs
+node_modules/
+dist/
+*.log
+
+# Environment & local state
+.env
+.fox/
+*.db
+*.db-wal
+*.db-shm
+
+# OS noise
+.DS_Store
+Thumbs.db

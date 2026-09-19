@@ -1,0 +1,158 @@
+import { ProviderAuth } from "@/provider/auth"
+import { Config } from "@/config/config"
+import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { Provider } from "@/provider/provider"
+
+import { mapValues, pickBy } from "remeda"
+import { ModelCache } from "@/provider/model-cache"
+import { Auth } from "@/auth"
+import { organization, recommend } from "@/foxcode/provider/catalog"
+import { ModelV2 } from "@opencode-ai/core/model"
+import { Option } from "effect"
+import {
+  disposeAllInstancesAfterProviderAuthCallback,
+  invalidatePresence,
+} from "@/foxcode/server/provider-auth-lifecycle"
+import { providerMetadata } from "@/foxcode/provider/metadata"
+import { filterPromptTrainingModels } from "@/foxcode/provider/model-filter"
+import { Effect, Schema } from "effect"
+import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
+import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { InstanceHttpApi } from "../api"
+import { ProviderAuthApiError } from "../groups/provider"
+import { ProviderV2 } from "@opencode-ai/core/provider"
+
+function mapProviderAuthError<A, R>(self: Effect.Effect<A, ProviderAuth.Error, R>) {
+  return self.pipe(
+    Effect.mapError((error) => {
+      if (error instanceof ProviderAuth.OauthMissing) {
+        return new ProviderAuthApiError({ name: error._tag, data: { providerID: error.providerID } })
+      }
+      if (error instanceof ProviderAuth.OauthCodeMissing) {
+        return new ProviderAuthApiError({ name: error._tag, data: { providerID: error.providerID } })
+      }
+      if (error instanceof ProviderAuth.OauthCallbackFailed) {
+        return new ProviderAuthApiError({ name: error._tag, data: {} })
+      }
+      if (error instanceof ProviderAuth.ValidationFailed) {
+        return new ProviderAuthApiError({ name: error._tag, data: { field: error.field, message: error.message } })
+      }
+      return new ProviderAuthApiError({ name: "BadRequest", data: { message: error.message } })
+    }),
+  )
+}
+
+export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider", (handlers) =>
+  Effect.gen(function* () {
+    const cfg = yield* Config.Service
+    const provider = yield* Provider.Service
+    const svc = yield* ProviderAuth.Service
+    const cache = yield* ModelCache.Service
+    const access = yield* Auth.Service
+    const list = Effect.fn("ProviderHttpApi.list")(function* () {
+      const config = yield* cfg.get()
+      const all = yield* ModelsDev.Service.use((s) => s.get())
+      const disabled = new Set(config.disabled_providers ?? [])
+      const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
+      const filtered: Record<string, (typeof all)[string]> = {}
+      for (const [key, value] of Object.entries(all)) {
+        if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) filtered[key] = value
+      }
+      const connected = yield* provider.list()
+      const info = yield* access.get("fox").pipe(Effect.option)
+      const unavailable = Option.isNone(info) && ("fox" in filtered || "fox" in connected)
+      if (Option.isNone(info) || organization(config.provider?.kilo?.options, info.value)) delete filtered.kilo
+      const providers = filterPromptTrainingModels(
+        Object.assign(
+          mapValues(filtered, (item) => Provider.fromModelsDevProvider(item)),
+          connected,
+        ),
+        config.hide_prompt_training_models === true,
+      )
+      const failed = yield* cache.failedProviders()
+      // Note: connected only contains providers with non-empty models after Provider.Service.list(),
+      // so failed must be checked explicitly for providers whose fetch returned an error.
+      const failedSet = new Set(failed)
+      if (unavailable) failedSet.add("fox")
+      const validProviders = pickBy(
+        providers,
+        (item, id) => Object.keys(item.models).length > 0 || id in connected || failedSet.has(id),
+      )
+      const defaults = Provider.defaultModelIDs(pickBy(validProviders, (item) => Object.keys(item.models).length > 0))
+      if (connected[ProviderV2.ID.kilo] && defaults[ProviderV2.ID.kilo]) {
+        const model = yield* Effect.promise(() =>
+          recommend(
+            validProviders.kilo.models,
+            config.provider?.kilo?.options,
+            Option.getOrUndefined(info),
+            Option.isSome(info),
+          ),
+        )
+        if (model) defaults[ProviderV2.ID.kilo] = ModelV2.ID.make(model)
+      }
+      return {
+        all: Object.values(validProviders).map((item) => ({
+          ...Provider.toPublicInfo(item),
+          metadata: providerMetadata(item.id),
+        })),
+        default: defaults,
+        connected: Object.keys(connected),
+        failed: [...failedSet],
+      }
+    })
+
+    const auth = Effect.fn("ProviderHttpApi.auth")(function* () {
+      return yield* svc.methods()
+    })
+
+    const authorize = Effect.fn("ProviderHttpApi.authorize")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+      payload: ProviderAuth.AuthorizeInput
+    }) {
+      return yield* mapProviderAuthError(
+        svc.authorize({
+          providerID: ctx.params.providerID,
+          method: ctx.payload.method,
+          inputs: ctx.payload.inputs,
+        }),
+      )
+    })
+
+    const authorizeRaw = Effect.fn("ProviderHttpApi.authorizeRaw")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+      request: HttpServerRequest.HttpServerRequest
+    }) {
+      const body = yield* Effect.orDie(ctx.request.text)
+      const payload = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(ProviderAuth.AuthorizeInput))(body).pipe(
+        Effect.mapError(() => new ProviderAuthApiError({ name: "BadRequest", data: {} })),
+      )
+      // Match legacy route behavior: when authorize() resolves without a
+      // result (e.g. no further redirect), serialize as JSON `null` instead
+      // of an empty body so clients can `.json()` parse the response.
+      const result = yield* authorize({ params: ctx.params, payload })
+      return HttpServerResponse.jsonUnsafe(result ?? null)
+    })
+
+    const callback = Effect.fn("ProviderHttpApi.callback")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+      payload: ProviderAuth.CallbackInput
+    }) {
+      yield* mapProviderAuthError(
+        svc.callback({
+          providerID: ctx.params.providerID,
+          method: ctx.payload.method,
+          code: ctx.payload.code,
+        }),
+      )
+      if (ctx.params.providerID === "fox") yield* invalidatePresence()
+      yield* disposeAllInstancesAfterProviderAuthCallback()
+      return true
+    })
+
+    return handlers
+      .handle("list", list)
+      .handle("auth", auth)
+      .handleRaw("authorize", authorizeRaw)
+      .handle("callback", callback)
+  }),
+)
