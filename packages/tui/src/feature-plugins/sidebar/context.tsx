@@ -4,23 +4,10 @@ import type { BuiltinTuiPlugin } from "../builtins"
 import { createMemo, createSignal, Show } from "solid-js"
 const id = "internal:sidebar-context"
 
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-})
-
 function View(props: { api: TuiPluginApi; session_id: string }) {
   const [open, setOpen] = createSignal(true)
   const theme = () => props.api.theme.current
   const msg = createMemo(() => props.api.state.session.messages(props.session_id))
-  const session = createMemo(() => props.api.state.session.get(props.session_id))
-  const cost = createMemo(() => {
-    const total = msg().reduce((sum, item) => {
-      if (item.role !== "assistant") return sum
-      return sum + (item.cost ?? 0)
-    }, 0)
-    return Math.max(session()?.cost ?? 0, total)
-  })
   const state = createMemo(() => {
     const last = msg().findLast((item): item is AssistantMessage => item.role === "assistant" && item.tokens.output > 0)
     if (!last) {
@@ -49,7 +36,7 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
           <Show when={!open()}>
             <span style={{ fg: theme().textMuted }}>
               {" "}
-              ({state().percent ?? 0}% · {money.format(cost())})
+              ({state().percent ?? 0}%)
             </span>
           </Show>
         </text>
@@ -57,7 +44,6 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
       <Show when={open()}>
         <text fg={theme().textMuted}>{state().tokens.toLocaleString()} tokens</text>
         <text fg={theme().textMuted}>{state().percent ?? 0}% used</text>
-        <text fg={theme().textMuted}>{money.format(cost())} spent</text>
       </Show>
       {/* kilocode_change end */}
     </box>

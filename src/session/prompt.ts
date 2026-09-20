@@ -1441,6 +1441,15 @@ export const layer = Layer.effect(
       let structured: unknown
       let step = 0
       const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+      // Cache stable system prompt components across loop steps.
+      // Skills listing, custom instructions (AGENTS.md), and MCP instructions
+      // only change when the agent switches, which is rare mid-loop.
+      const sysCache: {
+        agentName?: string
+        skills?: string | undefined
+        instructions?: string[]
+        mcpInstructions?: string | undefined
+      } = {}
 
       while (true) {
         yield* status.set(sessionID, { type: "busy" })
@@ -1651,6 +1660,7 @@ export const layer = Layer.effect(
             Effect.provideService(Provider.Service, provider),
             Effect.provideService(Database.Service, database),
             Effect.provideService(RuntimeFlags.Service, flags),
+            Effect.withSpan("SessionPrompt.resolveTools", { attributes: { step, agent: agent.name } }),
           )
 
           if (lastUser.format?.type === "json_schema") {
@@ -1670,13 +1680,26 @@ export const layer = Layer.effect(
           // even when filterCompacted couldn't trim the pre-summary history).
           FoxSessionPrompt.injectEditorContext({ msgs, session, sessionID, cache: envCache })
           msgs = FoxSessionPrompt.maybeStripHistoricalMedia(msgs)
-          const [skills, env, mem, instructions, mcpInstructions] = yield* Effect.all([
-            sys.skills(agent),
+          // Recompute cached system prompt components only when agent changes.
+          if (sysCache.agentName !== agent.name) {
+            const [s, i, m] = yield* Effect.all([
+              sys.skills(agent),
+              instruction.system().pipe(Effect.orDie),
+              sys.mcp(agent, session.permission),
+            ]).pipe(Effect.withSpan("SessionPrompt.cacheSystemPrompts", { attributes: { agent: agent.name } }))
+            sysCache.agentName = agent.name
+            sysCache.skills = s
+            sysCache.instructions = i
+            sysCache.mcpInstructions = m
+          }
+          const skills = sysCache.skills
+          const instructions = sysCache.instructions!
+          const mcpInstructions = sysCache.mcpInstructions
+          // Environment and memory are step-specific — always recompute.
+          const [env, mem] = yield* Effect.all([
             sys.environment(model, lastUser.editorContext),
             FoxSessionPrompt.memoryInject({ ctx, sessionID, record: step === 1, cache: memoryCache }),
-            instruction.system().pipe(Effect.orDie),
-            sys.mcp(agent, session.permission),
-          ])
+          ]).pipe(Effect.withSpan("SessionPrompt.assemblePrompt", { attributes: { step } }))
           let modelMsgs = yield* MessageV2.toModelMessagesEffect(msgs, model).pipe(
             Effect.provideService(Database.Service, database),
           )
@@ -1731,7 +1754,7 @@ export const layer = Layer.effect(
               lastFinished && lastFinished.summary !== true
                 ? FoxSessionOverflow.count(lastFinished.tokens)
                 : undefined,
-          })
+          }).pipe(Effect.withSpan("SessionPrompt.llmProcess", { attributes: { step, model: model.id } }))
           const marker = FoxSessionPrompt.memoryPart({ sessionID, message: handle.message, cache: memoryCache })
           if (marker) yield* sessions.updatePart(marker)
           if (structured !== undefined) {

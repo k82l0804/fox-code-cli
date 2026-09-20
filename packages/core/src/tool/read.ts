@@ -6,12 +6,14 @@ import { makeLocationNode } from "../effect/app-node"
 import { FileSystem } from "../filesystem"
 import { Image } from "../image"
 import { LocationMutation } from "../location-mutation"
+import { Location } from "../location"
 import { PermissionV2 } from "../permission"
 import { AbsolutePath } from "../schema"
 import { ReadToolFileSystem } from "./read-filesystem"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputCompressor } from "./compress"
 
 export const name = "read"
 const SUPPORTED_IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"])
@@ -34,6 +36,7 @@ const layer = Layer.effectDiscard(
     const mutation = yield* LocationMutation.Service
     const image = yield* Image.Service
     const permission = yield* PermissionV2.Service
+    const location = yield* Location.Service
 
     yield* tools
       .register({
@@ -43,12 +46,21 @@ const layer = Layer.effectDiscard(
           input: Input,
           output: Output,
           toModelOutput: ({ input, output }) => {
-            if (!("encoding" in output) || output.encoding !== "base64" || !SUPPORTED_IMAGE_MIMES.has(output.mime))
-              return []
-            return [
-              { type: "text", text: "Image read successfully" },
-              { type: "file", data: output.content, mime: output.mime, name: input.path },
-            ]
+            // Image content: return image part as-is
+            if ("encoding" in output && output.encoding === "base64" && SUPPORTED_IMAGE_MIMES.has(output.mime))
+              return [
+                { type: "text", text: "Image read successfully" },
+                { type: "file", data: output.content, mime: output.mime, name: input.path },
+              ]
+            // Text page: apply compression to file content
+            if ("type" in output && output.type === "text-page") {
+              const ctx = { workspaceRoot: location.directory, toolName: name }
+              const header = output.truncated
+                ? `[${input.path} (lines ${output.offset}–${output.offset + output.content.split("\n").length - 1}, truncated)]`
+                : `[${input.path}]`
+              return [{ type: "text", text: ToolOutputCompressor.process(`${header}\n${output.content}`, ctx) }]
+            }
+            return []
           },
           execute: (input, context) => {
             return Effect.gen(function* () {
@@ -113,5 +125,5 @@ const layer = Layer.effectDiscard(
 export const node = makeLocationNode({
   name: "tool/read",
   layer,
-  deps: [ToolRegistry.node, ReadToolFileSystem.node, LocationMutation.node, Image.node, PermissionV2.node],
+  deps: [ToolRegistry.node, ReadToolFileSystem.node, LocationMutation.node, Image.node, PermissionV2.node, Location.node],
 })

@@ -5,6 +5,9 @@ import { Provider } from "@/provider/provider"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { serviceUse } from "@opencode-ai/core/effect/service-use"
 import { Log } from "@opencode-ai/core/util/log"
+import { Flag } from "@opencode-ai/core/flag/flag"
+import { ToolSchemaProjection } from "@opencode-ai/llm/protocols/utils/tool-schema"
+import { CompressionMetrics } from "@opencode-ai/core/tool/compression-metrics"
 import { Context, Effect, Layer } from "effect"
 import * as Stream from "effect/Stream"
 import { streamText, wrapLanguageModel, type ModelMessage, type Tool } from "ai"
@@ -126,6 +129,35 @@ const live: Layer.Layer<
         isWorkflow,
       })
       const tools = yield* Effect.promise(() => FoxToolSchema.sanitize(base.tools))
+      // Schema minification telemetry: measure byte savings from compact projection.
+      // The projection happens inside the protocol adapter; here we measure the delta
+      // to log as a structured compression metric.
+      if (Flag.FOX_EXPERIMENTAL_COMPRESS_SCHEMA) {
+        const start = performance.now()
+        let openAIBytes = 0
+        let compactBytes = 0
+        for (const t of Object.values(tools)) {
+          if (t.type === "provider") continue
+          const schema = "jsonSchema" in t.inputSchema ? (t.inputSchema as any).jsonSchema : t.inputSchema
+          if (!schema) continue
+          const before = JSON.stringify(ToolSchemaProjection.openAI(schema))
+          const after = JSON.stringify(ToolSchemaProjection.compact(schema))
+          openAIBytes += before.length
+          compactBytes += after.length
+        }
+        const saved = openAIBytes - compactBytes
+        if (saved > 0) {
+          l.info("compression.schema_minification", {
+            toolCount: Object.keys(tools).length,
+            openAIBytes,
+            compactBytes,
+            bytesSaved: saved,
+            pctSaved: Math.round((saved / openAIBytes) * 1000) / 10,
+            durationMs: Math.round((performance.now() - start) * 100) / 100,
+          })
+          CompressionMetrics.recordSchema(saved)
+        }
+      }
       const isOpenaiOauth = item.id === "openai" && info?.type === "oauth"
       const estimated: ModelMessage[] =
         isOpenaiOauth || isWorkflow

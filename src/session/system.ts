@@ -4,16 +4,10 @@ import { Context, Effect, Layer } from "effect"
 import { InstanceState } from "@/effect/instance-state"
 
 import PROMPT_DEFAULT from "./prompt/default.txt"
-import PROMPT_BEAST from "./prompt/beast.txt"
-import PROMPT_GEMINI from "./prompt/gemini.txt"
-import PROMPT_GPT from "./prompt/gpt.txt"
-import PROMPT_GPT55 from "./prompt/foxcode-gpt-5.5.txt"
-import PROMPT_KIMI from "./prompt/kimi.txt"
-import PROMPT_LING from "./prompt/ling.txt"
-import PROMPT_META from "./prompt/meta.txt"
-
-import PROMPT_CODEX from "./prompt/codex.txt"
-import PROMPT_TRINITY from "./prompt/trinity.txt"
+import PROMPT_DEFAULT_COMPACT from "./prompt/default-compact.txt"
+import PROMPT_LOCAL from "./prompt/local.txt"
+import PROMPTS_MAP from "./prompt/prompts.json"
+import { Flag } from "@opencode-ai/core/flag/flag"
 import type { Provider } from "@/provider/provider"
 import type { Agent } from "@/agent/agent"
 import { Permission } from "@/permission"
@@ -22,20 +16,37 @@ import { LocationServiceMap, locationServiceMapLayer } from "@opencode-ai/core/l
 import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import SOUL from "../foxcode/soul.txt"
+import SOUL_COMPACT from "../foxcode/soul-compact.txt"
 import type { EditorContext } from "../foxcode/editor-context"
 import { KilocodeSystemPrompt } from "../foxcode/system-prompt"
-import { isLing } from "../foxcode/model-match"
 import { Config } from "@/config/config"
 import * as FoxReference from "@/foxcode/reference"
-export function instructions() {
-  return PROMPT_CODEX.trim()
+
+const PROMPT_FILES: Record<string, string> = {
+  "default.txt": PROMPT_DEFAULT,
+  "local.txt": PROMPT_LOCAL,
+}
+
+const PROMPT_FILES_COMPACT: Record<string, string> = {
+  "default.txt": PROMPT_DEFAULT_COMPACT,
+  "local.txt": PROMPT_LOCAL, // local.txt is already compact
 }
 
 export function soul() {
-  return SOUL.trim()
+  return (Flag.FOX_EXPERIMENTAL_COMPRESS ? SOUL_COMPACT : SOUL).trim()
 }
-export function provider(_model: Provider.Model) {
-  return [PROMPT_DEFAULT]
+
+export function provider(model: Provider.Model) {
+  const files = Flag.FOX_EXPERIMENTAL_COMPRESS ? PROMPT_FILES_COMPACT : PROMPT_FILES
+  const fallback = Flag.FOX_EXPERIMENTAL_COMPRESS ? PROMPT_DEFAULT_COMPACT : PROMPT_DEFAULT
+  const key = `${model.providerID}/${model.api.id}`.toLowerCase()
+  for (const entry of PROMPTS_MAP.prompts) {
+    if (entry.match.some((pattern: string) => key.includes(pattern.toLowerCase()))) {
+      const prompt = files[entry.file]
+      if (prompt) return [prompt]
+    }
+  }
+  return [files[PROMPTS_MAP.default] ?? fallback]
 }
 
 export interface Interface {

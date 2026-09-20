@@ -1,0 +1,11 @@
+{
+  "$comment": "Maps model/provider patterns to system prompt files. First match wins. Patterns are matched case-insensitively against 'providerID/modelID'.",
+  "prompts": [
+    { "match": ["nemotron", "gemad", "gpt-oss"],     "file": "local.txt" },
+    { "match": ["llama", "maverick"],                  "file": "local.txt" },
+    { "match": ["codestral", "starcoder"],             "file": "local.txt" },
+    { "match": ["mistral-large", "mistral-medium"],    "file": "local.txt" },
+    { "match": ["gemma"],                              "file": "local.txt" }
+  ],
+  "default": "default.txt"
+}

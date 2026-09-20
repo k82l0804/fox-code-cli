@@ -1,0 +1,23 @@
+# Jaeger all-in-one for Fox CLI tracing
+#
+# Start:   docker compose -f tools/jaeger.yml up -d
+# UI:      http://localhost:16686
+# Stop:    docker compose -f tools/jaeger.yml down
+#
+# Then run fox with tracing:
+#   FOX_TRACING=1 fox
+#
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: fox-jaeger
+    ports:
+      # Jaeger UI
+      - "16686:16686"
+      # OTLP HTTP receiver (traces)
+      - "4318:4318"
+      # OTLP gRPC receiver
+      - "4317:4317"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    restart: unless-stopped

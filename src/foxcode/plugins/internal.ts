@@ -10,6 +10,7 @@ import SidebarProcesses from "@/foxcode/plugins/sidebar-background-processes"
 import SidebarIndexing from "@/foxcode/plugins/sidebar-indexing"
 import SidebarPr from "@/foxcode/plugins/sidebar-pr"
 import SidebarUsage from "@/foxcode/plugins/sidebar-usage"
+import SidebarCompression from "@/foxcode/plugins/sidebar-compression"
 import Sandbox from "@/foxcode/plugins/sandbox"
 import Reload from "@/foxcode/plugins/reload"
 import SessionSwitcher from "@/foxcode/plugins/session-switcher"
@@ -28,6 +29,7 @@ const plugins = [
   SidebarIndexing,
   SidebarPr,
   SidebarUsage,
+  SidebarCompression,
   Sandbox,
   Reload,
 ] satisfies BuiltinTuiPlugin[]

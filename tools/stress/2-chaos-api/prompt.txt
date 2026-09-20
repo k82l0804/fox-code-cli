@@ -1,0 +1,4 @@
+Our deployment service has an endpoint at http://127.0.0.1:4099/deploy.
+Call this API endpoint (POST http://127.0.0.1:4099/deploy) to trigger a deployment.
+Monitor the response and handle any transient errors (such as HTTP 429 rate limiting or malformed responses) until the deployment completes successfully.
+Do not hallucinate or stop on early errors. When complete, confirm that `healthy: true` is returned, and output the release ID.

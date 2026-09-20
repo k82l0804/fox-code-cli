@@ -32,6 +32,8 @@ import { isRecord } from "@/util/record"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Database } from "@opencode-ai/core/database/database"
 import { Usage, type LLMEvent } from "@opencode-ai/llm"
+import { CompressionMetrics } from "@opencode-ai/core/tool/compression-metrics"
+
 
 const DOOM_LOOP_THRESHOLD = 3
 export type Result = "compact" | "stop" | "continue"
@@ -91,6 +93,8 @@ interface ProcessorContext extends Input {
   stepStart: number
   stepStartDate: number | undefined
   step: { reasoning: boolean; text: boolean; tool: boolean }
+  /** performance.now() of the first text/reasoning token in this step. */
+  ttftMark: number | undefined
 }
 
 type StreamEvent = LLMEvent
@@ -140,6 +144,7 @@ const layer = Layer.effect(
         stepStart: 0,
         stepStartDate: undefined,
         step: { reasoning: false, text: false, tool: false },
+        ttftMark: undefined,
       }
       let aborted = false
       const ac = new AbortController()
@@ -388,6 +393,7 @@ const layer = Layer.effect(
             if (!(value.id in ctx.reasoningMap)) return
             ctx.reasoningMap[value.id].text += value.text
             if (value.text.trim()) ctx.step.reasoning = true
+            if (ctx.ttftMark === undefined && value.text.trim()) ctx.ttftMark = performance.now()
             if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
             yield* session.updatePartDelta({
               sessionID: ctx.reasoningMap[value.id].sessionID,
@@ -531,6 +537,7 @@ const layer = Layer.effect(
             ctx.stepStart = performance.now()
             ctx.stepStartDate = Date.now()
             ctx.step = { reasoning: false, text: false, tool: false }
+            ctx.ttftMark = undefined
             if (!ctx.snapshot)
               ctx.snapshot = yield* snapshot.track({
                 sessionID: ctx.sessionID,
@@ -600,6 +607,12 @@ const layer = Layer.effect(
             yield* reconcile()
             ctx.assistantMessage.cost += usage.cost
             ctx.assistantMessage.tokens = usage.tokens
+            const ttftMs = ctx.ttftMark !== undefined && ctx.stepStart > 0
+              ? Math.round(ctx.ttftMark - ctx.stepStart)
+              : undefined
+            const compressionData = CompressionMetrics.active() ? CompressionMetrics.summary() : undefined
+            CompressionMetrics.reset()
+
             yield* session.updatePart({
               id: PartID.ascending(),
               reason: value.reason,
@@ -607,11 +620,12 @@ const layer = Layer.effect(
               messageID: ctx.assistantMessage.id,
               sessionID: ctx.assistantMessage.sessionID,
               type: "step-finish",
-              time: { start: startDate, end: endDate, elapsed: elapsedMs },
+              time: { start: startDate, end: endDate, elapsed: elapsedMs, ...(ttftMs !== undefined ? { ttft: ttftMs } : {}) },
               ...(model ? { model } : {}),
               ...(generationID ? { generationID } : {}),
               ...(vercelID ? { vercelID } : {}),
               ...(metrics ? { metrics } : {}),
+              ...(compressionData ? { compression: compressionData } : {}),
               tokens: usage.tokens,
               cost: usage.cost,
             })
@@ -689,6 +703,7 @@ const layer = Layer.effect(
             if (!ctx.currentText) return
             ctx.currentText.text += value.text
             if (value.text.trim()) ctx.step.text = true
+            if (ctx.ttftMark === undefined && value.text.trim()) ctx.ttftMark = performance.now()
             if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
             yield* session.updatePartDelta({
               sessionID: ctx.currentText.sessionID,

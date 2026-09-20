@@ -268,6 +268,23 @@ export const StepFinishPart = Schema.Struct({
       start: NonNegativeInt,
       end: NonNegativeInt,
       elapsed: Schema.Finite,
+      // Time-to-first-token in milliseconds (first non-whitespace
+      // text-delta or reasoning-delta relative to step-start).
+      ttft: Schema.optional(Schema.Finite),
+    }),
+  ),
+  // Compression pipeline summary for this step. Present only when at
+  // least one compression transform was active and had measurable effect.
+  compression: Schema.optional(
+    Schema.Struct({
+      charsBefore: Schema.Finite,
+      charsAfter: Schema.Finite,
+      charsSaved: Schema.Finite,
+      pctSaved: Schema.Finite,
+      schemaSaved: Schema.Finite,
+      superseded: Schema.Finite,
+      overheadMs: Schema.Finite,
+      transforms: Schema.Array(Schema.String),
     }),
   ),
   cost: Schema.Finite,

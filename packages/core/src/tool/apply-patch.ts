@@ -7,6 +7,7 @@ import { Effect, Layer, Schema } from "effect"
 import { makeLocationNode } from "../effect/app-node"
 import { FileMutation } from "../file-mutation"
 import { FSUtil } from "../fs-util"
+import { Location } from "../location"
 import { LocationMutation } from "../location-mutation"
 import { Patch } from "../patch"
 import { PermissionV2 } from "../permission"
@@ -14,6 +15,8 @@ import { ToolOutputStore } from "../tool-output-store"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputCompressor } from "./compress"
+import { Flag } from "../flag/flag"
 
 export const name = "apply_patch"
 
@@ -72,6 +75,7 @@ const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const tools = yield* Tools.Service
     const mutation = yield* LocationMutation.Service
+    const location = yield* Location.Service
     const files = yield* FileMutation.Service
     const fs = yield* FSUtil.Service
     const permission = yield* PermissionV2.Service
@@ -86,7 +90,10 @@ const layer = Layer.effectDiscard(
             output: Output,
             structured: Output,
             toStructuredOutput: ({ output }) => compact(output),
-            toModelOutput: ({ output }) => [{ type: "text", text: toModelOutput(output) }],
+            toModelOutput: ({ output }) => [{ type: "text", text: ToolOutputCompressor.process(
+              toModelOutput(output),
+              { workspaceRoot: location.directory, toolName: name },
+            ) }],
             execute: (input, context) => {
               const applied: Array<typeof Applied.Type> = []
               const fail = (path: string) => {
@@ -213,7 +220,7 @@ const layer = Layer.effectDiscard(
 export const node = makeLocationNode({
   name: "tool/apply-patch",
   layer,
-  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, FSUtil.node, PermissionV2.node],
+  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, FSUtil.node, PermissionV2.node, Location.node],
 })
 
 function patchFile(change: Prepared): typeof FileDiff.Info.Type {
@@ -226,7 +233,12 @@ function patchFile(change: Prepared): typeof FileDiff.Info.Type {
   )
   return {
     file: change.target.resource,
-    patch: createTwoFilesPatch(change.target.resource, change.target.resource, change.before, change.after),
+    patch: createTwoFilesPatch(
+      change.target.resource, change.target.resource, change.before, change.after,
+      undefined, undefined, Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF
+        ? { context: Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF_CONTEXT }
+        : undefined,
+    ),
     status: change.type === "add" ? "added" : change.type === "delete" ? "deleted" : "modified",
     ...counts,
   }

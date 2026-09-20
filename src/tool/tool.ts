@@ -7,6 +7,7 @@ import type { SessionID, MessageID } from "../session/schema"
 import * as Truncate from "./truncate"
 import { Agent } from "@/agent/agent"
 import { format } from "@/foxcode/tool/tool"
+import { ToolOutputCompressor } from "@opencode-ai/core/tool/compress"
 interface Metadata {
   [key: string]: any
 }
@@ -127,11 +128,16 @@ function wrap<Parameters extends Schema.Decoder<unknown>, Result extends Metadat
             ),
           )
           const result = yield* execute(decoded as Schema.Schema.Type<Parameters>, ctx)
+          // Apply lossless token compression before truncation.
+          const compressed = ToolOutputCompressor.process(result.output, {
+            workspaceRoot: process.cwd(),
+            toolName: id,
+          })
           if (result.metadata.truncated !== undefined) {
-            return result
+            return { ...result, output: compressed }
           }
           const agent = yield* agents.get(ctx.agent)
-          const truncated = yield* truncate.output(result.output, {}, agent)
+          const truncated = yield* truncate.output(compressed, {}, agent)
           return {
             ...result,
             output: truncated.content,

@@ -16,6 +16,7 @@ import { RelativePath } from "../schema"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputCompressor } from "./compress"
 
 export const name = "grep"
 
@@ -81,13 +82,16 @@ const layer = Layer.effectDiscard(
           toModelOutput: ({ output }) => [
             {
               type: "text",
-              text: toModelOutput({
-                ...output,
-                items: output.items.map((match) => ({
-                  ...match,
-                  entry: { ...match.entry, path: path.resolve(location.directory, match.entry.path) },
-                })),
-              }),
+              text: ToolOutputCompressor.process(
+                toModelOutput({
+                  ...output,
+                  items: output.items.map((match) => ({
+                    ...match,
+                    entry: { ...match.entry, path: path.resolve(location.directory, match.entry.path) },
+                  })),
+                }),
+                { workspaceRoot: location.directory, toolName: name },
+              ),
             },
           ],
           execute: (input, context) =>

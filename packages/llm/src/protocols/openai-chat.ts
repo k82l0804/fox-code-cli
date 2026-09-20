@@ -352,7 +352,7 @@ const fromRequest = Effect.fn("OpenAIChat.fromRequest")(function* (request: LLMR
       request.tools.length === 0
         ? undefined
         : request.tools.map((tool) =>
-            lowerTool(tool, ToolSchemaProjection.openAI(tool.inputSchema)),
+            lowerTool(tool, ToolSchemaProjection.project(tool.inputSchema)),
           ),
     tool_choice: request.toolChoice ? yield* lowerToolChoice(request.toolChoice) : undefined,
     stream: true as const,

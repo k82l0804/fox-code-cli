@@ -11,11 +11,13 @@ import { ToolFailure } from "@opencode-ai/llm"
 import { Effect, Layer, Schema } from "effect"
 import { makeLocationNode } from "../effect/app-node"
 import { FileMutation } from "../file-mutation"
+import { Location } from "../location"
 import { LocationMutation } from "../location-mutation"
 import { PermissionV2 } from "../permission"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputCompressor } from "./compress"
 
 export const name = "write"
 
@@ -49,6 +51,7 @@ const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const tools = yield* Tools.Service
     const mutation = yield* LocationMutation.Service
+    const location = yield* Location.Service
     const files = yield* FileMutation.Service
     const permission = yield* PermissionV2.Service
 
@@ -60,7 +63,10 @@ const layer = Layer.effectDiscard(
               "Write content to one file. Relative paths resolve within the active Location. Absolute paths inside the Location are accepted. Explicit external absolute paths require external_directory approval before edit approval.",
             input: Input,
             output: Output,
-            toModelOutput: ({ output }) => [{ type: "text", text: toModelOutput(output) }],
+            toModelOutput: ({ output }) => [{ type: "text", text: ToolOutputCompressor.process(
+              toModelOutput(output),
+              { workspaceRoot: location.directory, toolName: name },
+            ) }],
             execute: (input, context) =>
               Effect.gen(function* () {
                 const source = {
@@ -98,5 +104,5 @@ const layer = Layer.effectDiscard(
 export const node = makeLocationNode({
   name: "tool/write",
   layer,
-  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, PermissionV2.node],
+  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, PermissionV2.node, Location.node],
 })

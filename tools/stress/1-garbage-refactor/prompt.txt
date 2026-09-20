@@ -1,0 +1,13 @@
+Refactor the TypeScript file `tools/stress/1-garbage-refactor/cart_garbage.ts`.
+It calculates a shopping cart discount, shipping, and tax, but contains severe code smells:
+- 6-level nested if-else statements (arrow anti-pattern)
+- Global mutable variables
+- Magic numbers without constants
+- Terrible variable names (x1, temp_val2, ret_z, etc.)
+- Duplicate logic and missing TypeScript interfaces
+
+Your task:
+1. Refactor `tools/stress/1-garbage-refactor/cart_garbage.ts` to follow clean coding standards, add TypeScript types/interfaces, and optimize for readability and maintainability.
+2. Ensure it still exports `calculateCartDiscount(c: any): any`.
+3. Do NOT break the existing logic: the refactored code must pass all 10 tests in `tools/stress/1-garbage-refactor/test_regression.ts`.
+4. Run `bun tools/stress/1-garbage-refactor/test_regression.ts` to verify that all 10 tests pass.

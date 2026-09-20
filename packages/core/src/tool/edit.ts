@@ -14,12 +14,15 @@ import { Effect, Layer, Schema } from "effect"
 import { makeLocationNode } from "../effect/app-node"
 import { FileMutation } from "../file-mutation"
 import { FSUtil } from "../fs-util"
+import { Location } from "../location"
 import { LocationMutation } from "../location-mutation"
 import { PermissionV2 } from "../permission"
 import { ToolOutputStore } from "../tool-output-store"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputCompressor } from "./compress"
+import { Flag } from "../flag/flag"
 
 export const name = "edit"
 
@@ -104,6 +107,7 @@ const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const tools = yield* Tools.Service
     const mutation = yield* LocationMutation.Service
+    const location = yield* Location.Service
     const files = yield* FileMutation.Service
     const fs = yield* FSUtil.Service
     const permission = yield* PermissionV2.Service
@@ -119,7 +123,10 @@ const layer = Layer.effectDiscard(
             structured: Output,
             toStructuredOutput: ({ output }) => compact(output),
             toModelOutput: ({ input, output }) => [
-              { type: "text", text: toModelOutput(output, input.oldString, input.newString) },
+              { type: "text", text: ToolOutputCompressor.process(
+                toModelOutput(output, input.oldString, input.newString),
+                { workspaceRoot: location.directory, toolName: name },
+              ) },
             ],
             execute: (input, context) => {
               const unableToEdit = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -214,7 +221,12 @@ const layer = Layer.effectDiscard(
                   files: [
                     {
                       file: result.resource,
-                      patch: createTwoFilesPatch(result.resource, result.resource, source.text, replaced),
+                      patch: createTwoFilesPatch(
+                        result.resource, result.resource, source.text, replaced,
+                        undefined, undefined, Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF
+                          ? { context: Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF_CONTEXT }
+                          : undefined,
+                      ),
                       status: "modified" as const,
                       ...counts,
                     },
@@ -234,5 +246,5 @@ const layer = Layer.effectDiscard(
 export const node = makeLocationNode({
   name: "tool/edit",
   layer,
-  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, FSUtil.node, PermissionV2.node],
+  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, FSUtil.node, PermissionV2.node, Location.node],
 })

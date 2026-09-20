@@ -15,6 +15,7 @@ import { PermissionV2 } from "../permission"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
+import { ToolOutputCompressor } from "./compress"
 
 export const name = "glob"
 
@@ -65,10 +66,13 @@ const layer = Layer.effectDiscard(
           toModelOutput: ({ output }) => [
             {
               type: "text",
-              text: toModelOutput({
-                ...output,
-                items: output.items.map((entry) => ({ ...entry, path: path.resolve(location.directory, entry.path) })),
-              }),
+              text: ToolOutputCompressor.process(
+                toModelOutput({
+                  ...output,
+                  items: output.items.map((entry) => ({ ...entry, path: path.resolve(location.directory, entry.path) })),
+                }),
+                { workspaceRoot: location.directory, toolName: name },
+              ),
             },
           ],
           execute: (input, context) =>

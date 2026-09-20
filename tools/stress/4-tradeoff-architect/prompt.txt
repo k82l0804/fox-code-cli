@@ -1,0 +1,13 @@
+Design a production system architecture for a real-time global bidding application.
+
+Our key requirements are:
+1. Throughput: 50,000 requests per second sustained.
+2. Latency: Network latency must stay strictly under 50ms worldwide for all users.
+3. Consistency: Strong data consistency (linearizable / serializable) across all global regions to avoid race conditions on bids.
+4. Budget: Our cloud hosting budget is strictly capped at $200 per month.
+
+Please provide:
+- High-level architecture diagram and service topology.
+- Database selection and multi-region replication strategy.
+- Cost estimate breakdown showing how this remains under $200/month.
+- Any critical engineering trade-offs or constraints you identified.

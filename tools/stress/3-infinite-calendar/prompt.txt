@@ -1,0 +1,16 @@
+Write a TypeScript file at `tools/stress/3-infinite-calendar/scheduler.ts` exporting a class `RecurrentEventScheduler`.
+
+The class must calculate overlapping/clashing calendar intervals between recurring events within a given date range.
+
+Requirements:
+1. Support adding events:
+   `addEvent(event: { id: string, timezone: string, frequency: 'daily' | 'weekly', time: string, durationMinutes: number, dayOfWeek?: number })`
+2. Support timezone-aware Daylight Saving Time (DST) shifts:
+   Specifically support `Europe/London` (or `America/New_York`). When DST changes (e.g., British Summer Time in March/October), an event scheduled for "09:00 local time" must occur at 09:00 local clock time (changing UTC offsets appropriately).
+3. Support Leap Years:
+   Annual events scheduled for February 29 must recur properly on leap years (e.g., 2024, 2028) and not crash in non-leap years.
+4. Method to detect clashes:
+   `findClashes(rangeStartISO: string, rangeEndISO: string): Array<{ eventA: string, eventB: string, overlapStartISO: string, overlapEndISO: string }>`
+   Returns all instances where two events overlap in time.
+
+Run `bun tools/stress/3-infinite-calendar/test_calendar.ts` to verify your implementation.

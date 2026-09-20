@@ -36,6 +36,7 @@ import { isMedia } from "@/util/media"
 import type { SystemError } from "bun"
 import type { Provider } from "@/provider/provider"
 import { Snapshot } from "@/snapshot"
+import { buildSupersededSet } from "./supersede"
 import { SessionNetwork } from "./network"
 import { CodexAuthExpiredError } from "@/foxcode/provider/codex-refresh"
 import { FoxSessionMessageOrder } from "@/foxcode/session/message-order"
@@ -247,6 +248,9 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
 ) {
   const result: UIMessage[] = []
   const toolNames = new Set<string>()
+  // Strategy 4.4: build the set of tool callIDs whose output is superseded
+  // by a later edit/write/apply_patch to the same file.
+  const superseded = buildSupersededSet(input)
   // Track media from tool results that need to be injected as user messages
   // for providers that don't support that media type in tool results.
   //
@@ -394,13 +398,16 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
         if (part.type === "tool") {
           toolNames.add(part.tool)
           if (part.state.status === "completed") {
+            const supersedeMarker = superseded.get(part.callID)
             const outputText = part.state.time.compacted
               ? "[Old tool result content cleared]"
-              : truncateToolOutput(part.state.output, options?.toolOutputMaxChars)
-            const text = BoardNotice.output(outputText, part.state.time.compacted ? undefined : part.state.metadata)
+              : supersedeMarker
+                ? supersedeMarker
+                : truncateToolOutput(part.state.output, options?.toolOutputMaxChars)
+            const text = BoardNotice.output(outputText, part.state.time.compacted || supersedeMarker ? undefined : part.state.metadata)
             // they are mobile delivery artifacts (up to 4 MiB base64), not model context.
             const attachments =
-              part.state.time.compacted || options?.stripMedia || part.tool === "send_file"
+              part.state.time.compacted || supersedeMarker || options?.stripMedia || part.tool === "send_file"
                 ? []
                 : (part.state.attachments ?? [])
             // For providers that don't support media in tool results, extract media files
