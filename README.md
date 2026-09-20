@@ -23,6 +23,7 @@
 - [Proven Benchmark Results](#-proven-benchmark-results)
   - [Autonomous SWE Benchmark (Fox vs Kilo Baseline)](#autonomous-swe-benchmark-fox-vs-kilo-baseline)
   - [Multi-Workflow Showdown](#multi-workflow-showdown)
+  - [Competitive Landscape: How Fox Compares](#competitive-landscape-how-fox-compares)
 - [Fox Standard Test Suite & Baseline Scoreboard](#-fox-standard-test-suite--baseline-scoreboard)
   - [The 6 Golden Corpora (52 Fixtures)](#the-6-golden-corpora-52-fixtures)
   - [Official Baseline Scoreboard](#official-baseline-scoreboard)
@@ -157,6 +158,21 @@ Deterministic multi-turn execution across diverse tool categories:
 | **Data Analysis (`data`)** | **12,876 B** | **8,652 B** | **+4,224 B** | **32.8%** |
 | **Research & Docs (`research`)** | **4,628 B** | **4,628 B** | **+0 B** | **100% Pass-through** |
 | **GRAND TOTAL** | **60,470 B** | **30,449 B** | **+30,021 B** | **49.6%** |
+
+### Competitive Landscape: How Fox Compares
+
+| Capability / Metric | **🦊 Fox Code CLI** | **Claude Code** (Anthropic) | **Aider** (Paul Gauthier) | **Kilo Code** (Upstream) | **Goose** (Block) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Core Runtime Engine** | **Bun + Effect TS** | Node.js | Python 3 | Bun + Effect TS | Rust |
+| **Strictly Local / Offline Inference** | **✅ 100% Local-First** | ❌ Anthropic API only | ⚠️ Via LiteLLM/Ollama | ⚠️ Cloud Catalog deps | ✅ Multi-provider |
+| **Lossless Tool Token Compression** | **✅ Yes (-52% to -76%)** | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Standard Test Suite & Scoreboard** | **✅ Yes (52 Golden Fixtures)**| ❌ No | ❌ No | ❌ No | ❌ No |
+| **KV-Cache Prefix Stability** | **✅ Deterministic sha256** | ⚠️ Cloud-managed | ⚠️ Heuristic | ❌ None | ❌ None |
+| **Editor Integration Protocol** | **✅ ACP (JSON-RPC 2.0)** | ❌ Custom CLI only | ❌ Custom CLI only | ✅ ACP | ⚠️ MCP only |
+| **Git Command Rewriting (`-sb`, `-U1`)** | **✅ Automatic** | ❌ Raw output | ❌ Raw output | ❌ Raw output | ❌ Raw output |
+| **Lockfile Diff Collapsing** | **✅ Built-in (95%+ saved)** | ❌ Raw diffs | ❌ Raw diffs | ❌ Raw diffs | ❌ Raw diffs |
+
+> For the comprehensive deep-dive report, see the [Competitive Landscape & Architecture Document](docs/competitive-analysis.md).
 
 ---
 
