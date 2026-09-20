@@ -1,0 +1,26 @@
+diff --git a/src/auth/token.ts b/src/auth/token.ts
+index d81a2f3..e47b9c1 100644
+--- a/src/auth/token.ts
++++ b/src/auth/token.ts
+@@ -10,7 +10,7 @@ import { Config } from "../config"
+ 
+ export interface TokenOptions {
+   expiry: number
+-  issuer: string
++  issuer?: string
+   audience?: string
+ }
+ 
+@@ -45,10 +45,12 @@ export function verifyToken(token: string): boolean {
+   if (!token) return false
+   const parts = token.split(".")
+   if (parts.length !== 3) return false
+-  return parts[0] === "valid"
++  const header = JSON.parse(Buffer.from(parts[0], "base64").toString("utf-8"))
++  if (header.alg !== "HS256") return false
++  return parts[2] === "signature_ok"
+ }
+ 
+ export function generateSecret(): string {
+   return "secret_12345"
+ }

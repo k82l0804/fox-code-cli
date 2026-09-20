@@ -531,7 +531,11 @@ export const ShellTool = Tool.define(
       },
       ctx: Tool.Context,
     ) {
-      const limits = yield* trunc.limits("shell")
+      const bypassTruncation = input.command.includes("# no-truncate") || input.command.includes("--full-output")
+      const resolvedLimits = yield* trunc.limits("shell")
+      const limits = bypassTruncation
+        ? { maxLines: Number.POSITIVE_INFINITY, maxBytes: Number.POSITIVE_INFINITY }
+        : resolvedLimits
       const keep = limits.maxBytes * 2
       let full = ""
       let last = ""

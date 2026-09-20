@@ -8,6 +8,7 @@ import {
   compressGitStatus,
   filterTestOutput,
   rewriteGitCommand,
+  truncateShellOutput,
   process,
   type CompressContext,
 } from "../src/tool/compress"
@@ -309,6 +310,21 @@ describe("CompressionMetrics", () => {
     CompressionMetrics.recordSuperseded(3)
     const s = CompressionMetrics.summary()
     expect(s.superseded).toBe(3)
+  })
+
+  test("recordRewrite tracks git command rewrite count", () => {
+    CompressionMetrics.recordRewrite()
+    CompressionMetrics.recordRewrite()
+    const s = CompressionMetrics.summary()
+    expect(s.rewrites).toBe(2)
+    expect(CompressionMetrics.active()).toBe(true)
+  })
+
+  test("recordTruncation tracks shell truncation count", () => {
+    CompressionMetrics.recordTruncation()
+    const s = CompressionMetrics.summary()
+    expect(s.truncations).toBe(1)
+    expect(CompressionMetrics.active()).toBe(true)
   })
 
   test("pctSaved is 0 when charsBefore is 0", () => {
@@ -774,7 +790,101 @@ describe("rewriteGitCommand", () => {
     expect(rewriteGitCommand("ls -la", opt)).toBe("ls -la")
   })
 
-  test("returns command unchanged when disabled", () => {
+  test("returns command unchanged when disabled or via disableRewrite", () => {
     expect(rewriteGitCommand("git status", { enabled: false })).toBe("git status")
+    expect(rewriteGitCommand("git status", { disableRewrite: true })).toBe("git status")
+    expect(rewriteGitCommand("git diff", { disableRewrite: true })).toBe("git diff")
+  })
+
+  test("supports raw git escape hatch prefix", () => {
+    expect(rewriteGitCommand("raw git diff", opt)).toBe("git diff")
+    expect(rewriteGitCommand("raw git status", opt)).toBe("git status")
+    expect(rewriteGitCommand("raw git log", opt)).toBe("git log")
+  })
+
+  test("supports \\git escape hatch prefix", () => {
+    expect(rewriteGitCommand("\\git diff", opt)).toBe("git diff")
+    expect(rewriteGitCommand("\\git status", opt)).toBe("git status")
+    expect(rewriteGitCommand("\\git log", opt)).toBe("git log")
+  })
+
+  test("supports git --raw escape hatch prefix", () => {
+    expect(rewriteGitCommand("git --raw diff", opt)).toBe("git diff")
+    expect(rewriteGitCommand("git --raw status", opt)).toBe("git status")
+    expect(rewriteGitCommand("git --raw log", opt)).toBe("git log")
+  })
+
+  test("preserves specialized git diff query flags", () => {
+    expect(rewriteGitCommand("git diff --stat", opt)).toBe("git diff --stat")
+    expect(rewriteGitCommand("git diff --name-only", opt)).toBe("git diff --name-only")
+    expect(rewriteGitCommand("git diff --name-status", opt)).toBe("git diff --name-status")
+  })
+
+  test("handles escape hatch in chained commands", () => {
+    expect(rewriteGitCommand("raw git diff && git status", opt)).toBe("git diff && git status -sb")
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Shell Truncation & Escape Hatch Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("truncateShellOutput", () => {
+  const generateLines = (n: number) => Array.from({ length: n }, (_, i) => `line ${i + 1}`).join("\n")
+
+  test("leaves output unchanged when within line and byte limits", () => {
+    const text = generateLines(50)
+    const res = truncateShellOutput(text, { maxLines: 100, maxBytes: 10000 })
+    expect(res.truncated).toBe(false)
+    expect(res.output).toBe(text)
+  })
+
+  test("truncates output when exceeding maxLines", () => {
+    const text = generateLines(300)
+    const res = truncateShellOutput(text, { maxLines: 100, maxBytes: 100000 })
+    expect(res.truncated).toBe(true)
+    expect(res.output).toContain("line 100")
+    expect(res.output).not.toContain("line 101\n")
+    expect(res.output).toContain("bytes truncated; narrow with grep/tail, or add '# no-truncate' for full output")
+  })
+
+  test("truncates output when exceeding maxBytes", () => {
+    const text = "a".repeat(10000)
+    const res = truncateShellOutput(text, { maxLines: 1000, maxBytes: 2048 })
+    expect(res.truncated).toBe(true)
+    expect(res.output).toContain("bytes truncated")
+  })
+
+  test("bypasses truncation when command contains # no-truncate", () => {
+    const text = generateLines(300)
+    const res = truncateShellOutput(text, {
+      command: "cat large.log # no-truncate",
+      maxLines: 100,
+      maxBytes: 1000,
+    })
+    expect(res.truncated).toBe(false)
+    expect(res.output).toBe(text)
+  })
+
+  test("bypasses truncation when command contains --full-output", () => {
+    const text = generateLines(300)
+    const res = truncateShellOutput(text, {
+      command: "bun test --full-output",
+      maxLines: 100,
+      maxBytes: 1000,
+    })
+    expect(res.truncated).toBe(false)
+    expect(res.output).toBe(text)
+  })
+
+  test("bypasses truncation when noTruncate option is set", () => {
+    const text = generateLines(300)
+    const res = truncateShellOutput(text, {
+      noTruncate: true,
+      maxLines: 100,
+      maxBytes: 1000,
+    })
+    expect(res.truncated).toBe(false)
+    expect(res.output).toBe(text)
   })
 })

@@ -5,6 +5,7 @@ import { optional } from "./schema"
 import { Model } from "./model"
 import { Permission } from "./permission"
 import { Provider } from "./provider"
+import { Workflow } from "./workflow"
 import { PositiveInt, statics } from "./schema"
 
 export const ID = Schema.String.pipe(Schema.brand("AgentV2.ID"))
@@ -24,6 +25,7 @@ export const Info = Schema.Struct({
   system: Schema.String.pipe(optional),
   description: Schema.String.pipe(optional),
   mode: Schema.Literals(["subagent", "primary", "all"]),
+  workflow: Workflow.pipe(optional),
   hidden: Schema.Boolean,
   color: Color.pipe(optional),
   steps: PositiveInt.pipe(optional),

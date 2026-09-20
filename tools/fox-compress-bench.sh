@@ -44,7 +44,7 @@ run_prompt() {
   local prompt="$1"
   local session_id
 
-  session_id=$(curl "${CURL_OPTS[@]}" -X POST "${FOX_SERVER}/sessions/create" \
+  session_id=$(curl "${CURL_OPTS[@]}" -X POST "${FOX_SERVER}/session" \
     -H 'Content-Type: application/json' -d '{}' | jq -r '.id')
 
   if [ -z "$session_id" ] || [ "$session_id" = "null" ]; then
@@ -52,18 +52,35 @@ run_prompt() {
     return 1
   fi
 
+  # Auto-approve permissions
+  curl "${CURL_OPTS[@]}" -X POST "${FOX_SERVER}/permission/allow-everything" \
+    -H "Content-Type: application/json" \
+    -d "{\"enable\": true, \"sessionID\": \"${session_id}\"}" > /dev/null 2>&1 || true
+
   # Send prompt and wait for completion
-  curl "${CURL_OPTS[@]}" -N "${FOX_SERVER}/sessions/${session_id}/prompt" \
+  curl "${CURL_OPTS[@]}" -X POST "${FOX_SERVER}/session/${session_id}/message" \
     -H 'Content-Type: application/json' \
-    -d "{\"content\": \"$prompt\"}" \
-    --max-time 120 > /dev/null 2>&1 || true
+    -d "{\"parts\": [{\"type\": \"text\", \"text\": \"$prompt\"}]}" \
+    > /dev/null 2>&1
 
   # Wait for processing
-  sleep 2
+  local elapsed=0
+  while [ $elapsed -lt 90 ]; do
+    local msgs
+    msgs=$(curl "${CURL_OPTS[@]}" "${FOX_SERVER}/session/${session_id}/message" 2>/dev/null || echo "[]")
+    local last_role last_completed
+    last_role=$(echo "$msgs" | jq -r 'if type == "array" then .[-1].info.role // "none" else "none" end' 2>/dev/null)
+    last_completed=$(echo "$msgs" | jq -r 'if type == "array" then .[-1].info.time.completed // "null" else "null" end' 2>/dev/null)
+    if [ "$last_role" = "assistant" ] && [ "$last_completed" != "null" ]; then
+      break
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
 
   # Collect metrics from messages
   local messages
-  messages=$(curl "${CURL_OPTS[@]}" "${FOX_SERVER}/sessions/${session_id}/messages" 2>/dev/null)
+  messages=$(curl "${CURL_OPTS[@]}" "${FOX_SERVER}/session/${session_id}/message" 2>/dev/null)
 
   if [ -z "$messages" ] || [ "$messages" = "null" ]; then
     echo "{\"error\": \"no messages\", \"prompt\": \"$prompt\"}"
@@ -74,18 +91,18 @@ run_prompt() {
   echo "$messages" | jq -c '{
     prompt: "'"$prompt"'",
     session: "'"$session_id"'",
-    steps: [.[] | select(.role == "assistant") | {
-      input_tokens: (.metadata.usage.input // 0),
-      output_tokens: (.metadata.usage.output // 0),
-      cache_read: (.metadata.usage.cache_read // 0),
-      cache_write: (.metadata.usage.cache_write // 0),
-      reasoning: (.metadata.usage.reasoning // 0),
-      duration_ms: (.metadata.time.completed - .metadata.time.created // 0)
+    steps: [.[] | select(.info.role == "assistant") | {
+      input_tokens: (.info.tokens.input // 0),
+      output_tokens: (.info.tokens.output // 0),
+      cache_read: (.info.tokens.cache.read // 0),
+      cache_write: (.info.tokens.cache.write // 0),
+      reasoning: (.info.tokens.reasoning // 0),
+      duration_ms: (.info.time.completed - .info.time.created // 0)
     }],
-    total_input: ([.[] | select(.role == "assistant") | .metadata.usage.input // 0] | add),
-    total_output: ([.[] | select(.role == "assistant") | .metadata.usage.output // 0] | add),
-    total_cache_read: ([.[] | select(.role == "assistant") | .metadata.usage.cache_read // 0] | add),
-    step_count: ([.[] | select(.role == "assistant")] | length)
+    total_input: ([.[] | select(.info.role == "assistant") | .info.tokens.input // 0] | add),
+    total_output: ([.[] | select(.info.role == "assistant") | .info.tokens.output // 0] | add),
+    total_cache_read: ([.[] | select(.info.role == "assistant") | .info.tokens.cache.read // 0] | add),
+    step_count: ([.[] | select(.info.role == "assistant")] | length)
   }' 2>/dev/null || echo "{\"error\": \"parse failed\", \"prompt\": \"$prompt\"}"
 }
 

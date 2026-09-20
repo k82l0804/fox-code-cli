@@ -171,8 +171,14 @@ interface ToolCallEntry {
  * Stored message parts are NEVER modified — supersession is applied only
  * at render time when compiling messages for the LLM.
  */
-export function buildSupersededSet(msgs: SessionV1.WithParts[], options?: { enabled?: boolean }): Map<string, string> {
-  const enabled = options?.enabled ?? Flag.FOX_EXPERIMENTAL_COMPRESS_SUPERSEDE
+import { getWorkflowPolicy, type WorkflowType } from "@opencode-ai/core/tool/compress"
+
+export function buildSupersededSet(
+  msgs: SessionV1.WithParts[],
+  options?: { enabled?: boolean; workflow?: WorkflowType },
+): Map<string, string> {
+  const policy = getWorkflowPolicy(options?.workflow)
+  const enabled = options?.enabled ?? (Flag.FOX_EXPERIMENTAL_COMPRESS_SUPERSEDE && policy.gitSupersede)
   if (!enabled) return new Map()
 
   const start = performance.now()

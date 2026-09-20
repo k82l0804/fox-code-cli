@@ -25,8 +25,10 @@
     "test:edit": "bun test test/edit-replacers.test.ts test/encoding.test.ts --timeout 30000",
     "test:config": "bun test test/config-merge.test.ts --timeout 30000",
     "test:compress": "bun test packages/core/test/compress.test.ts packages/core/test/compression-roi.test.ts --timeout 30000",
+    "test:standard-suite": "bun test test/standard-suite.test.ts --timeout 30000",
     "test:schema-stability": "bun test packages/core/test/schema-stability.test.ts --timeout 10000",
-    "test:app": "bun test ./test/*.test.ts --timeout 30000"
+    "test:app": "bun test ./test/*.test.ts --timeout 30000",
+    "scoreboard": "bun run tools/fox-standard-scoreboard.ts"
   },
   "bin": {
     "fox": "./bin/fox",

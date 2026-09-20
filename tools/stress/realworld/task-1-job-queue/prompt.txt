@@ -1,0 +1,28 @@
+You are tasked with implementing a production-grade, asynchronous Task Queue & Worker Engine in TypeScript for a backend service.
+
+Requirements:
+1. Create `src/queue.ts` exporting a class `TaskQueue`:
+   - Priority Queuing: Support tasks with priorities `'high' | 'normal' | 'low'`. High priority tasks must be dequeued before normal, and normal before low. Within the same priority, tasks are FIFO.
+   - Concurrency Throttling: Configurable `concurrency` limit (default: 2). At most `concurrency` worker handlers may execute concurrently.
+   - Retry Mechanism: Automatic retries with exponential backoff on transient errors (default: `maxRetries: 2`). If a task fails, wait `2^attempt * 50ms` before re-enqueueing.
+   - Dead Letter Queue (DLQ): If a task fails after exhausting all retries, route it to the Dead Letter Queue.
+   - Lifecycle / Stats:
+     `getStats(): { queued: number, running: number, completed: number, failed: number, dlq: number }`
+     `getDLQ(): Array<{ id: string, error: string, attempts: number }>`
+     `drain(): Promise<void>` (resolves when all currently queued and running tasks finish)
+
+2. Create automated tests in `test/queue.test.ts` using `bun:test`:
+   - Test 1: Concurrency limit (verify no more than `concurrency` tasks run simultaneously).
+   - Test 2: Priority ordering (verify 'high' priority tasks jump ahead of earlier 'low' priority tasks).
+   - Test 3: Retries with backoff (verify a flaky task that fails once then succeeds is marked completed with 1 retry).
+   - Test 4: Dead Letter Queue (verify a permanently failing task transitions to DLQ after exhausting retries).
+   - Test 5: Accurate statistics reporting throughout the queue lifecycle.
+
+3. Create an executable demonstration in `src/index.ts`:
+   - Enqueue a batch of 5 varied tasks (e.g. quick math, simulated slow I/O, flaky API call that recovers, permanent failure).
+   - Call `drain()` to await completion.
+   - Print a clean console table or formatted summary of completed tasks, DLQ entries, and final `getStats()`.
+
+4. Verification:
+   - Run `bun test test/queue.test.ts` to ensure all tests pass cleanly.
+   - Run `bun run src/index.ts` to ensure the application executes and produces expected output.

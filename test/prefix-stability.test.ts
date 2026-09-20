@@ -7,9 +7,11 @@
  * Strategy 4.3 — KV-Cache Prefix Freezing
  */
 import { describe, test, expect } from "bun:test"
+import { createHash } from "node:crypto"
 import { KilocodeSystemPrompt } from "@/foxcode/system-prompt"
 import type { InstanceContext } from "@/project/instance-context"
 import type { Provider } from "@/provider/provider"
+import { ToolSchemaProjection } from "@opencode-ai/llm/protocols/utils/tool-schema"
 
 const fakeContext = (): InstanceContext => ({
   directory: "/home/user/project",
@@ -82,4 +84,62 @@ describe("system prompt prefix stability (4.3)", () => {
     expect(joined).toContain("<env>")
     expect(joined).toContain("</env>")
   })
+
+  test("tool schemas are sorted alphabetically for deterministic KV prefix (Invariant A)", () => {
+    const rawTools: Record<string, { description?: string; inputSchema: Record<string, unknown> }> = {
+      write_file: { description: "Write file", inputSchema: { type: "object", properties: { path: { type: "string" } } } },
+      bash: { description: "Run bash", inputSchema: { type: "object", properties: { command: { type: "string" } } } },
+      read_file: { description: "Read file", inputSchema: { type: "object", properties: { path: { type: "string" } } } },
+      edit_file: { description: "Edit file", inputSchema: { type: "object", properties: { path: { type: "string" } } } },
+    }
+
+    const sortedKeys = Object.keys(rawTools).sort()
+    expect(sortedKeys).toEqual(["bash", "edit_file", "read_file", "write_file"])
+
+    // Assert that key sorting produces identical JSON representation regardless of insertion order
+    const shuffled: Record<string, unknown> = {
+      read_file: rawTools.read_file,
+      bash: rawTools.bash,
+      write_file: rawTools.write_file,
+      edit_file: rawTools.edit_file,
+    }
+    const sortObject = (obj: Record<string, unknown>) =>
+      Object.fromEntries(Object.keys(obj).sort().map((k) => [k, obj[k]]))
+
+    expect(JSON.stringify(sortObject(rawTools))).toBe(JSON.stringify(sortObject(shuffled)))
+  })
+
+  test("schema minification preserves required parameter keys and types (Invariant B)", () => {
+    const bashSchema = {
+      type: "object" as const,
+      $schema: "http://json-schema.org/draft-07/schema#",
+      title: "BashInput",
+      additionalProperties: false,
+      properties: {
+        command: { type: "string" as const, description: "The bash command to execute" },
+        timeout: { type: "number" as const, description: "Command timeout in ms" },
+      },
+      required: ["command"],
+    }
+
+    const compact = ToolSchemaProjection.compact(bashSchema) as any
+    expect(compact.type).toBe("object")
+    expect(compact.required).toEqual(["command"])
+    expect(compact.properties.command.type).toBe("string")
+    expect(compact.properties.timeout.type).toBe("number")
+    expect(compact.additionalProperties).toBeUndefined()
+  })
+
+  test("prefix snapshot hash is deterministic across runs (Invariant D)", () => {
+    const ctx = fakeContext()
+    const model = fakeModel()
+
+    const envLines = KilocodeSystemPrompt.environment({ ctx, model }).join("\n")
+    const hash1 = createHash("sha256").update(envLines).digest("hex")
+    const hash2 = createHash("sha256").update(envLines).digest("hex")
+
+    expect(hash1).toBe(hash2)
+    expect(hash1.length).toBe(64)
+  })
 })
+

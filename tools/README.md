@@ -162,3 +162,42 @@ bun run tools/fox-vs-kilo-showdown.ts
 | bash: build log | 25 repeated warnings (log dedup) |
 | grep: deep path results | 40 results with deeply nested paths |
 
+---
+
+## fox-standard-scoreboard.ts — Canonical Fox Standard Test Suite & Baseline Scoreboard
+
+Computes and renders the official **Fox Standard Test Suite Baseline Scoreboard** across the **6 Golden Corpora (52 fixtures)**, including the **12-task SWE-bench Mini** benchmark catalog.
+
+### Usage
+
+```bash
+# Run the complete Fox Standard Test Suite invariant verification (356 assertions)
+bun run test:standard-suite
+
+# Recompute and display the live baseline scoreboard (terminal table + docs/ update)
+bun run scoreboard
+
+# Inspect JSON telemetry from the scoreboard
+bun run scoreboard --json
+
+# Run via Fox CLI
+fox standard-suite scoreboard
+fox standard-suite tasks
+```
+
+### Corpora Coverage (52 Golden Fixtures)
+
+1. **`swe-bench-mini` (24 fixtures / 12 tasks)**: Real-world bug fixes, refactorings, diff hunks, and failing test logs.
+2. **`gitops` (7 fixtures)**: Status, diff, merge conflict preservation, branch switching, log rewrites, release tags.
+3. **`test-output` (6 fixtures)**: Bun test, Vitest, Pytest, Cargo test, TypeScript compiler diagnostics, install logs.
+4. **`diff` (6 fixtures)**: Multi-hunk diffs, 150-line package-lock collapses, whitespace diffs, binary diffs, edge-of-file edits, renames.
+5. **`shell-output` (5 fixtures)**: 400-line oversized logs, `# no-truncate` escape hatches, path normalization, GNU grep, find.
+6. **`document` (4 fixtures)**: 35-row tabular JSON, repetitive JSON key packing, markdown technical specifications, CSV datasets.
+
+### Scoreboard Metrics
+
+- **Tokens Saved**: +17,270 tokens (52.3% net reduction across the entire corpus)
+- **Overhead**: 4.35 ms cumulative latency across all 52 fixtures
+- **Compression ROI**: 15,914 chars/ms (far exceeds the 5.0 threshold)
+- **Invariants**: 100% PASS (Lossless, Non-Expansion, Prefix Stability, Supersession, Escape Hatch)
+

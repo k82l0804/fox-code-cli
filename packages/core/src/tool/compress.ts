@@ -18,11 +18,108 @@ import { CompressionMetrics } from "./compression-metrics"
 
 const log = Log.create({ service: "compression" })
 
+export type WorkflowType = "swe" | "data" | "research" | "shell" | "none" | "auto"
+
+export interface WorkflowPolicy {
+  readonly gitRewrite: boolean
+  readonly gitSupersede: boolean
+  readonly diffTrim: boolean
+  readonly lockfileCollapse: boolean
+  readonly testFilter: boolean
+  readonly logDedup: boolean
+  readonly tabular: boolean
+  readonly pathNormalize: boolean
+  readonly shellTruncate: boolean
+  readonly maxShellLines: number
+  readonly maxShellBytes: number
+}
+
+const swePolicy: WorkflowPolicy = {
+  gitRewrite: true,
+  gitSupersede: true,
+  diffTrim: true,
+  lockfileCollapse: true,
+  testFilter: true,
+  logDedup: true,
+  tabular: true,
+  pathNormalize: true,
+  shellTruncate: true,
+  maxShellLines: 200,
+  maxShellBytes: 8192,
+}
+
+export const WORKFLOW_POLICIES: Record<WorkflowType, WorkflowPolicy> = {
+  swe: swePolicy,
+  auto: swePolicy,
+  data: {
+    gitRewrite: false,
+    gitSupersede: false,
+    diffTrim: false,
+    lockfileCollapse: false,
+    testFilter: false,
+    logDedup: true,
+    tabular: true,
+    pathNormalize: true,
+    shellTruncate: true,
+    maxShellLines: 500,
+    maxShellBytes: 32768,
+  },
+  research: {
+    gitRewrite: false,
+    gitSupersede: false,
+    diffTrim: false,
+    lockfileCollapse: false,
+    testFilter: false,
+    logDedup: false,
+    tabular: false,
+    pathNormalize: true,
+    shellTruncate: true,
+    maxShellLines: 1000,
+    maxShellBytes: 65536,
+  },
+  shell: {
+    gitRewrite: false,
+    gitSupersede: false,
+    diffTrim: false,
+    lockfileCollapse: false,
+    testFilter: false,
+    logDedup: true,
+    tabular: false,
+    pathNormalize: true,
+    shellTruncate: false,
+    maxShellLines: 10000,
+    maxShellBytes: 1024 * 1024,
+  },
+  none: {
+    gitRewrite: false,
+    gitSupersede: false,
+    diffTrim: false,
+    lockfileCollapse: false,
+    testFilter: false,
+    logDedup: false,
+    tabular: false,
+    pathNormalize: false,
+    shellTruncate: false,
+    maxShellLines: 10000,
+    maxShellBytes: 1024 * 1024,
+  },
+}
+
+export function getWorkflowPolicy(workflow?: WorkflowType): WorkflowPolicy {
+  if (Flag.FOX_COMPRESSION_SAFE) {
+    return WORKFLOW_POLICIES.none
+  }
+  const key = workflow ?? (Flag.FOX_WORKLOAD as WorkflowType) ?? "swe"
+  return WORKFLOW_POLICIES[key] ?? WORKFLOW_POLICIES.swe
+}
+
 export interface CompressContext {
   /** Absolute path to the workspace / Location root. */
   readonly workspaceRoot: string
   /** Name of the tool that produced this output. */
   readonly toolName: string
+  /** Active agent workflow profile */
+  readonly workflow?: WorkflowType
 }
 
 // ---------------------------------------------------------------------------
@@ -33,7 +130,7 @@ interface Transform {
   readonly name: string
   /** Jaeger span name matching the metrics doc convention. */
   readonly span: string
-  readonly enabled: () => boolean
+  readonly enabled: (policy: WorkflowPolicy) => boolean
   readonly apply: (text: string, ctx: CompressContext) => string
 }
 
@@ -41,43 +138,43 @@ const transforms: readonly Transform[] = [
   {
     name: "relativizePaths",
     span: "compression.path_normalization",
-    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_PATHS,
+    enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_PATHS && p.pathNormalize,
     apply: relativizePaths,
   },
   {
     name: "compressGitStatus",
     span: "compression.git_status",
-    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_GIT,
+    enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_GIT && p.gitRewrite,
     apply: compressGitStatus,
   },
   {
     name: "trimDiffContext",
     span: "compression.diff_context_trim",
-    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF,
+    enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF && p.diffTrim,
     apply: trimDiffContext,
   },
   {
     name: "filterTestOutput",
     span: "compression.test_output",
-    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_GIT,
+    enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_GIT && p.testFilter,
     apply: filterTestOutput,
   },
   {
     name: "compressTabular",
     span: "compression.structured_data.tabular",
-    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_DATA,
+    enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_DATA && p.tabular,
     apply: compressTabular,
   },
   {
     name: "deduplicateLogLines",
     span: "compression.structured_data.dedup",
-    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_DATA,
+    enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_DATA && p.logDedup,
     apply: deduplicateLogLines,
   },
   {
     name: "compressJsonKeys",
     span: "compression.structured_data.json_keys",
-    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_DATA,
+    enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_DATA && p.tabular,
     apply: compressJsonKeys,
   },
 ]
@@ -93,9 +190,10 @@ export function process(text: string, ctx: CompressContext): string {
   const originalLen = text.length
   let anyEnabled = false
   let totalOverheadMs = 0
+  const policy = getWorkflowPolicy(ctx.workflow)
 
   for (const transform of transforms) {
-    if (!transform.enabled()) continue
+    if (!transform.enabled(policy)) continue
 
     // ROI auto-skip: skip transforms with consistently low ROI
     if (CompressionMetrics.shouldSkip(transform.name)) {
@@ -143,6 +241,16 @@ export function process(text: string, ctx: CompressContext): string {
       charsSaved: originalLen - text.length,
       pctSaved: Math.round(((originalLen - text.length) / originalLen) * 1000) / 10,
     })
+    if (Flag.FOX_COMPRESSION_CANARY) {
+      log.info("compress.canary", {
+        tool: ctx.toolName,
+        charsBefore: originalLen,
+        charsAfter: text.length,
+        charsSaved: originalLen - text.length,
+        pctSaved: Math.round(((originalLen - text.length) / originalLen) * 1000) / 10,
+        overheadMs: Math.round(totalOverheadMs * 100) / 100,
+      })
+    }
   }
 
   // Record aggregate metrics to the global accumulator (read at step-finish).
@@ -180,7 +288,7 @@ export function relativizePaths(text: string, ctx: CompressContext): string {
  * Only triggers when the text is a top-level JSON array of ≥3 objects with
  * identical key sets.  Falls back to raw text on any detection failure.
  */
-export function compressTabular(text: string, _ctx: CompressContext): string {
+export function compressTabular(text: string, _ctx?: CompressContext): string {
   const trimmed = text.trim()
   if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return text
   let parsed: unknown
@@ -212,7 +320,7 @@ export function compressTabular(text: string, _ctx: CompressContext): string {
  * Also collapses runs of lines matching common success patterns
  * (e.g., `✓ test_name`, `✔ test_name`, `PASS test_name`).
  */
-export function deduplicateLogLines(text: string, _ctx: CompressContext): string {
+export function deduplicateLogLines(text: string, _ctx?: CompressContext): string {
   const lines = text.split("\n")
   if (lines.length < 5) return text
 
@@ -252,7 +360,7 @@ export function deduplicateLogLines(text: string, _ctx: CompressContext): string
  * NOTE: This transform runs AFTER compressTabular. If compressTabular
  * already converted the text, this is a no-op (the text is no longer JSON).
  */
-export function compressJsonKeys(text: string, _ctx: CompressContext): string {
+export function compressJsonKeys(text: string, _ctx?: CompressContext): string {
   const trimmed = text.trim()
   if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return text
   let parsed: unknown
@@ -302,7 +410,7 @@ export function compressJsonKeys(text: string, _ctx: CompressContext): string {
  * Eliminates novice instructional hints like (use "git add..." ) while preserving
  * 100% of branch, tracking, staged, unstaged, and untracked file status.
  */
-export function compressGitStatus(text: string, _ctx: CompressContext): string {
+export function compressGitStatus(text: string, _ctx?: CompressContext): string {
   if (!text.includes("On branch ") && !text.startsWith("On branch ")) return text
 
   const lines = text.split("\n")
@@ -400,7 +508,7 @@ export function compressGitStatus(text: string, _ctx: CompressContext): string {
  * into `[N passing tests omitted]` when there are ≥4 consecutive passes.
  * Failures, errors, stack traces, and summary stats are never modified.
  */
-export function filterTestOutput(text: string, _ctx: CompressContext): string {
+export function filterTestOutput(text: string, _ctx?: CompressContext): string {
   const lines = text.split("\n")
   if (lines.length < 6) return text
 
@@ -454,7 +562,7 @@ const LOCKFILE_REGEX = /(?:package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lo
  *
  * Safety: all `+`/`-` lines are preserved. Hunk line counts are recalculated.
  */
-export function trimDiffContext(text: string, _ctx: CompressContext): string {
+export function trimDiffContext(text: string, _ctx?: CompressContext): string {
   const contextLines = Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF_CONTEXT ?? 1
 
   // Quick detection: must contain diff-like markers
@@ -632,7 +740,12 @@ function trimHunkContext(hunkLines: string[], keep: number): string[] {
  * Transparently injects terse flags (-sb, -U1, --oneline -n 20) when the model
  * issues raw git commands without formatting flags.
  */
-export function rewriteGitCommand(command: string, options?: { enabled?: boolean }): string {
+export function rewriteGitCommand(
+  command: string,
+  options?: { enabled?: boolean; disableRewrite?: boolean; workflow?: WorkflowType },
+): string {
+  const policy = getWorkflowPolicy(options?.workflow)
+  if (options?.disableRewrite || Flag.FOX_GIT_NO_REWRITE || !policy.gitRewrite) return command
   const enabled = options?.enabled ?? Flag.FOX_EXPERIMENTAL_COMPRESS_GIT
   if (!enabled) return command
 
@@ -642,6 +755,20 @@ export function rewriteGitCommand(command: string, options?: { enabled?: boolean
 
   const rewritten = parts.map((part) => {
     const trimmed = part.trim()
+
+    // Escape hatch 1: "raw git <cmd>" -> strips "raw " and leaves command unmodified
+    if (/^raw\s+git(?:\s+|$)/.test(trimmed)) {
+      return part.replace(/^(\s*)raw\s+git/, "$1git")
+    }
+    // Escape hatch 2: "\git <cmd>" -> strips "\" and leaves command unmodified
+    if (/^\\git(?:\s+|$)/.test(trimmed)) {
+      return part.replace(/^(\s*)\\git/, "$1git")
+    }
+    // Escape hatch 3: "git --raw <cmd>" -> strips "--raw " and leaves command unmodified
+    if (/^git\s+--raw(?:\s+|$)/.test(trimmed)) {
+      return part.replace(/^(\s*)git\s+--raw/, "$1git")
+    }
+
     if (!trimmed.startsWith("git ") && trimmed !== "git") return part
 
     // 1. git status
@@ -653,7 +780,13 @@ export function rewriteGitCommand(command: string, options?: { enabled?: boolean
 
     // 2. git diff
     if (/^git\s+diff(?:\s+|$)/.test(trimmed)) {
-      if (!trimmed.includes("-U") && !trimmed.includes("--unified")) {
+      if (
+        !trimmed.includes("-U") &&
+        !trimmed.includes("--unified") &&
+        !trimmed.includes("--stat") &&
+        !trimmed.includes("--name-only") &&
+        !trimmed.includes("--name-status")
+      ) {
         return part.replace(/\bgit\s+diff\b/, "git diff -U1")
       }
     }
@@ -670,6 +803,81 @@ export function rewriteGitCommand(command: string, options?: { enabled?: boolean
     return part
   })
 
-  return rewritten.join("")
+  const result = rewritten.join("")
+  if (result !== command) {
+    CompressionMetrics.recordRewrite()
+    if (Flag.FOX_COMPRESSION_CANARY) {
+      log.info("compress.canary.git_rewrite", { original: command, rewritten: result })
+    }
+  }
+  return result
 }
+
+/**
+ * Truncates shell output according to line and byte limits, supporting
+ * explicit bypass via # no-truncate, --full-output, or FOX_SHELL_NO_TRUNCATE.
+ */
+export function truncateShellOutput(
+  output: string,
+  options?: {
+    command?: string
+    maxLines?: number
+    maxBytes?: number
+    noTruncate?: boolean
+    workflow?: WorkflowType
+  },
+): { output: string; truncated: boolean } {
+  const policy = getWorkflowPolicy(options?.workflow)
+  if (!policy.shellTruncate) {
+    return { output, truncated: false }
+  }
+
+  const command = options?.command ?? ""
+  const bypass =
+    options?.noTruncate ||
+    Flag.FOX_SHELL_NO_TRUNCATE ||
+    command.includes("# no-truncate") ||
+    command.includes("--full-output")
+
+  if (bypass) {
+    return { output, truncated: false }
+  }
+
+  const maxLines =
+    options?.maxLines ??
+    (globalThis.process?.env?.["FOX_SHELL_MAX_LINES"] ? Flag.FOX_SHELL_MAX_LINES : policy.maxShellLines)
+  const maxBytes =
+    options?.maxBytes ??
+    (globalThis.process?.env?.["FOX_SHELL_MAX_BYTES"] ? Flag.FOX_SHELL_MAX_BYTES : policy.maxShellBytes)
+
+  const lines = output.split("\n")
+  const totalBytes = Buffer.byteLength(output, "utf8")
+
+  if (lines.length <= maxLines && totalBytes <= maxBytes) {
+    return { output, truncated: false }
+  }
+
+  const outLines: string[] = []
+  let byteCount = 0
+  for (let i = 0; i < lines.length && i < maxLines; i++) {
+    const lineSize = Buffer.byteLength(lines[i]!, "utf8") + (i > 0 ? 1 : 0)
+    if (byteCount + lineSize > maxBytes) break
+    outLines.push(lines[i]!)
+    byteCount += lineSize
+  }
+
+  const removedBytes = totalBytes - byteCount
+  CompressionMetrics.recordTruncation()
+  if (Flag.FOX_COMPRESSION_CANARY) {
+    log.info("compress.canary.truncation", {
+      linesTotal: lines.length,
+      linesKept: outLines.length,
+      bytesTotal: totalBytes,
+      bytesRemoved: removedBytes,
+    })
+  }
+  const notice = `\n\n[...${removedBytes} bytes truncated; narrow with grep/tail, or add '# no-truncate' for full output...]`
+  return { output: `${outLines.join("\n")}${notice}`, truncated: true }
+}
+
 

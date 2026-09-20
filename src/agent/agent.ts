@@ -31,6 +31,8 @@ import * as FoxReference from "@/foxcode/reference"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { LocationServiceMap, locationServiceMapLayer } from "@opencode-ai/core/location-services"
+import { Workflow } from "@opencode-ai/schema"
+
 export const Info = Schema.Struct({
   name: Schema.String,
   displayName: Schema.optional(Schema.String),
@@ -38,6 +40,7 @@ export const Info = Schema.Struct({
   description: Schema.optional(Schema.String),
   deprecated: Schema.optional(Schema.Boolean),
   mode: Schema.Literals(["subagent", "primary", "all"]),
+  workflow: Schema.optional(Workflow),
   native: Schema.optional(Schema.Boolean),
   hidden: Schema.optional(Schema.Boolean),
   topP: Schema.optional(Schema.Finite),
@@ -162,6 +165,7 @@ const layer = Layer.effect(
               user,
             ),
             mode: "primary",
+            workflow: "swe",
             native: true,
           },
           plan: {
@@ -188,6 +192,7 @@ const layer = Layer.effect(
               user,
             ),
             mode: "primary",
+            workflow: "none",
             native: true,
           },
           general: {
@@ -202,6 +207,7 @@ const layer = Layer.effect(
             ),
             options: {},
             mode: "subagent",
+            workflow: "swe",
             native: true,
           },
           explore: {
@@ -225,6 +231,7 @@ const layer = Layer.effect(
             prompt: PROMPT_EXPLORE,
             options: {},
             mode: "subagent",
+            workflow: "research",
             native: true,
           },
           ...(flags.experimentalScout
@@ -253,6 +260,7 @@ const layer = Layer.effect(
                   prompt: PROMPT_SCOUT,
                   options: {},
                   mode: "subagent" as const,
+                  workflow: "research",
                   native: true,
                 },
               }

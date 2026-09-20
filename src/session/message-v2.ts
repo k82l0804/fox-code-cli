@@ -751,7 +751,7 @@ export function fromError(
           message: SessionNetwork.message(e),
           isRetryable: true,
           metadata: {
-            code: (e as SystemError).code ?? "",
+            code: String((e as SystemError).code ?? ""),
             syscall: (e as SystemError).syscall ?? "",
             message: (e as SystemError).message ?? "",
           },

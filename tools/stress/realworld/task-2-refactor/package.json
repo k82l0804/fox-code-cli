@@ -1,0 +1,8 @@
+{
+  "name": "cart-pricing-refactor",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "bun test_regression.ts"
+  }
+}

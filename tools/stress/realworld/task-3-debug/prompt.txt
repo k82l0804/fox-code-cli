@@ -1,0 +1,11 @@
+The Sliding Window Rate Limiter implementation at `rate_limiter.ts` is failing multiple tests in `test_rate_limiter.ts`.
+
+Your instructions:
+1. Run `bun test_rate_limiter.ts` to inspect the failing test cases and diagnostic messages.
+2. Investigate and diagnose the root causes of the failures in `rate_limiter.ts`:
+   - Sliding window carry-over / overlap calculation across time boundaries.
+   - Stale client cleanup condition.
+   - Quota reset behavior.
+3. Surgically fix the bugs in `rate_limiter.ts` so all tests pass.
+4. Do NOT modify or delete `test_rate_limiter.ts`.
+5. Run `bun test_rate_limiter.ts` to confirm that all tests pass cleanly with 0 failures.

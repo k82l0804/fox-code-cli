@@ -1,4 +1,5 @@
 export { Agent } from "./agent"
+export { Workflow } from "./workflow"
 export { Command } from "./command"
 export { Connection } from "./connection"
 export { Credential } from "./credential"

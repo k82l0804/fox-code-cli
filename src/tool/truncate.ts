@@ -33,6 +33,8 @@ function hasTaskTool(agent?: Agent.Info) {
   return evaluate("task", "*", agent.permission).action !== "deny"
 }
 
+import { getWorkflowPolicy, type WorkflowType } from "@opencode-ai/core/tool/compress"
+
 export interface Interface {
   readonly cleanup: () => Effect.Effect<void>
   readonly write: (text: string) => Effect.Effect<string>
@@ -43,9 +45,9 @@ export interface Interface {
   readonly output: (text: string, options?: Options, agent?: Agent.Info) => Effect.Effect<Result>
   /**
    * Resolved truncation limits: values from `tool_output` in opencode config, or MAX_LINES / MAX_BYTES if unset.
-   * When tool is "bash" or "shell" and compression is enabled, uses tighter 8KB/200 line limits.
+   * When tool is "bash" or "shell" and compression is enabled, uses workflow-tailored limits.
    */
-  readonly limits: (tool?: string) => Effect.Effect<{ maxLines: number; maxBytes: number }>
+  readonly limits: (tool?: string, workflow?: WorkflowType) => Effect.Effect<{ maxLines: number; maxBytes: number }>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Truncate") {}
@@ -77,11 +79,17 @@ const layer = Layer.effect(
       return file
     })
 
-    const limits = Effect.fn("Truncate.limits")(function* (tool?: string) {
+    const limits = Effect.fn("Truncate.limits")(function* (tool?: string, workflow?: WorkflowType) {
       const configSvc = yield* Effect.serviceOption(Config.Service)
+      const policy = getWorkflowPolicy(workflow)
       const isShell = tool === "bash" || tool === "shell"
-      const defaultLines = isShell && Flag.FOX_EXPERIMENTAL_COMPRESS_GIT ? MAX_SHELL_LINES : MAX_LINES
-      const defaultBytes = isShell && Flag.FOX_EXPERIMENTAL_COMPRESS_GIT ? MAX_SHELL_BYTES : MAX_BYTES
+      if (isShell && (Flag.FOX_SHELL_NO_TRUNCATE || !policy.shellTruncate)) {
+        return { maxLines: Number.POSITIVE_INFINITY, maxBytes: Number.POSITIVE_INFINITY }
+      }
+      const shellLines = process.env["FOX_SHELL_MAX_LINES"] ? Flag.FOX_SHELL_MAX_LINES : policy.maxShellLines
+      const shellBytes = process.env["FOX_SHELL_MAX_BYTES"] ? Flag.FOX_SHELL_MAX_BYTES : policy.maxShellBytes
+      const defaultLines = isShell && Flag.FOX_EXPERIMENTAL_COMPRESS_GIT ? shellLines : MAX_LINES
+      const defaultBytes = isShell && Flag.FOX_EXPERIMENTAL_COMPRESS_GIT ? shellBytes : MAX_BYTES
 
       if (Option.isNone(configSvc)) return { maxLines: defaultLines, maxBytes: defaultBytes }
       const cfg = yield* configSvc.value.get().pipe(Effect.catch(() => Effect.succeed(undefined)))
@@ -92,7 +100,7 @@ const layer = Layer.effect(
     })
 
     const output = Effect.fn("Truncate.output")(function* (text: string, options: Options = {}, agent?: Agent.Info) {
-      const resolved = yield* limits(options.tool)
+      const resolved = yield* limits(options.tool, agent?.workflow)
       const maxLines = options.maxLines ?? resolved.maxLines
       const maxBytes = options.maxBytes ?? resolved.maxBytes
       const direction = options.direction ?? "head"

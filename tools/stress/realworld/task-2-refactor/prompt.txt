@@ -1,0 +1,22 @@
+Refactor the TypeScript file `cart_garbage.ts`.
+It calculates e-commerce shopping cart pricing, discounts, shipping, and tax. While it currently works and passes tests, it is riddled with critical technical debt:
+- 6-level nested if-else statements (arrow anti-pattern)
+- Global mutable variables (`g_sub`, `g_disc`, `g_flags`, `g_net`) which break thread safety and reentrancy
+- Magic numbers without constants
+- Obfuscated variable names (`it`, `l_tot`, `rem1`, `ret_z`)
+- Complete absence of TypeScript interfaces (uses `any` everywhere)
+- Zero documentation explaining the business logic rules
+
+Your instructions:
+1. Refactor `cart_garbage.ts` into clean, modular, idiomatic TypeScript.
+2. Define explicit TypeScript interfaces for all data structures (CartItem, User, Coupon, Cart, CartCalculationResult).
+3. Eliminate all global mutable variables; make the function pure, reentrant, and thread-safe.
+4. Replace magic numbers with well-named constants.
+5. Add thorough **inline comments** explaining the non-trivial business logic rules:
+   - Bulk item quantity qualification and discount calculation.
+   - User tier hierarchy and discount stacking order.
+   - Coupon validation (expiration timestamp checks, minimum threshold requirements).
+   - Progressive shipping tier brackets.
+   - Regional state tax lookup rules.
+6. Ensure it still exports `calculateCartDiscount(c: any): any` with identical signature and behavior.
+7. Run `bun test_regression.ts` to verify that all 10 tests pass with zero regressions.

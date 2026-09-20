@@ -23,6 +23,10 @@ export interface CompressionSummary {
   schemaSaved: number
   /** Number of superseded (stale) tool reads removed. */
   superseded: number
+  /** Number of Git commands rewritten with terse flags. */
+  rewrites: number
+  /** Number of shell outputs truncated by line/byte limits. */
+  truncations: number
   /** Total compression overhead in milliseconds. */
   overheadMs: number
   /** Which compression transforms were active. */
@@ -51,6 +55,8 @@ let _charsAfter = 0
 let _overheadMs = 0
 let _schemaSaved = 0
 let _superseded = 0
+let _rewrites = 0
+let _truncations = 0
 let _transforms = new Set<string>()
 
 // ---------------------------------------------------------------------------
@@ -75,6 +81,8 @@ export function reset(): void {
   _overheadMs = 0
   _schemaSaved = 0
   _superseded = 0
+  _rewrites = 0
+  _truncations = 0
   _transforms = new Set()
 }
 
@@ -158,6 +166,18 @@ export function recordSuperseded(count: number): void {
   }
 }
 
+/** Record Git command rewrite. Called from compress.ts rewriteGitCommand(). */
+export function recordRewrite(): void {
+  _rewrites++
+  _transforms.add("git_rewrite")
+}
+
+/** Record shell output truncation. Called from compress.ts truncateShellOutput(). */
+export function recordTruncation(): void {
+  _truncations++
+  _transforms.add("truncation")
+}
+
 /** Read the accumulated summary. Call at step-finish. */
 export function summary(): CompressionSummary {
   const saved = _charsBefore - _charsAfter
@@ -182,6 +202,8 @@ export function summary(): CompressionSummary {
     pctSaved: _charsBefore > 0 ? Math.round((saved / _charsBefore) * 1000) / 10 : 0,
     schemaSaved: _schemaSaved,
     superseded: _superseded,
+    rewrites: _rewrites,
+    truncations: _truncations,
     overheadMs: Math.round(_overheadMs * 100) / 100,
     transforms: [..._transforms],
     skipped,
@@ -191,5 +213,5 @@ export function summary(): CompressionSummary {
 
 /** True if any compression activity was recorded this step. */
 export function active(): boolean {
-  return _charsBefore > 0 || _schemaSaved > 0 || _superseded > 0
+  return _charsBefore > 0 || _schemaSaved > 0 || _superseded > 0 || _rewrites > 0 || _truncations > 0
 }

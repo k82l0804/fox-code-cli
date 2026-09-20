@@ -201,21 +201,9 @@ const layer = Layer.effectDiscard(
               let output = result.output?.toString("utf8") || "(no output)"
               let isTruncated = result.outputTruncated === true
               if (Flag.FOX_EXPERIMENTAL_COMPRESS_GIT) {
-                const lines = output.split("\n")
-                const totalBytes = Buffer.byteLength(output, "utf8")
-                if (lines.length > MAX_SHELL_LINES || totalBytes > MAX_SHELL_BYTES) {
-                  isTruncated = true
-                  const outLines: string[] = []
-                  let byteCount = 0
-                  for (let i = 0; i < lines.length && i < MAX_SHELL_LINES; i++) {
-                    const lineSize = Buffer.byteLength(lines[i]!, "utf8") + (i > 0 ? 1 : 0)
-                    if (byteCount + lineSize > MAX_SHELL_BYTES) break
-                    outLines.push(lines[i]!)
-                    byteCount += lineSize
-                  }
-                  const removedBytes = totalBytes - byteCount
-                  output = `${outLines.join("\n")}\n\n[...${removedBytes} bytes truncated; use grep, head, or tail to narrow output...]`
-                }
+                const tr = ToolOutputCompressor.truncateShellOutput(output, { command: input.command })
+                output = tr.output
+                if (tr.truncated) isTruncated = true
               }
               const notice = result.outputTruncated
                 ? "[output capture truncated at the in-memory safety limit]"
