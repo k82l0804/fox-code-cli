@@ -25,6 +25,7 @@ export interface Options {
   maxLines?: number
   maxBytes?: number
   direction?: "head" | "tail"
+  tool?: string
 }
 
 function hasTaskTool(agent?: Agent.Info) {
@@ -91,7 +92,7 @@ const layer = Layer.effect(
     })
 
     const output = Effect.fn("Truncate.output")(function* (text: string, options: Options = {}, agent?: Agent.Info) {
-      const resolved = yield* limits()
+      const resolved = yield* limits(options.tool)
       const maxLines = options.maxLines ?? resolved.maxLines
       const maxBytes = options.maxBytes ?? resolved.maxBytes
       const direction = options.direction ?? "head"

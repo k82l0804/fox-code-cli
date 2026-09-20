@@ -25,8 +25,10 @@ import {
   deduplicateLogLines,
   compressJsonKeys,
   filterTestOutput,
+  rewriteGitCommand,
   type CompressContext,
 } from "../packages/core/src/tool/compress"
+import { buildSupersededSet } from "../src/session/supersede"
 
 const WORKSPACE = "/home/k82l0804/workarea/fox/fox-code-cli"
 
@@ -46,6 +48,8 @@ interface Fixture {
   tool: string
   /** Simulated raw tool output */
   content: string
+  /** Optional content when pre-execution command rewriting is active (e.g. git log --oneline) */
+  foxContent?: string
 }
 
 // ─── Realistic Multi-Workflow Fixtures ─────────────────────────────────────
@@ -246,6 +250,25 @@ const fixtures: Fixture[] = [
       " 142 expect() calls",
       "Ran 41 tests across 41 files. [182.00ms]",
     ].join("\n"),
+  },
+  {
+    category: "Software Engineering",
+    name: "bash: git log (pre-execution rewrite to oneline)",
+    tool: "bash",
+    content: Array.from({ length: 20 }, (_, i) => [
+      `commit ${i}a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b`,
+      `Author: Developer <dev${i}@example.com>`,
+      `Date:   Sun Sep 20 14:0${i % 10}:00 2026 -0400`,
+      "",
+      `    feat(core): implement step ${i} of modular architecture`,
+      `    `,
+      `    This commit updates the core subsystem to handle step ${i}`,
+      `    cleanly without regression. Tested on linux and macos.`,
+      "",
+    ]).flat().join("\n"),
+    foxContent: Array.from({ length: 20 }, (_, i) =>
+      `${i}a1b2c3 feat(core): implement step ${i} of modular architecture`
+    ).join("\n"),
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -563,7 +586,8 @@ for (const category of categories) {
 
   for (const fixture of catFixtures) {
     const kiloBytes = fixture.content.length
-    const foxOutput = compressOutput(fixture.content, fixture.tool)
+    const rawContent = fixture.foxContent ?? fixture.content
+    const foxOutput = compressOutput(rawContent, fixture.tool)
     const foxBytes = foxOutput.length
     const saved = kiloBytes - foxBytes
     const pct = kiloBytes > 0 ? (saved / kiloBytes) * 100 : 0
@@ -630,3 +654,207 @@ console.log(`  Schema savings:     ${(schemaSaved * sessionTurns).toLocaleString
 console.log(`  Output compression: ${grandSaved.toLocaleString()} bytes (~${outputTokensSaved.toLocaleString()} tokens)`)
 console.log(`  Total estimated:    ~${totalTokensSaved.toLocaleString()} tokens saved per 10-turn session`)
 console.log("═".repeat(78))
+
+// ─── 4. Multi-Turn SWE Session Trajectory Simulation (A/B Showdown) ────────
+
+console.log()
+console.log("═".repeat(78))
+console.log("  🔄 MULTI-TURN SWE SESSION TRAJECTORY SIMULATION (A/B SHOWDOWN)")
+console.log("═".repeat(78))
+console.log()
+console.log("  Simulates an 8-turn real-world software engineering workflow:")
+console.log("    Turn 1: git status                Turn 5: edit file (metrics)")
+console.log("    Turn 2: read full source file     Turn 6: git status (re-check)")
+console.log("    Turn 3: edit file (bugfix)        Turn 7: run test suite")
+console.log("    Turn 4: git diff                  Turn 8: git commit")
+console.log()
+
+const simTurns = [
+  {
+    turn: 1,
+    action: "bash: git status",
+    tool: "bash",
+    input: { command: "git status" },
+    content: [
+      "On branch feat/compression",
+      "Your branch is up to date with 'origin/feat/compression'.",
+      "Changes not staged for commit:",
+      '  (use "git add <file>..." to update what will be committed)',
+      "\tmodified:   packages/core/src/tool/compress.ts",
+      "Untracked files:",
+      "\tpackages/core/test/new.test.ts",
+      'no changes added to commit (use "git add" to track)',
+    ].join("\n"),
+  },
+  {
+    turn: 2,
+    action: "read: compress.ts (12KB)",
+    tool: "read",
+    input: { path: `${WORKSPACE}/packages/core/src/tool/compress.ts` },
+    content: Array.from({ length: 280 }, (_, i) =>
+      `export function helperLine${i}() { return Effect.succeed(${i} * 42) }`
+    ).join("\n"),
+  },
+  {
+    turn: 3,
+    action: "edit: compress.ts (fix)",
+    tool: "edit",
+    input: { path: `${WORKSPACE}/packages/core/src/tool/compress.ts` },
+    content: "File updated successfully: 2 lines replaced.",
+  },
+  {
+    turn: 4,
+    action: "bash: git diff",
+    tool: "bash",
+    input: { command: "git diff" },
+    content: [
+      "diff --git a/packages/core/src/tool/compress.ts b/packages/core/src/tool/compress.ts",
+      "index 1a2b3c4..5d6e7f8 100644",
+      "--- a/packages/core/src/tool/compress.ts",
+      "+++ b/packages/core/src/tool/compress.ts",
+      "@@ -10,3 +10,3 @@",
+      " const oldVal = 1",
+      "-const fix = false",
+      "+const fix = true",
+    ].join("\n"),
+  },
+  {
+    turn: 5,
+    action: "edit: compress.ts (metrics)",
+    tool: "edit",
+    input: { path: `${WORKSPACE}/packages/core/src/tool/compress.ts` },
+    content: "File updated successfully: added metrics collector.",
+  },
+  {
+    turn: 6,
+    action: "bash: git status",
+    tool: "bash",
+    input: { command: "git status" },
+    content: [
+      "On branch feat/compression",
+      "Changes to be committed:",
+      "\tmodified:   packages/core/src/tool/compress.ts",
+      "\tmodified:   packages/core/test/compress.test.ts",
+    ].join("\n"),
+  },
+  {
+    turn: 7,
+    action: "bash: bun test",
+    tool: "bash",
+    input: { command: "bun test" },
+    content: [
+      "bun test v1.2.4",
+      ...Array.from({ length: 30 }, (_, i) => `✓ test ${i + 1} passed (1ms)`),
+      "30 pass, 0 fail",
+    ].join("\n"),
+  },
+  {
+    turn: 8,
+    action: "bash: git commit",
+    tool: "bash",
+    input: { command: "git commit -m 'feat: complete compression'" },
+    content: "[feat/compression a1b2c3d] feat: complete compression\n 2 files changed, 45 insertions(+)",
+  },
+]
+
+function makeSimMessage(turn: typeof simTurns[0]): any {
+  return {
+    info: {
+      id: `msg-${turn.turn}`,
+      sessionID: "sim-session",
+      role: "assistant",
+      time: { created: Date.now() },
+      cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      modelID: "test-model",
+      providerID: "test-provider",
+    },
+    parts: [
+      {
+        id: `call-${turn.turn}`,
+        messageID: `msg-${turn.turn}`,
+        sessionID: "sim-session",
+        type: "tool",
+        tool: turn.tool,
+        callID: `call-${turn.turn}`,
+        state: {
+          status: "completed",
+          input: turn.input,
+          output: turn.content,
+          title: "",
+          metadata: {},
+          time: { start: Date.now(), end: Date.now() },
+        },
+      },
+    ],
+  }
+}
+
+const KILO_STATIC_BYTES = kiloSchemaBytes + 3000 // raw schemas + verbose prompt
+const FOX_STATIC_BYTES = foxSchemaBytes + 2400   // minified schemas + compact prompt
+
+console.log(
+  `  ${"Turn".padEnd(6)} ${"Action".padEnd(30)} ${"Kilo Prefill".padStart(14)} ${"Fox Prefill".padStart(14)} ${"Tokens Saved".padStart(14)} ${"Reduction".padStart(11)}`
+)
+console.log(
+  `  ${"─".repeat(6)} ${"─".repeat(30)} ${"─".repeat(14)} ${"─".repeat(14)} ${"─".repeat(14)} ${"─".repeat(11)}`
+)
+
+let cumulativeKiloTokens = 0
+let cumulativeFoxTokens = 0
+
+for (let currentTurn = 1; currentTurn <= simTurns.length; currentTurn++) {
+  const turnsSoFar = simTurns.slice(0, currentTurn)
+  const msgsSoFar = turnsSoFar.map(makeSimMessage)
+
+  // Kilo mode: raw schemas + prompt + uncompressed, un-superseded tool outputs
+  let kiloTurnHistoryBytes = 0
+  for (const t of turnsSoFar) {
+    kiloTurnHistoryBytes += t.content.length + 150 // prompt/framing overhead
+  }
+  const kiloTotalBytes = KILO_STATIC_BYTES + kiloTurnHistoryBytes
+  const kiloTokens = Math.round(kiloTotalBytes / 4)
+
+  // Fox mode: minified schemas + compact prompt + superseded & compressed history
+  const supersededMap = buildSupersededSet(msgsSoFar, { enabled: true })
+  let foxTurnHistoryBytes = 0
+  for (const t of turnsSoFar) {
+    const callID = `call-${t.turn}`
+    const marker = supersededMap.get(callID)
+    if (marker) {
+      foxTurnHistoryBytes += marker.length + 100
+    } else {
+      const compressed = compressOutput(t.content, t.tool)
+      foxTurnHistoryBytes += compressed.length + 100
+    }
+  }
+  const foxTotalBytes = FOX_STATIC_BYTES + foxTurnHistoryBytes
+  const foxTokens = Math.round(foxTotalBytes / 4)
+
+  const tokensSaved = kiloTokens - foxTokens
+  const pctSaved = ((tokensSaved / kiloTokens) * 100).toFixed(1)
+
+  cumulativeKiloTokens += kiloTokens
+  cumulativeFoxTokens += foxTokens
+
+  const currentAction = simTurns[currentTurn - 1]!
+  console.log(
+    `  ${`#${currentTurn}`.padEnd(6)} ${currentAction.action.padEnd(30)} ${(
+      kiloTokens.toLocaleString() + " tok"
+    ).padStart(14)} ${(foxTokens.toLocaleString() + " tok").padStart(14)} ${(
+      "+" + tokensSaved.toLocaleString() + " tok"
+    ).padStart(14)} ${`${pctSaved}%`.padStart(11)}`
+  )
+}
+
+const totalSavedTokens = cumulativeKiloTokens - cumulativeFoxTokens
+const cumulativePct = ((totalSavedTokens / cumulativeKiloTokens) * 100).toFixed(1)
+
+console.log(
+  `  ${"─".repeat(6)} ${"─".repeat(30)} ${"─".repeat(14)} ${"─".repeat(14)} ${"─".repeat(14)} ${"─".repeat(11)}`
+)
+console.log(
+  `  🏆 CUMULATIVE 8-TURN PREFILL: ${cumulativeKiloTokens.toLocaleString()} tokens → ${cumulativeFoxTokens.toLocaleString()} tokens | Saved: +${totalSavedTokens.toLocaleString()} tokens (${cumulativePct}%)`
+)
+console.log("═".repeat(78))
+
