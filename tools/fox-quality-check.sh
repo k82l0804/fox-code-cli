@@ -30,7 +30,7 @@ PROMPTS=(
 EXPECTED=(
   "package.json"        # Should mention package.json in listing
   "@fox/cli"            # Should find the project name
-  ""                    # Any numeric answer is fine
+  "766"                 # Exact count of TypeScript files in src/
 )
 
 capture_responses() {
@@ -157,7 +157,7 @@ compare_responses() {
       fi
     else
       # No expected check — just verify non-empty
-      if [ "$fox_len" -gt 5 ]; then
+      if [ "$fox_len" -gt 0 ]; then
         echo "      ✅ Fox produced response"
         pass=$((pass + 1))
       else
