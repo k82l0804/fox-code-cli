@@ -19,10 +19,12 @@
 
 import {
   relativizePaths,
+  compressGitStatus,
   trimDiffContext,
   compressTabular,
   deduplicateLogLines,
   compressJsonKeys,
+  filterTestOutput,
   type CompressContext,
 } from "../packages/core/src/tool/compress"
 
@@ -165,6 +167,85 @@ const fixtures: Fixture[] = [
     content: Array.from({ length: 40 }, (_, i) =>
       `${WORKSPACE}/packages/core/src/tool/handlers/builtin/internal/step-${i}.ts:${100 + i}: export const handler${i} = Effect.fn("handler")`
     ).join("\n"),
+  },
+  {
+    category: "Software Engineering",
+    name: "bash: git status (standard verbose)",
+    tool: "bash",
+    content: [
+      "On branch feat/git-tool-token-compression",
+      "Your branch is up to date with 'origin/feat/git-tool-token-compression'.",
+      "",
+      "Changes to be committed:",
+      '  (use "git restore --staged <file>..." to unstage)',
+      "\tmodified:   packages/core/src/tool/compress.ts",
+      "\tmodified:   packages/core/test/compress.test.ts",
+      "",
+      "Changes not staged for commit:",
+      '  (use "git add <file>..." to update what will be committed)',
+      '  (use "git restore <file>..." to discard changes in working directory)',
+      "\tmodified:   src/tool/shell.ts",
+      "\tmodified:   src/tool/truncate.ts",
+      "",
+      "Untracked files:",
+      '  (use "git add <file>..." to include in what will be committed)',
+      "\tpackages/core/src/tool/git-util.ts",
+      "\tdocs/research/benchmark-notes.md",
+      "",
+      'no changes added to commit (use "git add" to track)',
+    ].join("\n"),
+  },
+  {
+    category: "Software Engineering",
+    name: "bash: git diff with lockfile (package-lock.json)",
+    tool: "bash",
+    content: [
+      "diff --git a/package.json b/package.json",
+      "index a1b2c3d..e4f5g6h 100644",
+      "--- a/package.json",
+      "+++ b/package.json",
+      "@@ -5,3 +5,3 @@",
+      "   \"dependencies\": {",
+      "-    \"effect\": \"3.10.0\",",
+      "+    \"effect\": \"3.13.0\",",
+      "   }",
+      "diff --git a/package-lock.json b/package-lock.json",
+      "index 7a8b9c0..1d2e3f4 100644",
+      "--- a/package-lock.json",
+      "+++ b/package-lock.json",
+      "@@ -10,120 +10,120 @@",
+      ...Array.from({ length: 60 }, (_, i) => [
+        `-\t\t"node_modules/dep-${i}": {`,
+        `-\t\t\t"version": "1.0.${i}",`,
+        `+\t\t"node_modules/dep-${i}": {`,
+        `+\t\t\t"version": "1.1.${i}",`,
+      ]).flat(),
+    ].join("\n"),
+  },
+  {
+    category: "Software Engineering",
+    name: "bash: test output (failing suite with noise)",
+    tool: "bash",
+    content: [
+      "bun test v1.2.4 (c6e28882)",
+      "",
+      ...Array.from({ length: 18 }, (_, i) =>
+        `✓ packages/core/test/unit-${i}.test.ts > assert token count passes [0.${i}ms]`
+      ),
+      "✗ packages/core/test/git.test.ts > handles merge conflict markers",
+      "  AssertionError: expected 'conflict' to equal 'clean'",
+      "    at /packages/core/test/git.test.ts:42:12",
+      "    at async runTest (/packages/core/test/runner.ts:88:5)",
+      "",
+      ...Array.from({ length: 22 }, (_, i) =>
+        `✓ packages/core/test/suite-${i}.test.ts > cleans up temporary directory [0.${i}ms]`
+      ),
+      "",
+      " 40 pass",
+      " 1 fail",
+      " 142 expect() calls",
+      "Ran 41 tests across 41 files. [182.00ms]",
+    ].join("\n"),
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -418,10 +499,12 @@ const allSchemas = Array.from({ length: 25 }, (_, i) => ({
 function compressOutput(raw: string, tool: string): string {
   let out = raw
   out = relativizePaths(out, { ...ctx, toolName: tool })
+  out = compressGitStatus(out, { ...ctx, toolName: tool })
   out = trimDiffContext(out, { ...ctx, toolName: tool })
   out = compressTabular(out, { ...ctx, toolName: tool })
   out = deduplicateLogLines(out, { ...ctx, toolName: tool })
   out = compressJsonKeys(out, { ...ctx, toolName: tool })
+  out = filterTestOutput(out, { ...ctx, toolName: tool })
   return out
 }
 

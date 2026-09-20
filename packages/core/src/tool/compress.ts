@@ -45,10 +45,22 @@ const transforms: readonly Transform[] = [
     apply: relativizePaths,
   },
   {
+    name: "compressGitStatus",
+    span: "compression.git_status",
+    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_GIT,
+    apply: compressGitStatus,
+  },
+  {
     name: "trimDiffContext",
     span: "compression.diff_context_trim",
     enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF,
     apply: trimDiffContext,
+  },
+  {
+    name: "filterTestOutput",
+    span: "compression.test_output",
+    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_GIT,
+    apply: filterTestOutput,
   },
   {
     name: "compressTabular",
@@ -282,11 +294,159 @@ export function compressJsonKeys(text: string, _ctx: CompressContext): string {
 }
 
 // ---------------------------------------------------------------------------
-// 4.5 — Diff Context Trimming
+// Git Status Compression
 // ---------------------------------------------------------------------------
 
 /**
- * Detect unified diff format and reduce context lines.
+ * Convert standard verbose git status output into compact status representation.
+ * Eliminates novice instructional hints like (use "git add..." ) while preserving
+ * 100% of branch, tracking, staged, unstaged, and untracked file status.
+ */
+export function compressGitStatus(text: string, _ctx: CompressContext): string {
+  if (!text.includes("On branch ") && !text.startsWith("On branch ")) return text
+
+  const lines = text.split("\n")
+  let branch = ""
+  let tracking = ""
+  const staged: string[] = []
+  const unstaged: string[] = []
+  const untracked: string[] = []
+
+  let section: "header" | "staged" | "unstaged" | "untracked" = "header"
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    const trimmed = line.trim()
+
+    if (trimmed.startsWith("On branch ")) {
+      branch = trimmed.replace("On branch ", "").trim()
+      continue
+    }
+    if (trimmed.startsWith("Your branch is ")) {
+      tracking = trimmed
+      continue
+    }
+
+    if (trimmed.startsWith("Changes to be committed:")) {
+      section = "staged"
+      continue
+    }
+    if (trimmed.startsWith("Changes not staged for commit:")) {
+      section = "unstaged"
+      continue
+    }
+    if (trimmed.startsWith("Untracked files:")) {
+      section = "untracked"
+      continue
+    }
+
+    // Skip instructional help lines
+    if (trimmed.startsWith("(") && trimmed.endsWith(")")) continue
+    if (trimmed.startsWith("no changes added to commit")) continue
+    if (trimmed === "") continue
+
+    if (section === "staged") {
+      const match = trimmed.match(/^([a-z\s]+):\s+(.+)$/i)
+      if (match) {
+        const kind = match[1]!.toLowerCase()
+        const file = match[2]!.trim()
+        if (kind === "modified") staged.push(`M  ${file}`)
+        else if (kind === "new file") staged.push(`A  ${file}`)
+        else if (kind === "deleted") staged.push(`D  ${file}`)
+        else if (kind === "renamed") staged.push(`R  ${file}`)
+        else staged.push(`M  ${file}`)
+      }
+    } else if (section === "unstaged") {
+      const match = trimmed.match(/^([a-z\s]+):\s+(.+)$/i)
+      if (match) {
+        const kind = match[1]!.toLowerCase()
+        const file = match[2]!.trim()
+        if (kind === "modified") unstaged.push(` M ${file}`)
+        else if (kind === "deleted") unstaged.push(` D ${file}`)
+        else unstaged.push(` M ${file}`)
+      }
+    } else if (section === "untracked") {
+      untracked.push(`?? ${trimmed}`)
+    }
+  }
+
+  if (!branch && staged.length === 0 && unstaged.length === 0 && untracked.length === 0) {
+    return text
+  }
+
+  const out: string[] = []
+  let header = `## ${branch || "HEAD"}`
+  if (tracking && !tracking.includes("up to date")) {
+    header += ` [${tracking}]`
+  }
+  out.push(header)
+
+  if (staged.length === 0 && unstaged.length === 0 && untracked.length === 0) {
+    out.push("(working tree clean)")
+  } else {
+    out.push(...staged, ...unstaged, ...untracked)
+  }
+
+  const result = out.join("\n")
+  return result.length < text.length ? result : text
+}
+
+// ---------------------------------------------------------------------------
+// Test Output Filtering
+// ---------------------------------------------------------------------------
+
+/**
+ * Collapse consecutive passing test result lines (e.g. `✓ test_name [0.1ms]`)
+ * into `[N passing tests omitted]` when there are ≥4 consecutive passes.
+ * Failures, errors, stack traces, and summary stats are never modified.
+ */
+export function filterTestOutput(text: string, _ctx: CompressContext): string {
+  const lines = text.split("\n")
+  if (lines.length < 6) return text
+
+  const isPassLine = (line: string): boolean => {
+    const trimmed = line.trim()
+    return /^(?:✓|✔|PASS\b|ok\s+\d+)/.test(trimmed)
+  }
+
+  const result: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    if (isPassLine(lines[i]!)) {
+      let count = 0
+      while (i + count < lines.length && isPassLine(lines[i + count]!)) {
+        count++
+      }
+      if (count >= 4) {
+        result.push(`  [...${count} passing tests omitted...]`)
+        i += count
+        continue
+      } else {
+        for (let j = 0; j < count; j++) {
+          result.push(lines[i + j]!)
+        }
+        i += count
+        continue
+      }
+    }
+    result.push(lines[i]!)
+    i++
+  }
+
+  const output = result.join("\n")
+  return output.length < text.length ? output : text
+}
+
+// ---------------------------------------------------------------------------
+// 4.5 — Diff Context Trimming & Lockfile Collapsing
+// ---------------------------------------------------------------------------
+
+const LOCKFILE_REGEX = /(?:package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb|Cargo\.lock|poetry\.lock|Gemfile\.lock|composer\.lock)$/i
+
+/**
+ * Detect unified diff format and reduce context lines, strip index hashes,
+ * and collapse massive lockfile diffs.
  *
  * Unified diffs typically include 3 lines of context above/below each hunk.
  * This transform reduces that to `contextLines` (default 1) while preserving
@@ -296,7 +456,6 @@ export function compressJsonKeys(text: string, _ctx: CompressContext): string {
  */
 export function trimDiffContext(text: string, _ctx: CompressContext): string {
   const contextLines = Flag.FOX_EXPERIMENTAL_COMPRESS_DIFF_CONTEXT ?? 1
-  if (contextLines >= 3) return text
 
   // Quick detection: must contain diff-like markers
   if (!text.includes("@@") || (!text.includes("--- ") && !text.includes("diff "))) return text
@@ -305,17 +464,76 @@ export function trimDiffContext(text: string, _ctx: CompressContext): string {
   const result: string[] = []
   let inDiff = false
   let hunkLines: string[] = []
+  let currentFile = ""
+  let isLockfile = false
+  let lockfileLines: string[] = []
+
+  const flushHunk = () => {
+    if (hunkLines.length > 0) {
+      result.push(...trimHunkContext(hunkLines, contextLines))
+      hunkLines = []
+    }
+  }
+
+  const flushLockfile = () => {
+    if (isLockfile && currentFile) {
+      let added = 0
+      let deleted = 0
+      for (const line of lockfileLines) {
+        if (line.startsWith("+") && !line.startsWith("+++")) added++
+        if (line.startsWith("-") && !line.startsWith("---")) deleted++
+      }
+      if (added + deleted > 10) {
+        result.push(
+          `[${currentFile}: +${added} -${deleted} lines — lockfile diff collapsed; inspect with git diff -- ${currentFile}]`,
+        )
+      } else {
+        result.push(...lockfileLines)
+      }
+      lockfileLines = []
+      isLockfile = false
+      currentFile = ""
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!
 
-    // File headers: pass through
-    if (line.startsWith("diff ") || line.startsWith("index ") ||
-        line.startsWith("--- ") || line.startsWith("+++ ")) {
-      if (hunkLines.length > 0) {
-        result.push(...trimHunkContext(hunkLines, contextLines))
-        hunkLines = []
+    // File start
+    if (line.startsWith("diff --git ")) {
+      flushHunk()
+      flushLockfile()
+
+      const match = line.match(/diff --git a\/(.+?)\s+b\/(.+)/)
+      const fileName = match ? match[2]! : ""
+      currentFile = fileName
+      isLockfile = LOCKFILE_REGEX.test(fileName)
+
+      if (isLockfile) {
+        result.push(line)
+        inDiff = true
+        continue
       }
+
+      result.push(line)
+      inDiff = true
+      continue
+    }
+
+    if (isLockfile) {
+      if (line.startsWith("index ")) continue
+      lockfileLines.push(line)
+      continue
+    }
+
+    // Strip index hashes from regular diffs to save tokens
+    if (line.startsWith("index ")) {
+      continue
+    }
+
+    // File headers: pass through
+    if (line.startsWith("--- ") || line.startsWith("+++ ") || line.startsWith("old mode ") || line.startsWith("new mode ")) {
+      flushHunk()
       result.push(line)
       inDiff = true
       continue
@@ -323,9 +541,7 @@ export function trimDiffContext(text: string, _ctx: CompressContext): string {
 
     // Hunk header: start a new hunk
     if (line.startsWith("@@") && inDiff) {
-      if (hunkLines.length > 0) {
-        result.push(...trimHunkContext(hunkLines, contextLines))
-      }
+      flushHunk()
       hunkLines = [line]
       continue
     }
@@ -337,19 +553,14 @@ export function trimDiffContext(text: string, _ctx: CompressContext): string {
       continue
     }
 
-    // Not in a diff anymore
-    if (hunkLines.length > 0) {
-      result.push(...trimHunkContext(hunkLines, contextLines))
-      hunkLines = []
-      inDiff = false
-    }
+    // Not in a hunk anymore
+    flushHunk()
+    inDiff = false
     result.push(line)
   }
 
-  // Flush remaining hunk
-  if (hunkLines.length > 0) {
-    result.push(...trimHunkContext(hunkLines, contextLines))
-  }
+  flushHunk()
+  flushLockfile()
 
   const output = result.join("\n")
   return output.length < text.length ? output : text
@@ -411,3 +622,54 @@ function trimHunkContext(hunkLines: string[], keep: number): string[] {
   const newHeader = `@@ -${hunkMatch[1]},${oldCount} +${hunkMatch[2]},${newCount} @@${hunkMatch[3] ?? ""}`
   return [newHeader, ...trimmedBody]
 }
+
+// ---------------------------------------------------------------------------
+// Pre-Execution Git Command Rewriting
+// ---------------------------------------------------------------------------
+
+/**
+ * Pre-execution command rewriter for Git commands.
+ * Transparently injects terse flags (-sb, -U1, --oneline -n 20) when the model
+ * issues raw git commands without formatting flags.
+ */
+export function rewriteGitCommand(command: string, options?: { enabled?: boolean }): string {
+  const enabled = options?.enabled ?? Flag.FOX_EXPERIMENTAL_COMPRESS_GIT
+  if (!enabled) return command
+
+  // Split chained statements by &&, ;, ||
+  const delimiterRegex = /(\s*(?:&&|;|\|\|)\s*)/
+  const parts = command.split(delimiterRegex)
+
+  const rewritten = parts.map((part) => {
+    const trimmed = part.trim()
+    if (!trimmed.startsWith("git ") && trimmed !== "git") return part
+
+    // 1. git status
+    if (/^git\s+status(?:\s+|$)/.test(trimmed)) {
+      if (!trimmed.includes("-s") && !trimmed.includes("--short") && !trimmed.includes("--porcelain")) {
+        return part.replace(/\bgit\s+status\b/, "git status -sb")
+      }
+    }
+
+    // 2. git diff
+    if (/^git\s+diff(?:\s+|$)/.test(trimmed)) {
+      if (!trimmed.includes("-U") && !trimmed.includes("--unified")) {
+        return part.replace(/\bgit\s+diff\b/, "git diff -U1")
+      }
+    }
+
+    // 3. git log
+    if (/^git\s+log(?:\s+|$)/.test(trimmed)) {
+      const hasLimit = /-\d+\b|-n\s+\d+|--max-count\b/.test(trimmed)
+      const hasFormat = /--oneline\b|--format\b|--pretty\b/.test(trimmed)
+      if (!hasLimit && !hasFormat) {
+        return part.replace(/\bgit\s+log\b/, "git log --oneline -n 20")
+      }
+    }
+
+    return part
+  })
+
+  return rewritten.join("")
+}
+

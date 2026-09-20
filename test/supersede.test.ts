@@ -257,4 +257,97 @@ describe("buildSupersededSet", () => {
     const result = buildSupersededSet(msgs, ENABLED)
     expect(result.size).toBe(0)
   })
+
+  // ─── Git Command Supersession Tests ────────────────────────────────────────
+
+  function bashPart(callID: string, command: string, output = "ok"): any {
+    return {
+      id: callID,
+      messageID: `msg-${callID}`,
+      sessionID: "test-session",
+      type: "tool",
+      tool: "bash",
+      callID,
+      state: {
+        status: "completed",
+        input: { command },
+        output,
+        title: "",
+        metadata: {},
+        time: { start: Date.now(), end: Date.now() },
+      },
+    }
+  }
+
+  test("supersedes earlier git status when subsequent git status runs", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("status-1", "git status")]),
+      assistantMsg("a2", [editPart("edit-1", "src/foo.ts")]),
+      assistantMsg("a3", [bashPart("status-2", "git status -sb")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("status-1")).toBe(true)
+    expect(result.has("status-2")).toBe(false)
+    expect(result.get("status-1")).toContain("subsequent status check")
+  })
+
+  test("supersedes git status when followed by git commit", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("status-1", "git status")]),
+      assistantMsg("a2", [bashPart("commit-1", "git commit -m 'feat: update'")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("status-1")).toBe(true)
+    expect(result.get("status-1")).toContain("git commit")
+  })
+
+  test("does not supersede latest git status when no mutation follows", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("status-1", "git status")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("status-1")).toBe(false)
+  })
+
+  test("supersedes earlier repo-wide git diff when subsequent git diff runs", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("diff-1", "git diff")]),
+      assistantMsg("a2", [editPart("edit-1", "src/foo.ts")]),
+      assistantMsg("a3", [bashPart("diff-2", "git diff -U1")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("diff-1")).toBe(true)
+    expect(result.has("diff-2")).toBe(false)
+    expect(result.get("diff-1")).toContain("subsequent diff")
+  })
+
+  test("supersedes git diff on a specific file when file is subsequently edited", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("diff-file-1", "git diff src/foo.ts")]),
+      assistantMsg("a2", [editPart("edit-1", "src/foo.ts")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("diff-file-1")).toBe(true)
+    expect(result.get("diff-file-1")).toContain("src/foo.ts modified by edit")
+  })
+
+  test("supersedes git diff when followed by git commit", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("diff-1", "git diff")]),
+      assistantMsg("a2", [bashPart("commit-1", "git add . && git commit -m 'done'")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("diff-1")).toBe(true)
+    expect(result.get("diff-1")).toContain("committed by git commit")
+  })
+
+  test("supersedes earlier git branch when subsequent git branch runs", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("branch-1", "git branch -a")]),
+      assistantMsg("a2", [bashPart("branch-2", "git branch")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("branch-1")).toBe(true)
+    expect(result.has("branch-2")).toBe(false)
+  })
 })

@@ -25,6 +25,9 @@ const READ_TOOLS = new Set(["read"])
  */
 const MUTATE_TOOLS = new Set(["edit", "write", "apply_patch"])
 
+/** Shell tools that may execute git inspection and mutation commands. */
+const SHELL_TOOLS = new Set(["bash", "shell"])
+
 /**
  * The compact marker shown to the model when a read output is superseded.
  * Includes the tool that caused the supersession so the model understands
@@ -32,6 +35,18 @@ const MUTATE_TOOLS = new Set(["edit", "write", "apply_patch"])
  */
 function supersedeMarker(filePath: string, mutatedBy: string): string {
   return `[File content superseded — ${filePath} was modified by ${mutatedBy}]`
+}
+
+function gitStatusMarker(reason: string): string {
+  return `[Git status superseded — ${reason}]`
+}
+
+function gitDiffMarker(reason: string): string {
+  return `[Git diff superseded — ${reason}]`
+}
+
+function gitBranchMarker(reason: string): string {
+  return `[Git branch superseded — ${reason}]`
 }
 
 /**
@@ -49,6 +64,79 @@ function extractPath(input: unknown): string | undefined {
 }
 
 /**
+ * Extract the shell command string from a tool's stored input.
+ */
+function extractCommand(input: unknown): string | undefined {
+  if (typeof input === "string") return input
+  if (typeof input !== "object" || input === null) return undefined
+  const record = input as Record<string, unknown>
+  if (typeof record.command === "string") return record.command
+  if (typeof record.cmd === "string") return record.cmd
+  return undefined
+}
+
+type GitCommandKind = "status" | "diff" | "branch" | "mutation" | "other"
+
+interface GitCommandInfo {
+  readonly kind: GitCommandKind
+  readonly targetPath?: string
+  readonly rawCommand: string
+}
+
+/**
+ * Classify git commands executed in shell/bash tool calls.
+ */
+function classifyGitCommand(cmd: string): GitCommandInfo | undefined {
+  const trimmed = cmd.trim()
+  const subcommands = trimmed.split(/\s*(?:&&|;|\|\|)\s*/)
+  let hasGit = false
+  let statusSeen = false
+  let diffSeen = false
+  let diffTarget: string | undefined = undefined
+  let branchSeen = false
+  let mutationSeen = false
+
+  for (const sub of subcommands) {
+    const match = sub.trim().match(/^git\s+([a-z-]+)(?:\s+(.*))?$/i)
+    if (!match) continue
+    hasGit = true
+    const action = match[1]!.toLowerCase()
+    const args = match[2]?.trim() ?? ""
+
+    if (action === "status") {
+      statusSeen = true
+    } else if (action === "diff") {
+      diffSeen = true
+      // Extract target file if not just flags
+      const nonFlags = args
+        .split(/\s+/)
+        .filter((arg) => !arg.startsWith("-") && !arg.startsWith(":") && arg.length > 0)
+      if (nonFlags.length > 0) diffTarget = nonFlags[0]
+    } else if (action === "branch") {
+      branchSeen = true
+    } else if (
+      action === "commit" ||
+      action === "merge" ||
+      action === "rebase" ||
+      action === "reset" ||
+      action === "checkout" ||
+      action === "switch" ||
+      action === "pull" ||
+      action === "stash"
+    ) {
+      mutationSeen = true
+    }
+  }
+
+  if (!hasGit) return undefined
+  if (mutationSeen) return { kind: "mutation", rawCommand: trimmed }
+  if (statusSeen) return { kind: "status", rawCommand: trimmed }
+  if (diffSeen) return { kind: "diff", targetPath: diffTarget, rawCommand: trimmed }
+  if (branchSeen) return { kind: "branch", rawCommand: trimmed }
+  return { kind: "other", rawCommand: trimmed }
+}
+
+/**
  * Extract mutated file paths from an apply_patch tool's output.
  * The output has an `applied` array with `target` paths.
  */
@@ -63,15 +151,25 @@ function extractPatchPaths(output: unknown): string[] {
   return paths
 }
 
+interface ToolCallEntry {
+  readonly callID: string
+  readonly index: number
+  readonly toolName: string
+  readonly input: unknown
+  readonly output: unknown
+}
+
 /**
  * Build a set of tool call IDs whose output should be superseded.
  *
- * Scans the message history forward, tracking file reads and mutations.
- * A read is superseded if a later mutation targets the same file path.
+ * Scans the message history, tracking:
+ * 1. File reads vs later file mutations (edit, write, apply_patch)
+ * 2. Git status checks vs later status checks or git commits
+ * 3. Git diffs vs later diffs, commits, or matching file edits
+ * 4. Git branch listings vs later branch listings
  *
- * The scan normalizes paths by basename to handle relative vs absolute
- * path mismatches. This is conservative but catches the most common case
- * where the model reads "src/foo.ts" and then edits "src/foo.ts".
+ * Stored message parts are NEVER modified — supersession is applied only
+ * at render time when compiling messages for the LLM.
  */
 export function buildSupersededSet(msgs: SessionV1.WithParts[], options?: { enabled?: boolean }): Map<string, string> {
   const enabled = options?.enabled ?? Flag.FOX_EXPERIMENTAL_COMPRESS_SUPERSEDE
@@ -79,81 +177,160 @@ export function buildSupersededSet(msgs: SessionV1.WithParts[], options?: { enab
 
   const start = performance.now()
 
-  // Forward pass: collect all reads with their file paths
-  // Map: callID → filePath
-  const readCalls = new Map<string, string>()
-  // Map: normalizedPath → latest read callID
-  const latestReadByPath = new Map<string, string>()
+  // Linearize completed tool calls in chronological order
+  const toolCalls: ToolCallEntry[] = []
+  let globalIdx = 0
 
   for (const msg of msgs) {
     if (msg.info.role !== "assistant") continue
     for (const part of msg.parts) {
       if (part.type !== "tool") continue
       if (part.state.status !== "completed") continue
-
-      const toolName = part.tool
-      if (READ_TOOLS.has(toolName)) {
-        const filePath = extractPath(part.state.input)
-        if (filePath) {
-          readCalls.set(part.callID, filePath)
-          latestReadByPath.set(filePath, part.callID)
-        }
-      }
+      toolCalls.push({
+        callID: part.callID,
+        index: globalIdx++,
+        toolName: part.tool,
+        input: part.state.input,
+        output: part.state.output,
+      })
     }
   }
 
-  if (readCalls.size === 0) return new Map()
+  if (toolCalls.length === 0) return new Map()
 
-  // Forward pass: find mutations and mark earlier reads as superseded
-  // Map: callID → supersedeMarker text
   const superseded = new Map<string, string>()
 
-  for (const msg of msgs) {
-    if (msg.info.role !== "assistant") continue
-    for (const part of msg.parts) {
-      if (part.type !== "tool") continue
-      if (part.state.status !== "completed") continue
+  // 1. File reads tracking
+  const readCalls = new Map<string, { callID: string; path: string; index: number }>()
+  const latestReadByPath = new Map<string, string>()
 
-      const toolName = part.tool
-      if (!MUTATE_TOOLS.has(toolName)) continue
+  // 2. Git command tracking
+  const gitStatusCalls: Array<{ callID: string; index: number }> = []
+  const gitDiffCalls: Array<{ callID: string; index: number; targetPath?: string }> = []
+  const gitBranchCalls: Array<{ callID: string; index: number }> = []
+  const mutations: Array<{ index: number; toolName: string; paths: string[]; isGitCommit: boolean }> = []
 
-      let mutatedPaths: string[] = []
-
-      if (toolName === "edit" || toolName === "write") {
-        const filePath = extractPath(part.state.input)
-        if (filePath) mutatedPaths = [filePath]
-      } else if (toolName === "apply_patch") {
-        // Extract paths from the structured output or the text output
-        const output = part.state.output
-        if (typeof output === "string") {
-          mutatedPaths = extractPatchPaths(output)
-        } else if (typeof output === "object" && output !== null) {
-          const obj = output as { applied?: Array<{ target?: string }> }
+  for (const call of toolCalls) {
+    if (READ_TOOLS.has(call.toolName)) {
+      const filePath = extractPath(call.input)
+      if (filePath) {
+        readCalls.set(call.callID, { callID: call.callID, path: filePath, index: call.index })
+        latestReadByPath.set(filePath, call.callID)
+      }
+    } else if (MUTATE_TOOLS.has(call.toolName)) {
+      let paths: string[] = []
+      if (call.toolName === "edit" || call.toolName === "write") {
+        const p = extractPath(call.input)
+        if (p) paths = [p]
+      } else if (call.toolName === "apply_patch") {
+        if (typeof call.output === "string") {
+          paths = extractPatchPaths(call.output)
+        } else if (typeof call.output === "object" && call.output !== null) {
+          const obj = call.output as { applied?: Array<{ target?: string }> }
           if (Array.isArray(obj.applied)) {
-            mutatedPaths = obj.applied
+            paths = obj.applied
               .filter((item) => typeof item.target === "string")
               .map((item) => item.target!)
           }
         }
       }
-
-      for (const mutatedPath of mutatedPaths) {
-        // Check all read calls for matching paths
-        for (const [callID, readPath] of readCalls) {
-          // Skip if this read call comes AFTER the mutation (can't supersede future reads)
-          // Skip if already superseded
-          if (superseded.has(callID)) continue
-
-          // Match by exact path or by basename normalization
-          if (pathsMatch(readPath, mutatedPath)) {
-            // Don't supersede the LATEST read of this path — the model might
-            // have re-read the file after editing it
-            if (latestReadByPath.get(readPath) === callID) continue
-            superseded.set(callID, supersedeMarker(readPath, toolName))
+      mutations.push({ index: call.index, toolName: call.toolName, paths, isGitCommit: false })
+    } else if (SHELL_TOOLS.has(call.toolName)) {
+      const cmd = extractCommand(call.input)
+      if (cmd) {
+        const gitInfo = classifyGitCommand(cmd)
+        if (gitInfo) {
+          if (gitInfo.kind === "status") {
+            gitStatusCalls.push({ callID: call.callID, index: call.index })
+          } else if (gitInfo.kind === "diff") {
+            gitDiffCalls.push({ callID: call.callID, index: call.index, targetPath: gitInfo.targetPath })
+          } else if (gitInfo.kind === "branch") {
+            gitBranchCalls.push({ callID: call.callID, index: call.index })
+          } else if (gitInfo.kind === "mutation") {
+            mutations.push({
+              index: call.index,
+              toolName: "git",
+              paths: [],
+              isGitCommit: true,
+            })
           }
         }
       }
     }
+  }
+
+  // --- Supersede stale file reads ---
+  for (const mutation of mutations) {
+    for (const mutatedPath of mutation.paths) {
+      for (const [callID, readEntry] of readCalls) {
+        if (readEntry.index >= mutation.index) continue
+        if (superseded.has(callID)) continue
+        if (pathsMatch(readEntry.path, mutatedPath)) {
+          if (latestReadByPath.get(readEntry.path) === callID) continue
+          superseded.set(callID, supersedeMarker(readEntry.path, mutation.toolName))
+        }
+      }
+    }
+  }
+
+  // --- Supersede stale git status outputs ---
+  // Any git status followed by a newer git status is superseded by the newer one
+  for (let i = 0; i < gitStatusCalls.length - 1; i++) {
+    const current = gitStatusCalls[i]!
+    superseded.set(current.callID, gitStatusMarker("subsequent status check"))
+  }
+  // If the latest git status was followed by a git commit / mutation, it is also superseded
+  if (gitStatusCalls.length > 0) {
+    const lastStatus = gitStatusCalls[gitStatusCalls.length - 1]!
+    const laterCommit = mutations.find((m) => m.index > lastStatus.index && m.isGitCommit)
+    if (laterCommit && !superseded.has(lastStatus.callID)) {
+      superseded.set(lastStatus.callID, gitStatusMarker("working tree modified by git commit"))
+    }
+  }
+
+  // --- Supersede stale git diff outputs ---
+  for (let i = 0; i < gitDiffCalls.length; i++) {
+    const currentDiff = gitDiffCalls[i]!
+    if (superseded.has(currentDiff.callID)) continue
+
+    // 1. Check if a later git diff exists
+    const laterDiff = gitDiffCalls.slice(i + 1).find((next) => {
+      if (!currentDiff.targetPath && !next.targetPath) return true // both repo-wide
+      if (currentDiff.targetPath && next.targetPath) {
+        return pathsMatch(currentDiff.targetPath, next.targetPath)
+      }
+      return false
+    })
+    if (laterDiff) {
+      superseded.set(currentDiff.callID, gitDiffMarker("subsequent diff"))
+      continue
+    }
+
+    // 2. Check if a later commit occurred after this diff
+    const laterCommit = mutations.find((m) => m.index > currentDiff.index && m.isGitCommit)
+    if (laterCommit) {
+      superseded.set(currentDiff.callID, gitDiffMarker("changes committed by git commit"))
+      continue
+    }
+
+    // 3. If diff targeted a file, check if that file was mutated later
+    if (currentDiff.targetPath) {
+      const laterMutation = mutations.find(
+        (m) => m.index > currentDiff.index && m.paths.some((p) => pathsMatch(p, currentDiff.targetPath!)),
+      )
+      if (laterMutation) {
+        superseded.set(
+          currentDiff.callID,
+          gitDiffMarker(`${currentDiff.targetPath} modified by ${laterMutation.toolName}`),
+        )
+      }
+    }
+  }
+
+  // --- Supersede stale git branch outputs ---
+  for (let i = 0; i < gitBranchCalls.length - 1; i++) {
+    const current = gitBranchCalls[i]!
+    superseded.set(current.callID, gitBranchMarker("subsequent branch check"))
   }
 
   if (superseded.size > 0) {
@@ -161,6 +338,8 @@ export function buildSupersededSet(msgs: SessionV1.WithParts[], options?: { enab
       durationMs: Math.round((performance.now() - start) * 100) / 100,
       supersededCount: superseded.size,
       totalReads: readCalls.size,
+      totalGitStatus: gitStatusCalls.length,
+      totalGitDiff: gitDiffCalls.length,
     })
     CompressionMetrics.recordSuperseded(superseded.size)
   }

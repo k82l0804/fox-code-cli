@@ -161,12 +161,18 @@ const layer = Layer.effectDiscard(
               const shell =
                 Object.assign({}, ...entries.flatMap((entry) => (entry.type === "document" ? [entry.info] : [])))
                   .shell ?? defaultShell()
-              const command = ChildProcess.make(input.command, [], {
+              const effectiveCommand = ToolOutputCompressor.rewriteGitCommand(input.command)
+              const command = ChildProcess.make(effectiveCommand, [], {
                 cwd: target.canonical,
                 shell,
                 stdin: "ignore",
                 detached: process.platform !== "win32",
                 forceKillAfter: Duration.seconds(3),
+                env: {
+                  ...process.env,
+                  GIT_TERMINAL_PROMPT: "0",
+                  PAGER: "cat",
+                },
               })
               const timeout = input.timeout ?? DEFAULT_TIMEOUT_MS
               const result = yield* appProcess

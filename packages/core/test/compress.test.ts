@@ -5,6 +5,9 @@ import {
   compressTabular,
   compressJsonKeys,
   trimDiffContext,
+  compressGitStatus,
+  filterTestOutput,
+  rewriteGitCommand,
   process,
   type CompressContext,
 } from "../src/tool/compress"
@@ -574,5 +577,204 @@ describe("safety rails", () => {
       expect(result).toContain(`-  removed_line_${i}`)
       expect(result).toContain(`+  added_line_${i}`)
     }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Git Status Compression Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("compressGitStatus", () => {
+  test("compresses standard verbose git status to compact format", () => {
+    const raw = [
+      "On branch feat/auth-tokens",
+      "Your branch is up to date with 'origin/feat/auth-tokens'.",
+      "",
+      "Changes to be committed:",
+      '  (use "git restore --staged <file>..." to unstage)',
+      "\tmodified:   packages/core/src/tool/compress.ts",
+      "",
+      "Changes not staged for commit:",
+      '  (use "git add <file>..." to update what will be committed)',
+      '  (use "git restore <file>..." to discard changes in working directory)',
+      "\tmodified:   src/tool/tool.ts",
+      "\tmodified:   src/session/supersede.ts",
+      "",
+      "Untracked files:",
+      '  (use "git add <file>..." to include in what will be committed)',
+      "\ttest/fixtures/sample.diff",
+      "",
+      'no changes added to commit (use "git add" to commit)',
+    ].join("\n")
+
+    const result = compressGitStatus(raw, ctx())
+    expect(result).toContain("## feat/auth-tokens")
+    expect(result).toContain("M  packages/core/src/tool/compress.ts")
+    expect(result).toContain(" M src/tool/tool.ts")
+    expect(result).toContain(" M src/session/supersede.ts")
+    expect(result).toContain("?? test/fixtures/sample.diff")
+    expect(result).not.toContain('(use "git add')
+    expect(result).not.toContain("no changes added to commit")
+    expect(result.length).toBeLessThan(raw.length * 0.5) // >50% compression
+  })
+
+  test("handles clean working tree", () => {
+    const raw = [
+      "On branch main",
+      "Your branch is up to date with 'origin/main'.",
+      "",
+      "nothing to commit, working tree clean",
+    ].join("\n")
+
+    const result = compressGitStatus(raw, ctx())
+    expect(result).toContain("## main")
+    expect(result).toContain("(working tree clean)")
+    expect(result.length).toBeLessThan(raw.length)
+  })
+
+  test("returns non-git-status text unchanged", () => {
+    const input = "Just some arbitrary console output\nwith multiple lines"
+    const result = compressGitStatus(input, ctx())
+    expect(result).toBe(input)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test Output Filtering Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("filterTestOutput", () => {
+  test("collapses consecutive passing tests into summary line", () => {
+    const lines = [
+      "Running test suite...",
+      "✓ test 1 passes (1ms)",
+      "✓ test 2 passes (1ms)",
+      "✓ test 3 passes (2ms)",
+      "✓ test 4 passes (1ms)",
+      "✓ test 5 passes (1ms)",
+      "✓ test 6 passes (2ms)",
+      "FAIL test 7 failed with Assertion Error",
+      "  expected true to be false",
+      "  at src/test.ts:42",
+      "Tests: 1 failed, 6 passed",
+    ]
+    const input = lines.join("\n")
+    const result = filterTestOutput(input, ctx())
+    expect(result).toContain("passing tests omitted")
+    expect(result).toContain("FAIL test 7 failed with Assertion Error")
+    expect(result).toContain("at src/test.ts:42")
+    expect(result).toContain("Tests: 1 failed, 6 passed")
+    expect(result.length).toBeLessThan(input.length)
+  })
+
+  test("keeps fewer than 4 passing tests uncollapsed", () => {
+    const lines = [
+      "Running test suite...",
+      "✓ test 1 passes",
+      "✓ test 2 passes",
+      "FAIL test 3 failed",
+      "Tests: 1 failed, 2 passed",
+    ]
+    const input = lines.join("\n")
+    const result = filterTestOutput(input, ctx())
+    expect(result).toBe(input)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Lockfile & Index Trimming in Diff Context
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("trimDiffContext with Git enhancements", () => {
+  test("strips index hash lines from diffs", () => {
+    const diff = [
+      "diff --git a/src/index.ts b/src/index.ts",
+      "index 8a3b1c2..9d4e5f6 100644",
+      "--- a/src/index.ts",
+      "+++ b/src/index.ts",
+      "@@ -1,3 +1,3 @@",
+      " const a = 1",
+      "-const b = 2",
+      "+const b = 3",
+      " const c = 4",
+    ].join("\n")
+
+    const result = trimDiffContext(diff, ctx())
+    expect(result).not.toContain("index 8a3b1c2..9d4e5f6 100644")
+    expect(result).toContain("-const b = 2")
+    expect(result).toContain("+const b = 3")
+  })
+
+  test("collapses large lockfile diffs", () => {
+    const lockfileDiff = [
+      "diff --git a/package-lock.json b/package-lock.json",
+      "--- a/package-lock.json",
+      "+++ b/package-lock.json",
+      "@@ -1,50 +1,50 @@",
+      ...Array.from({ length: 30 }, (_, i) => `-  "integrity": "sha512-old${i}"`),
+      ...Array.from({ length: 30 }, (_, i) => `+  "integrity": "sha512-new${i}"`),
+    ].join("\n")
+
+    const result = trimDiffContext(lockfileDiff, ctx())
+    expect(result).toContain("package-lock.json")
+    expect(result).toContain("lockfile diff collapsed")
+    expect(result.length).toBeLessThan(lockfileDiff.length * 0.3)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pre-Execution Git Command Rewriting Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("rewriteGitCommand", () => {
+  const opt = { enabled: true }
+
+  test("rewrites bare git status to git status -sb", () => {
+    expect(rewriteGitCommand("git status", opt)).toBe("git status -sb")
+    expect(rewriteGitCommand("git status .", opt)).toBe("git status -sb .")
+  })
+
+  test("preserves existing short or porcelain flags on git status", () => {
+    expect(rewriteGitCommand("git status -s", opt)).toBe("git status -s")
+    expect(rewriteGitCommand("git status --short", opt)).toBe("git status --short")
+    expect(rewriteGitCommand("git status --porcelain", opt)).toBe("git status --porcelain")
+  })
+
+  test("rewrites bare git diff to inject -U1 context lines", () => {
+    expect(rewriteGitCommand("git diff", opt)).toBe("git diff -U1")
+    expect(rewriteGitCommand("git diff src/index.ts", opt)).toBe("git diff -U1 src/index.ts")
+    expect(rewriteGitCommand("git diff --cached", opt)).toBe("git diff -U1 --cached")
+  })
+
+  test("preserves existing -U or --unified flags on git diff", () => {
+    expect(rewriteGitCommand("git diff -U3", opt)).toBe("git diff -U3")
+    expect(rewriteGitCommand("git diff --unified=2", opt)).toBe("git diff --unified=2")
+  })
+
+  test("rewrites unbounded git log to inject --oneline -n 20", () => {
+    expect(rewriteGitCommand("git log", opt)).toBe("git log --oneline -n 20")
+  })
+
+  test("preserves existing limit or format flags on git log", () => {
+    expect(rewriteGitCommand("git log -n 5", opt)).toBe("git log -n 5")
+    expect(rewriteGitCommand("git log --oneline", opt)).toBe("git log --oneline")
+    expect(rewriteGitCommand("git log -10", opt)).toBe("git log -10")
+    expect(rewriteGitCommand("git log --format='%h %s'", opt)).toBe("git log --format='%h %s'")
+  })
+
+  test("rewrites chained git commands properly", () => {
+    const input = "git add . && git commit -m 'update' && git status"
+    const expected = "git add . && git commit -m 'update' && git status -sb"
+    expect(rewriteGitCommand(input, opt)).toBe(expected)
+  })
+
+  test("leaves non-git commands unchanged", () => {
+    expect(rewriteGitCommand("npm test", opt)).toBe("npm test")
+    expect(rewriteGitCommand("bun run build", opt)).toBe("bun run build")
+    expect(rewriteGitCommand("ls -la", opt)).toBe("ls -la")
+  })
+
+  test("returns command unchanged when disabled", () => {
+    expect(rewriteGitCommand("git status", { enabled: false })).toBe("git status")
   })
 })

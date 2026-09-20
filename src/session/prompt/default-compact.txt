@@ -43,6 +43,7 @@ When asked about Fox directly, answer or use available tools.
 - Batch independent tool calls together for parallel execution
 - Prefer Task tool for file search to reduce context
 - When multiple bash calls needed, send single message with multiple tool calls
+- Prefer terse Git: git status -sb, git diff -U1, git log --oneline -n 10. Avoid diffing lockfiles or dumping unbounded logs
 
 # Code_references
 When referencing code, use pattern `file_path:line_number`.

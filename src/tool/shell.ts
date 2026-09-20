@@ -17,6 +17,7 @@ import { Shell } from "@opencode-ai/core/shell"
 import { ShellID } from "./shell/id"
 
 import * as Truncate from "./truncate"
+import { rewriteGitCommand } from "@opencode-ai/core/tool/compress"
 import { Plugin } from "@/plugin"
 import { normalizeUrls } from "@/foxcode/util/url"
 import { CommandTimeout } from "@/foxcode/command-timeout"
@@ -511,7 +512,12 @@ export const ShellTool = Tool.define(
         { cwd, sessionID: ctx.sessionID, callID: ctx.callID },
         { env: {} },
       )
-      return modelEnv(extra.env)
+      const env = modelEnv(extra.env)
+      return {
+        ...env,
+        GIT_TERMINAL_PROMPT: "0",
+        PAGER: "cat",
+      }
     })
 
     const run = Effect.fn("ShellTool.run")(function* (
@@ -525,7 +531,7 @@ export const ShellTool = Tool.define(
       },
       ctx: Tool.Context,
     ) {
-      const limits = yield* trunc.limits()
+      const limits = yield* trunc.limits("shell")
       const keep = limits.maxBytes * 2
       let full = ""
       let last = ""
@@ -692,7 +698,7 @@ export const ShellTool = Tool.define(
         const cfg = yield* config.get()
         const shell = Shell.acceptable(cfg.shell)
         const name = Shell.name(shell)
-        const limits = yield* trunc.limits()
+        const limits = yield* trunc.limits("shell")
         const prompt = ShellPrompt.render(name, process.platform, limits, defaultTimeoutMs)
         yield* Effect.logInfo("shell tool using shell", { shell })
 
@@ -724,7 +730,7 @@ export const ShellTool = Tool.define(
                 run(
                   {
                     shell,
-                    command: params.command,
+                    command: rewriteGitCommand(params.command),
                     cwd,
                     env: yield* shellEnv(ctx, cwd),
                     timeout,

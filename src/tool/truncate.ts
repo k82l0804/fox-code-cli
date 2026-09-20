@@ -6,6 +6,7 @@ import type { Agent } from "../agent/agent"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { evaluate } from "@/permission/evaluate"
 import { Config } from "@/config/config"
+import { Flag } from "@opencode-ai/core/flag/flag"
 import { ToolID } from "./schema"
 import { TRUNCATION_DIR } from "./truncation-dir"
 
@@ -13,6 +14,8 @@ const RETENTION = Duration.days(7)
 
 export const MAX_LINES = 2000
 export const MAX_BYTES = 50 * 1024
+export const MAX_SHELL_LINES = 200
+export const MAX_SHELL_BYTES = 8 * 1024
 export const DIR = TRUNCATION_DIR
 export const GLOB = path.join(TRUNCATION_DIR, "*")
 
@@ -39,8 +42,9 @@ export interface Interface {
   readonly output: (text: string, options?: Options, agent?: Agent.Info) => Effect.Effect<Result>
   /**
    * Resolved truncation limits: values from `tool_output` in opencode config, or MAX_LINES / MAX_BYTES if unset.
+   * When tool is "bash" or "shell" and compression is enabled, uses tighter 8KB/200 line limits.
    */
-  readonly limits: () => Effect.Effect<{ maxLines: number; maxBytes: number }>
+  readonly limits: (tool?: string) => Effect.Effect<{ maxLines: number; maxBytes: number }>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Truncate") {}
@@ -72,13 +76,17 @@ const layer = Layer.effect(
       return file
     })
 
-    const limits = Effect.fn("Truncate.limits")(function* () {
+    const limits = Effect.fn("Truncate.limits")(function* (tool?: string) {
       const configSvc = yield* Effect.serviceOption(Config.Service)
-      if (Option.isNone(configSvc)) return { maxLines: MAX_LINES, maxBytes: MAX_BYTES }
+      const isShell = tool === "bash" || tool === "shell"
+      const defaultLines = isShell && Flag.FOX_EXPERIMENTAL_COMPRESS_GIT ? MAX_SHELL_LINES : MAX_LINES
+      const defaultBytes = isShell && Flag.FOX_EXPERIMENTAL_COMPRESS_GIT ? MAX_SHELL_BYTES : MAX_BYTES
+
+      if (Option.isNone(configSvc)) return { maxLines: defaultLines, maxBytes: defaultBytes }
       const cfg = yield* configSvc.value.get().pipe(Effect.catch(() => Effect.succeed(undefined)))
       return {
-        maxLines: cfg?.tool_output?.max_lines ?? MAX_LINES,
-        maxBytes: cfg?.tool_output?.max_bytes ?? MAX_BYTES,
+        maxLines: cfg?.tool_output?.max_lines ?? defaultLines,
+        maxBytes: cfg?.tool_output?.max_bytes ?? defaultBytes,
       }
     })
 
