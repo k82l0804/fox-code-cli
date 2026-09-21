@@ -7,7 +7,7 @@
 [![Package: @fox/cli](https://img.shields.io/badge/Package-%40fox%2Fcli%20v0.1.0-blue.svg)](package.json)
 [![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.2+-black.svg)](https://bun.sh/)
 [![Architecture: Effect TS](https://img.shields.io/badge/Architecture-Effect_TS-purple.svg)](https://effect.website/)
-[![Tests: 281 Pass](https://img.shields.io/badge/Tests-281_Pass-brightgreen.svg)](#testing)
+[![Tests: 309 Pass](https://img.shields.io/badge/Tests-309_Pass-brightgreen.svg)](#testing)
 [![Standard Suite](https://img.shields.io/badge/Standard_Suite-52_Golden_Fixtures-success.svg)](docs/fox-standard-test-suite-scoreboard.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 
@@ -23,6 +23,10 @@
 - [Lossless Tool Token Compression](#compression)
   - [The 7 Compression Transforms](#the-7-compression-transforms)
   - [Type-Safe Workflow Profiles](#type-safe-workflow-profiles)
+- [Transactional Patch Engine](#transactional-patch-engine)
+  - [Two-Phase Atomic Commit & In-Memory Journal](#two-phase-atomic-commit)
+  - [4-Tier Match Confidence Scoring](#confidence-scoring)
+  - [Unified Tooling Architecture](#unified-tooling)
 - [Configuration & Environment Variables](#configuration)
   - [Configuration File Resolution](#configuration-file-resolution)
   - [Environment Flags](#environment-flags)
@@ -50,7 +54,7 @@ The repository is organized as a Bun workspace monorepo under `packages/` with s
 
 | Package | Workspace Alias | Path | Purpose |
 |---|---|---|---|
-| **Core** | `@opencode-ai/core` | `packages/core/` | Base Effect TS runtime, canonical `Tool.make()` registry, file utilities, process management, and token compression pipeline. |
+| **Core** | `@opencode-ai/core` | `packages/core/` | Base Effect TS runtime, canonical `Tool.make()` registry, file utilities, process management, token compression pipeline, and transactional patch engine. |
 | **Schema** | `@opencode-ai/schema` | `packages/schema/` | Effect `Schema` definitions for Agent, Session, Workflow, and message wire formats. |
 | **LLM** | `@opencode-ai/llm` | `packages/llm/` | Unified `LLMEvent` stream representations and provider-agnostic chunk adapters. |
 | **Server** | `@opencode-ai/server` | `packages/server/` | HTTP server, middleware, authentication, and Server-Sent Events (SSE) streaming infrastructure. |
@@ -176,6 +180,79 @@ Configure via `fox.jsonc` or `--workflow <name>`:
 
 ---
 
+<a id="transactional-patch-engine"></a>
+## 🛡️ Transactional Patch Engine (Atomic Multi-File Edits & Rollback)
+
+Fox replaces conventional sequential file-patching with an **ACID-inspired Transactional Patch Engine**. In traditional coding agents, multi-file edits or multi-hunk diffs are applied sequentially; if hunk 3 of 4 fails, hunks 1 and 2 remain modified on disk, leaving the workspace in an inconsistent, broken state.
+
+Fox guarantees **all-or-nothing atomicity**: every patch transaction either applies completely across all files with high confidence, or immediately rolls back to its pre-mutation state with sub-millisecond overhead.
+
+```
+                  ┌─────────────────────────────────────┐
+                  │        Incoming Patch / Edit        │
+                  └──────────────────┬──────────────────┘
+                                     │
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │ Phase 1: Dry-Run & Hunk Parsing     │
+                  │   • Parse unified diffs / hunks     │
+                  │   • Resolve relative workspace paths│
+                  │   • Check pre-image existence       │
+                  └──────────────────┬──────────────────┘
+                                     │
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │ Phase 2: 4-Tier Match Confidence    │
+                  │   • Tier 1: Exact (1.0)             │
+                  │   • Tier 2: Normalized (0.95)       │
+                  │   • Tier 3: Sliding Context (0.85)  │
+                  │   • Tier 4: Context Trim (0.75)     │
+                  └──────────────────┬──────────────────┘
+                                     │
+                       Confidence Threshold Met?
+                                    / \
+                              No   /   \   Yes
+                             ┌────       ────┐
+                             ▼               ▼
+                 ┌───────────────────┐   ┌───────────────────────────────┐
+                 │  ABORT & REJECT   │   │ Phase 3: Transaction Execute  │
+                 │  Zero disk writes │   │   • Journal pre-image bytes   │
+                 │  Inform LLM error │   │   • Write mutations to disk   │
+                 └───────────────────┘   └──────────────┬────────────────┘
+                                                        │
+                                            All Writes Successful?
+                                                       / \
+                                                 No   /   \   Yes
+                                                ┌────       ────┐
+                                                ▼               ▼
+                                    ┌───────────────────┐   ┌─────────────┐
+                                    │  ATOMIC ROLLBACK  │   │   COMMIT    │
+                                    │ Restore pre-image │   │ Transaction │
+                                    │ Remove new files  │   │  Finalized  │
+                                    └───────────────────┘   └─────────────┘
+```
+
+<a id="two-phase-atomic-commit"></a>
+### Two-Phase Atomic Commit & In-Memory Journal
+- **In-Memory Pre-Image Journaling**: Pre-mutation file contents are captured as raw `Uint8Array` byte buffers within an in-memory `Transaction` journal (`packages/core/src/transaction.ts`).
+- **Zero Disk Dependency on Rollback**: If any hunk application errors, file write fails, or permission is denied, the engine executes an immediate zero-disk-dependency rollback: restoring modified files to their exact pre-image bytes and unlinking newly created files.
+- **Dry-Run Validation Phase**: Every multi-file patch is pre-simulated in memory against target buffers before touching disk. Ambiguities, missing files, or out-of-bounds line numbers halt execution during dry-run with zero disk writes.
+
+<a id="confidence-scoring"></a>
+### 4-Tier Match Confidence Scoring
+Every hunk match is evaluated across four decreasing tiers of certainty (`packages/core/src/transaction-confidence.ts`):
+1. **Tier 1 — Exact Match (`1.0`)**: Byte-identical line matching against the target file.
+2. **Tier 2 — Normalized Match (`0.95`)**: Matches after normalizing trailing whitespace, tabs, and CRLF line endings.
+3. **Tier 3 — Sliding Context Match (`0.85`)**: Context matches within an offset search window when surrounding lines have shifted.
+4. **Tier 4 — Context Trim Match (`0.75`)**: Reduced-context boundary matching when file boundaries or adjacent edits overlap.
+- **Ambiguous Matches (< 0.70)**: Automatically rejected before disk modification, preventing unintended edits and model hallucinations.
+
+<a id="unified-tooling"></a>
+### Unified Tooling Architecture
+Both the multi-file `apply_patch` tool (`packages/core/src/tool/apply-patch.ts`) and the surgical `edit` tool (`packages/core/src/tool/edit.ts`) execute through the same `FileMutation` transactional journal API (`packages/core/src/file-mutation.ts`). This guarantees unified error handling, logging, and rollback across both multi-hunk diffs and targeted string replacements.
+
+---
+
 <a id="configuration"></a>
 ## ⚙️ Configuration & Environment Variables
 
@@ -246,7 +323,7 @@ Fox enforces a **5-Tier Testing Hierarchy** to guarantee zero regressions:
 Tier 1: Targeted Module Tests   (~200ms) ──► On every edit / save
 Tier 2: Category Suites         (~1-2s)  ──► After modifying a subsystem
 Tier 3: Quick Smoke Suite       (~15s)   ──► Before staging (git add)
-Tier 4: App & Invariant Suites  (~2s)    ──► Pre-commit verification (all 29 suites + 6 invariant categories)
+Tier 4: App & Invariant Suites  (~2s)    ──► Pre-commit verification (all 31 suites + 6 invariant categories)
 Tier 5: Full Monorepo & Build   (~45s)   ──► Pre-push and CI validation
 ```
 
@@ -257,17 +334,17 @@ bun test test/session/prompt-loop.test.ts
 bun test test/foxcode/daemon-schema.test.ts
 
 # Tier 2 — Category test suites
-bun run test:patch              # Patch parser & applicator (30 tests)
+bun run test:patch              # Patch parser, transactional journal & confidence (58 tests)
 bun run test:edit               # Edit replacers & line normalization (48 tests)
 bun run test:config             # Config merge & precedence (36 tests)
 bun run test:compress           # Compression pipeline & ROI (88 tests)
 bun run test:schema-stability   # Wire format stability tests
 
 # Tier 3 — Quick Smoke (Typecheck + core invariants)
-bun run test:smoke              # ~15 seconds
+bun run test:smoke              # ~20 seconds
 
 # Tier 4 — App-level tests & Invariant scoreboard
-bun run test:app                # All 281 tests across 29 suites in test/ (~1s)
+bun run test:app                # All 309 tests across 31 suites in test/ (~1s)
 bun run test:standard-suite     # 52-fixture Fox Standard Test Suite (~1s)
 
 # Tier 5 — Full monorepo verification

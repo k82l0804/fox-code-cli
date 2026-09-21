@@ -2,6 +2,9 @@ import { Effect, Schema } from "effect"
 import * as path from "path"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import * as Bom from "../util/bom"
+// Re-export confidence-aware patching from the core module
+export { Patch as CorePatch } from "@opencode-ai/core/patch"
+export { TransactionConfidence } from "@opencode-ai/core/transaction-confidence"
 
 export const PatchSchema = Schema.Struct({
   patchText: Schema.String.annotate({ description: "The full patch text that describes all changes to be made" }),

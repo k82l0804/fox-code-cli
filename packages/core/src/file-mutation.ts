@@ -5,6 +5,7 @@ import { Context, Effect, Layer, Schema } from "effect"
 import { dirname } from "path"
 import { KeyedMutex } from "./effect/keyed-mutex"
 import { FSUtil } from "./fs-util"
+import { Transaction } from "./transaction"
 
 export interface Target {
   readonly canonical: string
@@ -62,6 +63,34 @@ export interface Interface {
     input: ConditionalWriteInput,
   ) => Effect.Effect<WriteResult, StaleContentError | FSUtil.Error>
   readonly remove: (input: RemoveInput) => Effect.Effect<RemoveResult, FSUtil.Error>
+
+  // ─── Transactional Methods ──────────────────────────────────────────────
+  /** Create a new in-memory transaction scope. */
+  readonly createTransaction: () => Transaction.Transaction
+
+  /** Transaction-aware write: journals pre-image before writing. */
+  readonly writeTransactional: (
+    tx: Transaction.Transaction,
+    input: WriteInput,
+  ) => Effect.Effect<WriteResult, FSUtil.Error>
+
+  /** Transaction-aware conditional write: journals pre-image, checks staleness, then writes. */
+  readonly writeIfUnchangedTransactional: (
+    tx: Transaction.Transaction,
+    input: ConditionalWriteInput,
+  ) => Effect.Effect<WriteResult, StaleContentError | FSUtil.Error>
+
+  /** Transaction-aware create: journals null pre-image, then creates. */
+  readonly createTransactional: (
+    tx: Transaction.Transaction,
+    input: WriteInput,
+  ) => Effect.Effect<WriteResult, TargetExistsError | FSUtil.Error>
+
+  /** Transaction-aware remove: journals pre-image, then removes. */
+  readonly removeTransactional: (
+    tx: Transaction.Transaction,
+    input: RemoveInput,
+  ) => Effect.Effect<RemoveResult, FSUtil.Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/FileMutation") {}
@@ -168,7 +197,95 @@ const layer = Layer.effect(
       ),
     )
 
-    return Service.of({ create, write, writeTextPreservingBom, writeIfUnchanged, remove })
+    // ─── Transactional Variants ──────────────────────────────────────────
+
+    const createTransaction = () => Transaction.create()
+
+    const writeTransactional = Effect.fn("FileMutation.writeTransactional")(
+      (tx: Transaction.Transaction, input: WriteInput) =>
+        withTargetLock(input.target)(
+          Effect.gen(function* () {
+            const existed = yield* fs.exists(input.target.canonical)
+            if (existed) {
+              const current = yield* fs.readFile(input.target.canonical)
+              tx.journal(input.target.canonical, current)
+            } else {
+              tx.journal(input.target.canonical, null)
+            }
+            yield* fs.writeWithDirs(input.target.canonical, input.content)
+            return writeResult(input.target, existed)
+          }),
+        ),
+    )
+
+    const writeIfUnchangedTransactional = Effect.fn("FileMutation.writeIfUnchangedTransactional")(
+      (tx: Transaction.Transaction, input: ConditionalWriteInput) =>
+        withTargetLock(input.target)(
+          Effect.gen(function* () {
+            const current = yield* fs.readFile(input.target.canonical)
+            if (!sameBytes(current, input.expected)) {
+              return yield* new StaleContentError({ path: input.target.canonical })
+            }
+            tx.journal(input.target.canonical, current)
+            yield* typeof input.content === "string"
+              ? fs.writeFileString(input.target.canonical, input.content)
+              : fs.writeFile(input.target.canonical, input.content)
+            return writeResult(input.target, true)
+          }),
+        ),
+    )
+
+    const createTransactional = Effect.fn("FileMutation.createTransactional")(
+      (tx: Transaction.Transaction, input: WriteInput) =>
+        withTargetLock(input.target)(
+          Effect.gen(function* () {
+            tx.journal(input.target.canonical, null)
+            const w =
+              typeof input.content === "string"
+                ? fs.writeFileString(input.target.canonical, input.content, { flag: "wx" })
+                : fs.writeFile(input.target.canonical, input.content, { flag: "wx" })
+            yield* w.pipe(
+              Effect.catchReason("PlatformError", "NotFound", () =>
+                fs.ensureDir(dirname(input.target.canonical)).pipe(Effect.andThen(w)),
+              ),
+              Effect.catchReason("PlatformError", "AlreadyExists", () =>
+                Effect.fail(new TargetExistsError({ path: input.target.canonical })),
+              ),
+            )
+            return writeResult(input.target, false)
+          }),
+        ),
+    )
+
+    const removeTransactional = Effect.fn("FileMutation.removeTransactional")(
+      (tx: Transaction.Transaction, input: RemoveInput) =>
+        withTargetLock(input.target)(
+          Effect.gen(function* () {
+            const current = yield* fs
+              .readFile(input.target.canonical)
+              .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
+            tx.journal(input.target.canonical, current ?? null)
+            const existed = yield* fs.remove(input.target.canonical).pipe(
+              Effect.as(true),
+              Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(false)),
+            )
+            return removeResult(input.target, existed)
+          }),
+        ),
+    )
+
+    return Service.of({
+      create,
+      write,
+      writeTextPreservingBom,
+      writeIfUnchanged,
+      remove,
+      createTransaction,
+      writeTransactional,
+      writeIfUnchangedTransactional,
+      createTransactional,
+      removeTransactional,
+    })
   }),
 )
 
@@ -202,6 +319,5 @@ export const node = makeLocationNode({ service: Service, layer, deps: [FSUtil.no
 // TODO: Publish watcher/file-edit events after V2 watcher integration exists.
 // TODO: Add snapshots / undo after V2 snapshot design exists.
 // TODO: Notify LSP and collect diagnostics after V2 LSP runtime exists.
-// TODO: Design multi-file transactions / rollback if apply_patch needs atomic edits.
-// Until then, edits are sequential and report partial application.
+// DONE: Multi-file transactions / rollback implemented via Transaction + transactional methods.
 // TODO: Define crash recovery and idempotency for side effects between Tool.Called and durable settlement.

@@ -210,13 +210,19 @@ const layer = Layer.effectDiscard(
                   { additions: 0, deletions: 0 },
                 )
                 const next = splitBom(replaced)
+                const tx = files.createTransaction()
                 const result = yield* unableToEdit(
-                  files.writeIfUnchanged({
+                  files.writeIfUnchangedTransactional(tx, {
                     target,
                     expected: source.content,
                     content: joinBom(next.text, source.bom || next.bom),
-                  }),
+                  }).pipe(
+                    Effect.tapError(() =>
+                      tx.rollback(fs).pipe(Effect.catch(() => Effect.void)),
+                    ),
+                  ),
                 )
+                tx.commit()
                 return {
                   files: [
                     {

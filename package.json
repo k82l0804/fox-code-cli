@@ -21,7 +21,7 @@
     "fox": "bun run ./src/index.ts",
     "test": "bash scripts/test-all.sh",
     "test:smoke": "bash scripts/test-smoke.sh",
-    "test:patch": "bun test test/patch.test.ts --timeout 30000",
+    "test:patch": "bun test test/patch.test.ts test/transaction.test.ts test/transaction-confidence.test.ts --timeout 30000",
     "test:edit": "bun test test/edit-replacers.test.ts test/encoding.test.ts --timeout 30000",
     "test:config": "bun test test/config-merge.test.ts --timeout 30000",
     "test:compress": "bun test packages/core/test/compress.test.ts packages/core/test/compression-roi.test.ts --timeout 30000",

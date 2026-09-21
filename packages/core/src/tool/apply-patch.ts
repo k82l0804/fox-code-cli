@@ -17,6 +17,7 @@ import { Tool } from "./tool"
 import { Tools } from "./tools"
 import { ToolOutputCompressor } from "./compress"
 import { Flag } from "../flag/flag"
+import { TransactionConfidence } from "../transaction-confidence"
 
 export const name = "apply_patch"
 
@@ -32,9 +33,15 @@ export const Applied = Schema.Struct({
   target: Schema.String,
 })
 
+export const ConfidenceOutput = Schema.Struct({
+  overall: Schema.Number,
+  recommendation: Schema.Literals(["apply", "review", "reject"]),
+})
+
 export const Output = Schema.Struct({
   applied: Schema.Array(Applied),
   files: Schema.Array(FileDiff.Info),
+  confidence: Schema.optional(ConfidenceOutput),
 })
 export type Output = typeof Output.Type
 const compact = (output: Output): Output => {
@@ -51,10 +58,13 @@ const compact = (output: Output): Output => {
 }
 export const toModelOutput = (output: Output) =>
   [
-    "Applied patch sequentially:",
+    "Applied patch atomically:",
     ...output.applied.map(
       (item) => `${item.type === "add" ? "A" : item.type === "delete" ? "D" : "M"} ${item.resource}`,
     ),
+    ...(output.confidence
+      ? [`Confidence: ${(output.confidence.overall * 100).toFixed(0)}% (${output.confidence.recommendation})`]
+      : []),
   ].join("\n")
 
 type Prepared =
@@ -69,6 +79,7 @@ type Prepared =
       readonly content: string
       readonly before: string
       readonly after: string
+      readonly confidence: TransactionConfidence.HunkConfidence[]
     })
 
 const layer = Layer.effectDiscard(
@@ -85,7 +96,7 @@ const layer = Layer.effectDiscard(
         [name]: Tool.withPermission(
           Tool.make({
             description:
-              "Apply one patch containing add, update, and delete file operations. All targets are resolved and approved before target contents are read. Operations apply sequentially; if a later operation fails, earlier operations remain applied and the failure reports them explicitly. Moves and atomic rollback are not supported yet.",
+              "Apply one patch containing add, update, and delete file operations. All operations are validated in a dry-run phase before any files are modified. If validation passes, changes are applied atomically — either all succeed or all are rolled back. Moves are not supported yet.",
             input: Input,
             output: Output,
             structured: Output,
@@ -95,14 +106,6 @@ const layer = Layer.effectDiscard(
               { workspaceRoot: location.directory, toolName: name },
             ) }],
             execute: (input, context) => {
-              const applied: Array<typeof Applied.Type> = []
-              const fail = (path: string) => {
-                const prefix =
-                  applied.length === 0
-                    ? `Unable to apply patch at ${path}`
-                    : `Patch partially applied before failing at ${path}. Applied: ${applied.map((item) => item.resource).join(", ")}`
-                return new ToolFailure({ message: prefix })
-              }
               return Effect.gen(function* () {
                 const source = {
                   type: "tool" as const,
@@ -118,6 +121,7 @@ const layer = Layer.effectDiscard(
                 const move = hunks.find((hunk) => hunk.type === "update" && hunk.movePath !== undefined)
                 if (move) return yield* new ToolFailure({ message: "apply_patch moves are not supported yet" })
 
+                // ─── Phase 1: Resolve & Approve ──────────────────────────────
                 const targets: Array<{ readonly hunk: Patch.Hunk; readonly target: LocationMutation.Target }> = []
                 for (const hunk of hunks)
                   targets.push({ hunk, target: yield* mutation.resolve({ path: hunk.path, kind: "file" }) })
@@ -143,7 +147,12 @@ const layer = Layer.effectDiscard(
                   source,
                 })
 
+                // ─── Phase 2: Dry-Run (prepare + confidence) ─────────────────
                 const prepared: Prepared[] = []
+                const allConfidence: TransactionConfidence.HunkConfidence[] = []
+                const fail = (path: string) =>
+                  new ToolFailure({ message: `Unable to apply patch at ${path}` })
+
                 for (const { hunk, target } of targets) {
                   yield* Effect.gen(function* () {
                     if (hunk.type === "add") {
@@ -154,60 +163,109 @@ const layer = Layer.effectDiscard(
                         after:
                           hunk.contents.endsWith("\n") || hunk.contents === "" ? hunk.contents : `${hunk.contents}\n`,
                       })
+                      // Add operations are always exact confidence
+                      allConfidence.push(
+                        TransactionConfidence.scoreHunk(hunk.path, allConfidence.length, "exact", 0),
+                      )
                       return
                     }
                     if ((yield* fs.stat(target.canonical)).type !== "File") yield* fail(hunk.path)
-                    const source = yield* fs.readFile(target.canonical)
-                    const original = new TextDecoder("utf-8", { ignoreBOM: true }).decode(source)
+                    const sourceBytes = yield* fs.readFile(target.canonical)
+                    const original = new TextDecoder("utf-8", { ignoreBOM: true }).decode(sourceBytes)
                     const before = original.replace(/^\uFEFF/, "")
                     if (hunk.type === "delete") {
                       prepared.push({ ...hunk, target, before, after: "" })
+                      // Delete operations are always exact confidence
+                      allConfidence.push(
+                        TransactionConfidence.scoreHunk(hunk.path, allConfidence.length, "exact", 0),
+                      )
                       return
                     }
-                    const update = Patch.derive(hunk.path, hunk.chunks, original)
+                    // Update: use deriveWithConfidence for dry-run + confidence scoring
+                    const result = Patch.deriveWithConfidence(hunk.path, hunk.chunks, original)
+                    allConfidence.push(...result.confidence)
                     prepared.push({
                       ...hunk,
                       target,
-                      source,
-                      content: Patch.joinBom(update.content, update.bom),
+                      source: sourceBytes,
+                      content: Patch.joinBom(result.update.content, result.update.bom),
                       before,
-                      after: update.content,
+                      after: result.update.content,
+                      confidence: result.confidence,
                     })
                   }).pipe(Effect.mapError(() => fail(hunk.path)))
                 }
 
+                // ─── Phase 2b: Confidence Gate ───────────────────────────────
+                const confidence = TransactionConfidence.aggregate(allConfidence)
+                if (confidence.recommendation === "reject") {
+                  const lowHunks = confidence.hunks
+                    .filter((h) => h.score < 0.7)
+                    .map((h) => `  ${h.path} hunk#${h.hunkIndex}: ${(h.score * 100).toFixed(0)}% (${h.matchTier})`)
+                  return yield* new ToolFailure({
+                    message: [
+                      `Patch rejected: confidence too low (${(confidence.overall * 100).toFixed(0)}%)`,
+                      "Low-confidence hunks:",
+                      ...lowHunks,
+                      "Please re-read the affected files and provide more context in the patch.",
+                    ].join("\n"),
+                  })
+                }
+
+                // ─── Phase 3: Atomic Apply (with transaction) ────────────────
+                const tx = files.createTransaction()
+                const applied: Array<typeof Applied.Type> = []
                 const patchFiles = prepared.map(patchFile)
-                yield* Effect.forEach(
-                  prepared,
-                  (change) =>
-                    Effect.gen(function* () {
-                      if (change.type === "add") {
-                        const result = yield* files.create({
-                          target: change.target,
-                          content:
-                            change.contents.endsWith("\n") || change.contents === ""
-                              ? change.contents
-                              : `${change.contents}\n`,
-                        })
-                        applied.push({ type: change.type, resource: result.resource, target: result.target })
-                        return
-                      }
-                      if (change.type === "delete") {
-                        const result = yield* files.remove({ target: change.target })
-                        applied.push({ type: change.type, resource: result.resource, target: result.target })
-                        return
-                      }
-                      const result = yield* files.writeIfUnchanged({
+
+                const applyAll = Effect.gen(function* () {
+                  for (const change of prepared) {
+                    if (change.type === "add") {
+                      const result = yield* files.createTransactional(tx, {
                         target: change.target,
-                        expected: change.source,
-                        content: change.content,
+                        content:
+                          change.contents.endsWith("\n") || change.contents === ""
+                            ? change.contents
+                            : `${change.contents}\n`,
                       })
                       applied.push({ type: change.type, resource: result.resource, target: result.target })
-                    }).pipe(Effect.mapError(() => fail(change.path))),
-                  { discard: true },
+                      continue
+                    }
+                    if (change.type === "delete") {
+                      const result = yield* files.removeTransactional(tx, { target: change.target })
+                      applied.push({ type: change.type, resource: result.resource, target: result.target })
+                      continue
+                    }
+                    const result = yield* files.writeIfUnchangedTransactional(tx, {
+                      target: change.target,
+                      expected: change.source,
+                      content: change.content,
+                    })
+                    applied.push({ type: change.type, resource: result.resource, target: result.target })
+                  }
+                })
+
+                yield* applyAll.pipe(
+                  Effect.tapError(() =>
+                    // Rollback all changes on any failure
+                    tx.rollback(fs).pipe(Effect.catch(() => Effect.void)),
+                  ),
+                  Effect.mapError(() => new ToolFailure({
+                    message: "Patch failed; no changes applied. All files have been rolled back to their original state.",
+                  })),
                 )
-                return { applied, files: patchFiles }
-              }).pipe(Effect.mapError((error) => (error instanceof ToolFailure ? error : fail("patch"))))
+
+                // Commit the transaction (clears journal)
+                tx.commit()
+
+                return {
+                  applied,
+                  files: patchFiles,
+                  confidence: {
+                    overall: confidence.overall,
+                    recommendation: confidence.recommendation,
+                  },
+                } satisfies Output
+              }).pipe(Effect.mapError((error) => (error instanceof ToolFailure ? error : new ToolFailure({ message: "patch failed" }))))
             },
           }),
           "edit",

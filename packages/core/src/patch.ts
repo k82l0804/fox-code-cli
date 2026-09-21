@@ -1,5 +1,8 @@
 export * as Patch from "./patch"
 
+import { TransactionConfidence } from "./transaction-confidence"
+export type { TransactionConfidence }
+
 export type Hunk =
   | { readonly type: "add"; readonly path: string; readonly contents: string }
   | { readonly type: "delete"; readonly path: string }
@@ -195,3 +198,122 @@ const splitBom = (text: string) =>
   text.startsWith("\uFEFF") ? { bom: true, text: text.slice(1) } : { bom: false, text }
 const stripHeredoc = (input: string) =>
   input.match(/^(?:cat\s+)?<<['"]?(\w+)['"]?\s*\n([\s\S]*?)\n\1\s*$/)?.[2] ?? input
+
+// ─── Confidence-Aware Matching ──────────────────────────────────────────────
+
+/** Result of a confidence-aware seek, including which match tier succeeded. */
+export interface SeekResult {
+  readonly index: number
+  readonly tier: TransactionConfidence.MatchTier
+}
+
+const comparators: Array<{ compare: (a: string, b: string) => boolean; tier: TransactionConfidence.MatchTier }> = [
+  { compare: exact, tier: "exact" },
+  { compare: rstrip, tier: "rstrip" },
+  { compare: trim, tier: "trim" },
+  { compare: normalized, tier: "normalized" },
+]
+
+/**
+ * Like `seek()` but also returns which match tier (exact/rstrip/trim/normalized) succeeded.
+ * Returns `undefined` when no match is found.
+ */
+function seekWithConfidence(
+  lines: ReadonlyArray<string>,
+  pattern: ReadonlyArray<string>,
+  start: number,
+  eof = false,
+): SeekResult | undefined {
+  if (pattern.length === 0) return undefined
+  for (const { compare, tier } of comparators) {
+    if (eof) {
+      const offset = lines.length - pattern.length
+      if (offset >= start && matches(lines, pattern, offset, compare)) return { index: offset, tier }
+    }
+    for (let offset = start; offset <= lines.length - pattern.length; offset++) {
+      if (matches(lines, pattern, offset, compare)) return { index: offset, tier }
+    }
+  }
+  return undefined
+}
+
+/** Extended replacement tuple that includes the match tier. */
+type ReplacementWithTier = readonly [
+  start: number,
+  remove: number,
+  insert: ReadonlyArray<string>,
+  tier: TransactionConfidence.MatchTier,
+  contextLines: number,
+]
+
+function computeReplacementsWithConfidence(
+  lines: ReadonlyArray<string>,
+  path: string,
+  chunks: ReadonlyArray<UpdateFileChunk>,
+) {
+  const replacements: ReplacementWithTier[] = []
+  let lineIndex = 0
+  for (const chunk of chunks) {
+    let contextLines = 0
+    if (chunk.changeContext) {
+      const result = seekWithConfidence(lines, [chunk.changeContext], lineIndex)
+      if (!result) throw new Error(`Failed to find context '${chunk.changeContext}' in ${path}`)
+      lineIndex = result.index + 1
+      contextLines = 1
+    }
+    if (chunk.oldLines.length === 0) {
+      // Pure addition — always exact
+      replacements.push([lines.length, 0, chunk.newLines, "exact", contextLines])
+      continue
+    }
+    let oldLines = chunk.oldLines
+    let newLines = chunk.newLines
+    let result = seekWithConfidence(lines, oldLines, lineIndex, chunk.endOfFile)
+    if (!result && oldLines.at(-1) === "") {
+      oldLines = oldLines.slice(0, -1)
+      if (newLines.at(-1) === "") newLines = newLines.slice(0, -1)
+      result = seekWithConfidence(lines, oldLines, lineIndex, chunk.endOfFile)
+    }
+    if (!result) throw new Error(`Failed to find expected lines in ${path}:\n${chunk.oldLines.join("\n")}`)
+    // Count the context (unchanged) lines in the chunk
+    const contextInChunk = chunk.oldLines.filter(
+      (line, i) => i < chunk.newLines.length && line === chunk.newLines[i],
+    ).length
+    replacements.push([result.index, oldLines.length, newLines, result.tier, contextLines + contextInChunk])
+    lineIndex = result.index + oldLines.length
+  }
+  return replacements.toSorted((left, right) => left[0] - right[0])
+}
+
+/**
+ * Like `derive()` but also returns per-chunk confidence metadata.
+ * This is the dry-run entry point for transactional patch application.
+ */
+export function deriveWithConfidence(
+  path: string,
+  chunks: ReadonlyArray<UpdateFileChunk>,
+  original: string,
+): { update: FileUpdate; confidence: TransactionConfidence.HunkConfidence[] } {
+  const source = splitBom(original)
+  const lines = source.text.split("\n")
+  if (lines.at(-1) === "") lines.pop()
+  const replacements = computeReplacementsWithConfidence(lines, path, chunks)
+
+  // Apply replacements (same logic as derive)
+  const updated = [...lines]
+  for (const [start, remove, insert] of [...replacements].reverse()) {
+    updated.splice(start, remove, ...insert)
+  }
+  if (updated.at(-1) !== "") updated.push("")
+  const next = splitBom(updated.join("\n"))
+
+  // Build confidence entries
+  const confidence = replacements.map(([, , , tier, contextLines], i) =>
+    TransactionConfidence.scoreHunk(path, i, tier, contextLines),
+  )
+
+  return {
+    update: { content: next.text, bom: source.bom || next.bom },
+    confidence,
+  }
+}
