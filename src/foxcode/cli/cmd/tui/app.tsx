@@ -78,7 +78,7 @@ export function useSessionEffects(deps: {
   sync: ReturnType<typeof useSync>
 }) {
   useLinkInteractions()
-  const pty = process.env.FOX_PTY_ID ?? process.env.KILO_PTY_ID
+  const pty = process.env.FOX_PTY_ID
   const viewerId = crypto.randomUUID()
   const renderer = useRenderer()
   const session = createMemo(() => (deps.route.data.type === "session" ? deps.route.data.sessionID : undefined))
@@ -86,7 +86,7 @@ export function useSessionEffects(deps: {
   const meta = { prev: "" }
 
   FoxTerminalActivity.use({
-    enabled: process.env.FOX_TERMINAL_ACTIVITY ?? process.env.KILO_TERMINAL_ACTIVITY,
+    enabled: process.env.FOX_TERMINAL_ACTIVITY,
     session,
     data: deps.sync.data,
     subscribe: (handler) =>

@@ -197,7 +197,9 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
                 messageID: input.processor.message.id,
               })),
             }
-            if (item.id === "kilo_memory_recall") MemoryMarker.recall({ result: output, cache: input.memoryCache })
+            if (item.id === "fox_memory_recall" || item.id === "kilo_memory_recall") {
+              MemoryMarker.recall({ result: output, cache: input.memoryCache })
+            }
             yield* plugin.trigger(
               "tool.execute.after",
               { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID, args },

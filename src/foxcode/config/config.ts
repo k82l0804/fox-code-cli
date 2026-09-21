@@ -49,7 +49,7 @@ export namespace FoxConfig {
     worktree?: string
   }) {
     const dirs = yield* input.fs
-      .up({ targets: [...KILO_DIR_SUFFIXES], start: input.directory, stop: input.worktree })
+      .up({ targets: [...FOX_DIR_SUFFIXES], start: input.directory, stop: input.worktree })
       .pipe(Effect.orDie)
     const roots = yield* input.fs
       .up({ targets: [...ALL_CONFIG_FILES], start: input.directory, stop: input.worktree })

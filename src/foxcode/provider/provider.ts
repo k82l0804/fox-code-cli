@@ -32,13 +32,14 @@ export const REQUEST_TIMEOUT_MS = process.env.FOX_REQUEST_TIMEOUT_MS
 
 type BundledSDK = { languageModel(modelId: string): LanguageModelV3 }
 
-export const KILO_BUNDLED_PROVIDERS: Record<string, () => Promise<(options: any) => BundledSDK>> = {}
+export const FOX_BUNDLED_PROVIDERS: Record<string, () => Promise<(options: any) => BundledSDK>> = {}
+export const KILO_BUNDLED_PROVIDERS = FOX_BUNDLED_PROVIDERS
 
 // ---------------------------------------------------------------------------
 // Model schema extensions  (spread into Provider.Model Schema.Struct)
 // ---------------------------------------------------------------------------
 
-export const KILO_MODEL_SCHEMA_EXTENSIONS = {
+export const FOX_MODEL_SCHEMA_EXTENSIONS = {
   recommendedIndex: optionalOmitUndefined(Schema.Finite),
   isFree: Schema.optional(Schema.Boolean),
   mayTrainOnYourPrompts: Schema.optional(Schema.Boolean),
@@ -56,6 +57,7 @@ export const KILO_MODEL_SCHEMA_EXTENSIONS = {
   ),
   ai_sdk_provider: Schema.optional(Schema.Literals(AI_SDK_PROVIDERS)),
 }
+export const KILO_MODEL_SCHEMA_EXTENSIONS = FOX_MODEL_SCHEMA_EXTENSIONS
 
 // ---------------------------------------------------------------------------
 // fromModelsDevModel patch — returns kilo-specific fields
@@ -152,65 +154,8 @@ type CustomLoaderResult = {
 type CustomLoader = (provider: any) => Effect.Effect<CustomLoaderResult>
 
 
-export function patchKiloProviderPrivacy(provider: { options?: Record<string, any> } | undefined, config: any) {
-  if (!provider || config.hide_prompt_training_models !== true) return
-  provider.options = { ...provider.options, dataCollection: "deny" }
-}
-
-export function patchKiloProviderAuth(
-  provider: Provider.Info | undefined,
-  config: Config.Info,
-  info: Auth.Info | undefined,
-) {
-  if (!provider) return
-  const options = config.provider?.kilo?.options
-  const key = token(options, info)
-  const org = organization(options, info)
-  if (key !== undefined) provider.options.kilocodeToken = key
-  if (org !== undefined) provider.options.kilocodeOrganizationId = org
-}
-
-export function publicKiloProvider(provider: Provider.Info): Provider.Info {
-  if (provider.id !== "fox") return provider
-  return { ...provider, key: undefined, options: omit(provider.options, ["apiKey", "kilocodeToken"]) }
-}
-
-export function kiloCustomLoaders(dep: CustomDep): Record<string, CustomLoader> {
+export function foxCustomLoaders(_dep: CustomDep): Record<string, CustomLoader> {
   return {
-    kilo: Effect.fnUntraced(function* (input: any) {
-      const env = yield* dep.env()
-      const config = yield* dep.config()
-      const hasKey = yield* Effect.gen(function* () {
-        if (input.env.some((item: string) => env[item])) return true
-        if (yield* dep.auth(input.id)) return true
-        if (config.provider?.["fox"]?.options?.apiKey) return true
-        return false
-      })
-
-      const options: Record<string, string> = {}
-      const orgId = env.FOX_ORG_ID || env.KILO_ORG_ID
-      if (orgId) {
-        options.kilocodeOrganizationId = orgId
-      }
-      if (config.hide_prompt_training_models === true) {
-        options.dataCollection = "deny"
-      }
-      if (!hasKey) {
-        options.apiKey = "anonymous"
-      }
-
-      return {
-        autoload: Object.keys(input.models).length > 0,
-        options,
-        async getModel(sdk: any, modelID: string) {
-          const provider = input.models[modelID]?.ai_sdk_provider
-          if (provider === "openai") return sdk.openai(modelID)
-          if (provider === "openai-compatible") return sdk.openaiCompatible(modelID)
-          return sdk.languageModel(modelID)
-        },
-      }
-    }),
-
     // Override opencode to prevent auto-connecting without credentials
     opencode: () =>
       Effect.succeed({
@@ -219,48 +164,14 @@ export function kiloCustomLoaders(dep: CustomDep): Record<string, CustomLoader> 
       }),
   }
 }
-
-// ---------------------------------------------------------------------------
-// Post-processing for custom loader results
-// Patches options/headers for providers whose upstream loaders we don't fully
-// replace but where specific values differ (headers, branding, env vars).
-// ---------------------------------------------------------------------------
+export const kiloCustomLoaders = foxCustomLoaders
 
 export function patchCustomLoaderResult(
-  providerID: string,
+  _providerID: string,
   result: { options?: Record<string, any> },
-  env: Record<string, string | undefined>,
+  _env: Record<string, string | undefined>,
 ) {
   if (!result.options) return
-
-  // Gitlab User-Agent is patched inline in provider.ts
-}
-
-// ---------------------------------------------------------------------------
-// getSmallModel helpers
-// ---------------------------------------------------------------------------
-
-export function kiloSmallModelPriority(providerID: string): string[] | undefined {
-  if (providerID.startsWith("fox")) return ["kilo-auto/small"]
-  return undefined
-}
-
-/**
- * True when the user has kilo credentials: a KILO_API_KEY env var, a stored
- * auth entry, or an apiKey in the kilo provider config. Mirrors the hasKey
- * check in the kilo custom loader. The kilo provider is autoloaded with an
- * anonymous key even without credentials, so this gates the cloud
- * kilo-auto/small fallback to users who can actually reach it.
- */
-export function hasKiloCredentials(
-  cfg: { provider?: Record<string, { options?: { apiKey?: string } } | null> },
-  auth: unknown,
-  env: Record<string, string | undefined>,
-) {
-  if (env.FOX_API_KEY || env.KILO_API_KEY) return true
-  if (auth) return true
-  if (cfg.provider?.["fox"]?.options?.apiKey) return true
-  return false
 }
 
 // ---------------------------------------------------------------------------

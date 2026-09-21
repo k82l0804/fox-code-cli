@@ -529,11 +529,8 @@ const layer = Layer.effect(
       const env = {
         FOX_AUTH_CONTENT: JSON.stringify(yield* auth.all()),
         FOX_WORKSPACE_ID: config.id,
-        KILO_WORKSPACE_ID: config.id,
         FOX_EXPERIMENTAL_WORKSPACES: "true",
-        KILO_EXPERIMENTAL_WORKSPACES: "true",
         FOX_TRACING: process.env.FOX_TRACING,
-        KILO_TRACING: process.env.KILO_TRACING,
         OTEL_EXPORTER_OTLP_HEADERS: process.env.OTEL_EXPORTER_OTLP_HEADERS,
         OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,

@@ -18,7 +18,7 @@ function mergeConfig(existing: Config | undefined, incoming: Config | undefined)
 }
 
 function parseExistingConfig(): Config | undefined {
-  const content = process.env.FOX_CONFIG_CONTENT ?? process.env.KILO_CONFIG_CONTENT
+  const content = process.env.FOX_CONFIG_CONTENT
   if (!content) return undefined
   try {
     return JSON.parse(content)
@@ -64,7 +64,6 @@ export async function createFoxServer(options?: ServerOptions) {
     env: {
       ...process.env,
       FOX_CONFIG_CONTENT: buildConfigEnv(options.config),
-      KILO_CONFIG_CONTENT: buildConfigEnv(options.config),
     },
   })
   let clear = () => {}
@@ -149,7 +148,6 @@ export function createFoxTui(options?: TuiOptions) {
     env: {
       ...process.env,
       FOX_CONFIG_CONTENT: buildConfigEnv(options?.config),
-      KILO_CONFIG_CONTENT: buildConfigEnv(options?.config),
     },
   })
 

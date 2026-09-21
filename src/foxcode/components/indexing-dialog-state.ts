@@ -1,4 +1,4 @@
-import { fetchKiloEmbeddingModelCatalog, resolveKiloGatewayBaseUrl } from "@/foxcode/indexing-catalog"
+import { fetchEmbeddingModelCatalog, resolveEmbeddingBaseUrl } from "@/foxcode/indexing-catalog"
 import type { Config, IndexingConfig, FoxEmbeddingModelCatalog } from "@foxcode/sdk/v2"
 import * as Log from "@opencode-ai/core/util/log"
 import { createMemo, type Accessor } from "solid-js"
@@ -8,9 +8,9 @@ export type IndexingScope = "global" | "project"
 const log = Log.create({ service: "indexing-model-catalog" })
 
 export async function loadKiloEmbeddingModels(onError?: (message: string) => void) {
-  const endpoint = new URL("embedding-models", resolveKiloGatewayBaseUrl()).toString()
-  log.info("loading Kilo embedding model catalog", { endpoint })
-  const catalog = await fetchKiloEmbeddingModelCatalog({
+  const endpoint = new URL("embedding-models", resolveEmbeddingBaseUrl()).toString()
+  log.info("loading Fox embedding model catalog", { endpoint })
+  const catalog = await fetchEmbeddingModelCatalog({
     onError: (issue: any) => {
       log.warn("failed to load Kilo embedding model catalog", {
         code: issue.code,

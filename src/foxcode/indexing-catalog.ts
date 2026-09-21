@@ -12,7 +12,7 @@ export type FoxEmbeddingModelCatalog = {
   aliases: Record<string, string>
 }
 
-export const EMPTY_KILO_EMBEDDING_MODEL_CATALOG: FoxEmbeddingModelCatalog = {
+export const EMPTY_FOX_EMBEDDING_MODEL_CATALOG: FoxEmbeddingModelCatalog = {
   defaultModel: "text-embedding-3-small",
   models: [
     {
@@ -24,13 +24,16 @@ export const EMPTY_KILO_EMBEDDING_MODEL_CATALOG: FoxEmbeddingModelCatalog = {
   ],
   aliases: {},
 }
+export const EMPTY_KILO_EMBEDDING_MODEL_CATALOG = EMPTY_FOX_EMBEDDING_MODEL_CATALOG
 
-export async function fetchKiloEmbeddingModelCatalog(_options: unknown = {}): Promise<FoxEmbeddingModelCatalog> {
-  return EMPTY_KILO_EMBEDDING_MODEL_CATALOG
+export async function fetchEmbeddingModelCatalog(_options: unknown = {}): Promise<FoxEmbeddingModelCatalog> {
+  return EMPTY_FOX_EMBEDDING_MODEL_CATALOG
 }
+export const fetchKiloEmbeddingModelCatalog = fetchEmbeddingModelCatalog
 
-export function resolveKiloGatewayBaseUrl(_options?: unknown): string {
+export function resolveEmbeddingBaseUrl(_options?: unknown): string {
   return "http://localhost:8000/v1"
 }
+export const resolveKiloGatewayBaseUrl = resolveEmbeddingBaseUrl
 
 export type { FoxEmbeddingModel as KiloEmbeddingModel, FoxEmbeddingModelCatalog as KiloEmbeddingModelCatalog }

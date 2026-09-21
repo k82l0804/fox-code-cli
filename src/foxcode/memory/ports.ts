@@ -138,15 +138,16 @@ function recalledMemory(turn: Turn) {
   return [turn.user, ...turn.assistants].flatMap((item) => item.parts).some((part) => {
     if (part.type === "tool") {
       return (
-        part.tool === "kilo_memory_recall" &&
+        (part.tool === "fox_memory_recall" || part.tool === "kilo_memory_recall") &&
         part.state.status === "completed" &&
         typeof part.state.metadata.count === "number" &&
         part.state.metadata.count > 0
       )
     }
     if (part.type !== "text") return false
-    const marker = (part.metadata as { kiloMemory?: { type?: string; count?: number } } | undefined)?.kiloMemory
-    return marker?.type === "recall" && (marker.count ?? 0) > 0
+    const marker = (part.metadata as { foxMemory?: { type?: string; count?: number }; kiloMemory?: { type?: string; count?: number } } | undefined)
+    const memoryMarker = marker?.foxMemory ?? marker?.kiloMemory
+    return memoryMarker?.type === "recall" && (memoryMarker.count ?? 0) > 0
   })
 }
 

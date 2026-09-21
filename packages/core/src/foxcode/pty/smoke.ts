@@ -8,7 +8,7 @@ export async function smoke() {
   const proc = spawn(Shell.preferred(), [], {
     name: "xterm-256color",
     cwd: process.cwd(),
-    env: { ...process.env, TERM: "xterm-256color", FOX_TERMINAL: "1", KILO_TERMINAL: "1" } as Record<string, string>,
+    env: { ...process.env, TERM: "xterm-256color", FOX_TERMINAL: "1" } as Record<string, string>,
     cols: 80,
     rows: 24,
   })
@@ -28,7 +28,7 @@ export async function smoke() {
 
   try {
     proc.resize(100, 40)
-    proc.write("echo KILO_PTY_READY\r")
+    proc.write("echo FOX_PTY_READY\r")
     await Promise.race([
       output.promise,
       new Promise<never>((_, reject) =>

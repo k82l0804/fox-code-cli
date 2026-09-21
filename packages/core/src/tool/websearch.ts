@@ -73,21 +73,16 @@ export class ConfigService extends Context.Service<ConfigService, Config>()("@op
 export const defaultConfigLayer = Layer.sync(ConfigService, () =>
   ConfigService.of({
     provider: (() => {
-      const p = process.env.FOX_WEBSEARCH_PROVIDER ?? process.env.KILO_WEBSEARCH_PROVIDER
+      const p = process.env.FOX_WEBSEARCH_PROVIDER
       return p === "exa" || p === "parallel" ? p : undefined
     })(),
     enableExa:
       truthy("FOX_EXPERIMENTAL") ||
-      truthy("KILO_EXPERIMENTAL") ||
       truthy("FOX_ENABLE_EXA") ||
-      truthy("KILO_ENABLE_EXA") ||
-      truthy("FOX_EXPERIMENTAL_EXA") ||
-      truthy("KILO_EXPERIMENTAL_EXA"),
+      truthy("FOX_EXPERIMENTAL_EXA"),
     enableParallel:
       truthy("FOX_ENABLE_PARALLEL") ||
-      truthy("KILO_ENABLE_PARALLEL") ||
-      truthy("FOX_EXPERIMENTAL_PARALLEL") ||
-      truthy("KILO_EXPERIMENTAL_PARALLEL"),
+      truthy("FOX_EXPERIMENTAL_PARALLEL"),
     exaApiKey: process.env.EXA_API_KEY,
     parallelApiKey: process.env.PARALLEL_API_KEY,
   }),

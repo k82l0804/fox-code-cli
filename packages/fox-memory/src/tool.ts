@@ -71,7 +71,7 @@ export namespace MemoryTool {
   }
 
   export type AskInput = {
-    permission: "kilo_memory_recall" | "kilo_memory_save"
+    permission: "fox_memory_recall" | "fox_memory_save" | "kilo_memory_recall" | "kilo_memory_save"
     patterns: string[]
     always: string[]
     metadata: Record<string, unknown>
@@ -196,7 +196,7 @@ export namespace MemoryTool {
 
   function approvalRecall(input: Recall) {
     return input.ask({
-      permission: "kilo_memory_recall",
+      permission: "fox_memory_recall",
       patterns: [input.params.mode],
       always: ["*"],
       metadata: {
@@ -281,7 +281,7 @@ export namespace MemoryTool {
 
   function approval(params: SaveParams, ask: Ask, input: { text?: string; query?: string }) {
     return ask({
-      permission: "kilo_memory_save",
+      permission: "fox_memory_save",
       patterns: [params.action],
       always: [],
       metadata: {

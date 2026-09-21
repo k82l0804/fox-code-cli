@@ -19,6 +19,10 @@ export namespace ConfigVariableGuard {
   }
 
   const secret = new Set([
+    "FOX_SERVER_PASSWORD",
+    "FOX_SERVER_USERNAME",
+    "FOX_BROWSER_BROKER_URL",
+    "FOX_BROWSER_BROKER_TOKEN",
     "KILO_SERVER_PASSWORD",
     "KILO_SERVER_USERNAME",
     "KILO_BROWSER_BROKER_URL",

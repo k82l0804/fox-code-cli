@@ -1,7 +1,7 @@
 
 import { Duration, Effect, Schema } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
-const FOX_API_BASE = process.env.FOX_API_BASE ?? process.env.KILO_API_BASE ?? "https://api.exa.ai"
+const FOX_API_BASE = process.env.FOX_API_BASE ?? "https://api.exa.ai"
 const KILO_API_BASE = FOX_API_BASE
 
 export const FOX_EXA_URL = `${FOX_API_BASE}/api/exa/search`
@@ -40,14 +40,14 @@ export type FoxExaParams = {
   numResults?: number
 }
 
-export const callKiloExa = Effect.fn("WebSearchKiloExa.call")(function* (
+export const callFoxExa = Effect.fn("WebSearchFoxExa.call")(function* (
   http: HttpClient.HttpClient,
   params: FoxExaParams,
-  kiloToken: string,
+  foxToken: string,
 ) {
-  const numResults = Math.min(params.numResults ?? MAX_KILO_EXA_RESULTS, MAX_KILO_EXA_RESULTS)
-  const request = yield* HttpClientRequest.post(KILO_EXA_URL).pipe(
-    HttpClientRequest.bearerToken(kiloToken),
+  const numResults = Math.min(params.numResults ?? MAX_FOX_EXA_RESULTS, MAX_FOX_EXA_RESULTS)
+  const request = yield* HttpClientRequest.post(FOX_EXA_URL).pipe(
+    HttpClientRequest.bearerToken(foxToken),
     HttpClientRequest.acceptJson,
     HttpClientRequest.bodyJson({
       query: params.query,
@@ -75,3 +75,5 @@ export const callKiloExa = Effect.fn("WebSearchKiloExa.call")(function* (
   const parsed = yield* decode(data).pipe(Effect.orDie)
   return formatResults(parsed)
 })
+
+export const callKiloExa = callFoxExa

@@ -27,7 +27,7 @@ const tmp = path.join(os.tmpdir(), app)
 
 const paths = {
   get home() {
-    return (process.env.FOX_TEST_HOME ?? process.env.KILO_TEST_HOME ?? os.homedir()).trim()
+    return (process.env.FOX_TEST_HOME ?? os.homedir()).trim()
   },
   data,
   bin: path.join(cache, "bin"),

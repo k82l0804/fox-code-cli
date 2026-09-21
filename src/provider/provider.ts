@@ -31,18 +31,13 @@ import { ModelV2 } from "@opencode-ai/core/model"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import {
-  KILO_BUNDLED_PROVIDERS,
-  kiloCustomLoaders,
-  KILO_MODEL_SCHEMA_EXTENSIONS,
+  FOX_BUNDLED_PROVIDERS,
+  FOX_MODEL_SCHEMA_EXTENSIONS,
+  foxCustomLoaders,
   patchModelsDevModel as patchKiloModel,
   patchConfigModel as patchKiloConfigModel,
   customProviderVariants,
   patchCustomLoaderResult,
-  patchKiloProviderPrivacy,
-  patchKiloProviderAuth,
-  publicKiloProvider,
-  kiloSmallModelPriority,
-  hasKiloCredentials,
   buildTimeoutSignal,
   requestTimeout,
   wrapFirstByte,
@@ -126,7 +121,7 @@ type BundledSDK = {
 
 const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>> = {
   "@ai-sdk/openai-compatible": () => import("@ai-sdk/openai-compatible").then((m) => m.createOpenAICompatible),
-  ...KILO_BUNDLED_PROVIDERS,
+  ...FOX_BUNDLED_PROVIDERS,
 }
 
 type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>, model?: Model) => Promise<any>
@@ -186,11 +181,6 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           return sdk.responses(modelID)
         },
         options: { headerTimeout: OPENAI_HEADER_TIMEOUT_DEFAULT },
-      }),
-    kilo: () =>
-      Effect.succeed({
-        autoload: false,
-        options: {},
       }),
     gitlab: () => Effect.succeed({ autoload: false }),
   }
@@ -285,7 +275,7 @@ export const Model = Schema.Struct({
   headers: Schema.Record(Schema.String, Schema.String),
   release_date: Schema.String,
   variants: optional(Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.Any))),
-  ...KILO_MODEL_SCHEMA_EXTENSIONS,
+  ...FOX_MODEL_SCHEMA_EXTENSIONS,
 }).annotate({ identifier: "Model" })
 export type Model = Types.DeepMutable<Schema.Schema.Type<typeof Model>>
 
@@ -322,7 +312,9 @@ export function toPublicInfo(provider: Info): Info {
   return JSON.parse(
     JSON.stringify(
       {
-        ...publicKiloProvider(provider),
+        ...provider,
+        key: undefined,
+        options: omit(provider.options, ["apiKey"]),
         models: Object.fromEntries(Object.entries(provider.models).filter(([, model]) => Schema.is(Model)(model))),
       },
       (_, value) => {
@@ -826,8 +818,8 @@ const layer = Layer.effect(
           const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
           mergeProvider(providerID, patch)
         }
-        const kiloEnv = yield* env.all()
-        for (const [id, fn] of Object.entries({ ...custom(dep), ...kiloCustomLoaders(dep) })) {
+        const foxEnv = yield* env.all()
+        for (const [id, fn] of Object.entries({ ...custom(dep), ...foxCustomLoaders(dep) })) {
           const providerID = ProviderV2.ID.make(id)
           if (disabled.has(providerID)) continue
           const data = database[providerID]
@@ -835,7 +827,7 @@ const layer = Layer.effect(
             continue
           }
           const result = yield* fn(data)
-          if (result) patchCustomLoaderResult(id, result, kiloEnv)
+          if (result) patchCustomLoaderResult(id, result, foxEnv)
           if (result && (result.autoload || providers[providerID])) {
             if (result.getModel) modelLoaders[providerID] = result.getModel
             if (result.vars) varsLoaders[providerID] = result.vars
@@ -858,8 +850,6 @@ const layer = Layer.effect(
           if (provider.options) partial.options = provider.options
           mergeProvider(providerID, partial)
         }
-        patchKiloProviderPrivacy(providers[ProviderV2.ID.make("fox")], cfg)
-        patchKiloProviderAuth(providers[ProviderV2.ID.make("fox")], cfg, auths["fox"])
         const gitlab = ProviderV2.ID.make("gitlab")
         if (discoveryLoaders[gitlab] && providers[gitlab] && isProviderAllowed(gitlab)) {
           const discovered = yield* Effect.tryPromise(() => discoveryLoaders[gitlab]()).pipe(
@@ -1202,13 +1192,6 @@ const layer = Layer.effect(
       }
 
 
-      const kiloPriority = kiloSmallModelPriority(providerID)
-      if (kiloPriority) {
-        for (const id of kiloPriority) {
-          const model = provider.models[id]
-          if (model) return model
-        }
-      }
       const priority = providerID.startsWith("opencode")
         ? ["gpt-nano"]
         : smallModelFamilyPriority
@@ -1221,18 +1204,6 @@ const layer = Layer.effect(
         const candidates = models.filter((model) => model.family === family)
 
         if (candidates[0]) return candidates[0]
-      }
-      // kilo credentials. The kilo provider is always autoloaded (anonymous key), so checking it
-      // unconditionally would route auxiliary tasks (session titles, commit messages, branch names)
-      // to the cloud for users without kilo access and break offline/local-only setups.
-      const kiloFallback = s.providers[ProviderV2.ID.make("fox")]
-      if (kiloFallback?.models["kilo-auto/small"]) {
-        const hasCreds = hasKiloCredentials(
-          cfg,
-          yield* auth.get(ProviderV2.ID.make("fox")).pipe(Effect.orDie),
-          yield* env.all(),
-        )
-        if (hasCreds) return kiloFallback.models["kilo-auto/small"]
       }
       return undefined
     })

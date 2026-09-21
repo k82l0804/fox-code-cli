@@ -51,7 +51,7 @@ export namespace FoxToolRegistry {
   }
 
   export function usePatch(input: { modelID: string; family?: string }) {
-    if (process.env["FOX_E2E_LLM_URL"] ?? process.env["KILO_E2E_LLM_URL"]) return true
+    if (process.env["FOX_E2E_LLM_URL"]) return true
 
     const id = input.modelID.toLowerCase()
     const family = input.family?.toLowerCase()
@@ -374,14 +374,14 @@ export namespace FoxToolRegistry {
     const memoryEnabled = yield* memoryToolsEnabled({ ctx })
     const browser = tools.some((tool) => tool.id === "browser_open")
       ? yield* Effect.gen(function* () {
-          const base = process.env.FOX_BROWSER_BROKER_URL ?? process.env.KILO_BROWSER_BROKER_URL
-          const token = process.env.FOX_BROWSER_BROKER_TOKEN ?? process.env.KILO_BROWSER_BROKER_TOKEN
+          const base = process.env.FOX_BROWSER_BROKER_URL
+          const token = process.env.FOX_BROWSER_BROKER_TOKEN
           if (!base || !token || !URL.canParse(base)) return false
           return yield* Network.available(new URL(base), token)
         })
       : false
     return tools.filter((tool) => {
-      if (tool.id.startsWith("kilo_memory_")) return memoryEnabled
+      if (tool.id.startsWith("fox_memory_") || tool.id.startsWith("kilo_memory_")) return memoryEnabled
       if (tool.id === "browser_open") return browser
       return true
     })

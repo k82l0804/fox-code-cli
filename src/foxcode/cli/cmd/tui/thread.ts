@@ -34,7 +34,7 @@ export namespace FoxTuiThreadDaemon {
     const password = Flag.FOX_SERVER_PASSWORD ?? randomUUID()
     const username = Flag.FOX_SERVER_USERNAME ?? "fox"
     return {
-      env: { KILO_SERVER_USERNAME: username, KILO_SERVER_PASSWORD: password },
+      env: { FOX_SERVER_USERNAME: username, FOX_SERVER_PASSWORD: password },
       headers: ServerAuth.headers({ password, username }),
     }
   }

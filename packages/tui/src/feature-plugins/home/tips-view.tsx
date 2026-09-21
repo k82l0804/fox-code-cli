@@ -2,7 +2,7 @@ import type { TuiPluginApi } from "@foxcode/plugin/tui"
 import { createMemo, For, type Accessor } from "solid-js"
 import { useCommandShortcut } from "../../keymap"
 import { DEFAULT_THEMES, useTheme } from "../../context/theme"
-import { KILO_TIPS } from "@/foxcode/cli/cmd/tui/feature-plugins/home/tips"
+import { FOX_TIPS } from "@/foxcode/cli/cmd/tui/feature-plugins/home/tips"
 
 type TipPart = { text: string; highlight: boolean }
 type TipShortcut = Accessor<string>
@@ -133,7 +133,7 @@ export function Tips(props: { api: TuiPluginApi; connected?: boolean }) {
   }
   const tip = createMemo(() => {
     if (props.connected === false) return NO_MODELS_TIP
-    const tips = [...KILO_TIPS, ...TIPS, process.platform !== "win32" ? TERMINAL_SUSPEND_TIP : INPUT_UNDO_TIP].flatMap(
+    const tips = [...FOX_TIPS, ...TIPS, process.platform !== "win32" ? TERMINAL_SUSPEND_TIP : INPUT_UNDO_TIP].flatMap(
       (item) => {
         const value = typeof item === "string" ? item : item(shortcuts)
         return value ? [value] : []

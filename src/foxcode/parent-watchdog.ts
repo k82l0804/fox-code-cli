@@ -17,7 +17,7 @@ const log = Log.create({ service: "parent-watchdog" })
  * Returns a function that stops the watchdog.
  */
 export function startParentWatchdog(onOrphan: () => void, intervalMs = 1000): () => void {
-  const configured = Number(process.env["FOX_PARENT_PID"] ?? process.env["KILO_PARENT_PID"])
+  const configured = Number(process.env["FOX_PARENT_PID"])
   if (!Number.isInteger(configured) || configured <= 0) return () => {}
   const initial = process.ppid
   log.info("watching parent process", { parent: configured, ppid: initial, intervalMs })

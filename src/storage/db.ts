@@ -16,6 +16,7 @@ import { EffectBridge } from "@/effect/bridge"
 import { init } from "#db"
 import { Effect, Schema } from "effect"
 import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
+declare const FOX_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
 declare const KILO_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
 
 export const NotFoundError = NamedError.create("NotFoundError", {
@@ -118,14 +119,20 @@ export const Client = Object.assign(
     db.run("PRAGMA wal_checkpoint(PASSIVE)")
 
     // Apply schema migrations
+    const bundledMigrations =
+      typeof FOX_MIGRATIONS !== "undefined"
+        ? FOX_MIGRATIONS
+        : typeof KILO_MIGRATIONS !== "undefined"
+          ? KILO_MIGRATIONS
+          : undefined
     const entries =
-      typeof KILO_MIGRATIONS !== "undefined"
-        ? KILO_MIGRATIONS
+      bundledMigrations !== undefined
+        ? bundledMigrations
         : migrations(path.join(import.meta.dirname, "../../migration"))
     if (entries.length > 0) {
       log.info("applying migrations", {
         count: entries.length,
-        mode: typeof KILO_MIGRATIONS !== "undefined" ? "bundled" : "dev",
+        mode: bundledMigrations !== undefined ? "bundled" : "dev",
       })
       if (flags.skipMigrations) {
         for (const item of entries) {

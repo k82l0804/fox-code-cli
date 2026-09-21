@@ -464,7 +464,7 @@ const layer = Layer.effect(
 
         const pluginScopeForSource = Effect.fnUntraced(function* (source: string) {
           if (source.startsWith("http://") || source.startsWith("https://")) return "global"
-          if (source === "KILO_CONFIG_CONTENT") return "local"
+          if (source === "FOX_CONFIG_CONTENT" || source === "KILO_CONFIG_CONTENT") return "local"
           if (containsPath(source, ctx)) return "local"
           return "global"
         })
@@ -643,7 +643,7 @@ const layer = Layer.effect(
         directories.splice(1, 0, ...primary)
         const primarySet = new Set(primary)
         if (Flag.FOX_CONFIG_DIR) {
-          yield* Effect.logDebug("loading config from KILO_CONFIG_DIR", { path: Flag.FOX_CONFIG_DIR })
+          yield* Effect.logDebug("loading config from FOX_CONFIG_DIR", { path: Flag.FOX_CONFIG_DIR })
         }
 
         const deps: Fiber.Fiber<void>[] = []
@@ -711,9 +711,9 @@ const layer = Layer.effect(
           }
         }
 
-        const configContent = process.env.FOX_CONFIG_CONTENT ?? process.env.KILO_CONFIG_CONTENT
+        const configContent = process.env.FOX_CONFIG_CONTENT
         if (configContent) {
-          const source = process.env.FOX_CONFIG_CONTENT ? "FOX_CONFIG_CONTENT" : "KILO_CONFIG_CONTENT"
+          const source = "FOX_CONFIG_CONTENT"
           yield* merge(
             source,
             yield* loadConfig(

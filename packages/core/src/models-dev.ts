@@ -140,6 +140,7 @@ export type Provider = Schema.Schema.Type<typeof Provider>
 
 export const Event = ModelsDev.Event
 
+declare const FOX_MODELS_DEV: Record<string, Provider> | undefined
 declare const KILO_MODELS_DEV: Record<string, Provider> | undefined
 
 export interface Interface {
@@ -200,7 +201,13 @@ const layer = Layer.effect(
       Effect.map((v) => v as Record<string, Provider> | undefined),
     )
 
-    const loadSnapshot = Effect.sync(() => (typeof KILO_MODELS_DEV === "undefined" ? undefined : KILO_MODELS_DEV))
+    const loadSnapshot = Effect.sync(() =>
+      typeof FOX_MODELS_DEV !== "undefined"
+        ? FOX_MODELS_DEV
+        : typeof KILO_MODELS_DEV !== "undefined"
+          ? KILO_MODELS_DEV
+          : undefined,
+    )
 
     const fetchAndWrite = Effect.fn("ModelsDev.fetchAndWrite")(function* () {
       if (!source || Flag.FOX_DISABLE_MODELS_FETCH) return "{}"

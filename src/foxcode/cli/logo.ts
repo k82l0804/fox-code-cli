@@ -51,7 +51,7 @@ function windows(env: NodeJS.ProcessEnv) {
 }
 
 export function supports(env = process.env, platform = process.platform) {
-  const override = flag(env.FOX_UNICODE_LOGO ?? env.KILO_UNICODE_LOGO) // accept both for backward compat
+  const override = flag(env.FOX_UNICODE_LOGO)
   if (override !== undefined) return override
   if (env.TERM === "dumb") return false
   // Old Windows Console Host cannot render the sextant glyphs used by the modern logo.

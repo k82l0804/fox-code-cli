@@ -8,7 +8,6 @@
 import type { JSX } from "solid-js"
 import type { RGBA } from "@opentui/core"
 import type { ProviderAuthAuthorization } from "@foxcode/sdk/v2"
-import { FoxAutoMethod } from "@/foxcode/components/dialog-fox-auto-method"
 export function selectProvider(_input: unknown): boolean {
   return false
 }
@@ -87,7 +86,7 @@ export const LOCAL_API_KEY_PLACEHOLDER = "local"
  * Returns `undefined` for every other provider so the caller can fall
  * through to the default `AutoMethod`.
  */
-export function renderAutoMethod(opts: {
+export function renderAutoMethod(_opts: {
   providerID: string
   title: string
   index: number
@@ -96,18 +95,7 @@ export function renderAutoMethod(opts: {
   useTheme: () => any
   DialogModel: any
 }): (() => JSX.Element) | undefined {
-  if (opts.providerID !== "fox") return undefined
-  return () => (
-    <FoxAutoMethod
-      providerID={opts.providerID}
-      title={opts.title}
-      index={opts.index}
-      authorization={opts.authorization}
-      useSDK={opts.useSDK}
-      useTheme={opts.useTheme}
-      DialogModel={opts.DialogModel}
-    />
-  )
+  return undefined
 }
 
 // ---------------------------------------------------------------------------

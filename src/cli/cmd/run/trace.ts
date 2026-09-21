@@ -55,7 +55,7 @@ export function trace(): Trace | undefined {
     return state || undefined
   }
 
-  if (!process.env.FOX_DIRECT_TRACE && !process.env.KILO_DIRECT_TRACE) {
+  if (!process.env.FOX_DIRECT_TRACE) {
     state = false
     return undefined
   }

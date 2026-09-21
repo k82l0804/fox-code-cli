@@ -16,6 +16,7 @@ export namespace MemoryMarkerMeta {
   export type Part = {
     type: string
     metadata?: Record<string, unknown> & {
+      foxMemory?: unknown
       kiloMemory?: unknown
     }
   }
@@ -29,15 +30,17 @@ export namespace MemoryMarkerMeta {
   }
 
   export function metadata(marker: Info, verbose = false) {
+    const payload = {
+      type: marker.type,
+      bytes: marker.bytes,
+      tokens: marker.tokens,
+      count: marker.count,
+      files: marker.files,
+      ...(verbose && marker.type === "recall" ? { items: marker.items } : {}),
+    }
     return {
-      kiloMemory: {
-        type: marker.type,
-        bytes: marker.bytes,
-        tokens: marker.tokens,
-        count: marker.count,
-        files: marker.files,
-        ...(verbose && marker.type === "recall" ? { items: marker.items } : {}),
-      },
+      foxMemory: payload,
+      kiloMemory: payload,
     }
   }
 
@@ -116,7 +119,7 @@ export namespace MemoryMarkerMeta {
   export function fromParts(parts: readonly Part[]): Decoded | undefined {
     for (const part of parts) {
       if (part.type !== "text") continue
-      const meta = part.metadata?.kiloMemory
+      const meta = part.metadata?.foxMemory ?? part.metadata?.kiloMemory
       if (!meta || typeof meta !== "object") continue
       const value = meta as {
         type?: unknown

@@ -14,18 +14,22 @@ function MemoryBody(props: { request: PermissionRequest }) {
 
 export namespace MemoryPermission {
   export function register() {
-    MemoryPermissionRegistry.register("kilo_memory_save", (request) => {
+    const saveHandler = (request: any) => {
       const action = String(request.metadata?.action ?? "save")
       return {
         icon: "◇",
         title: `Memory ${action}`,
         body: <MemoryBody request={request} />,
       }
-    })
-    MemoryPermissionRegistry.register("kilo_memory_recall", (request) => ({
+    }
+    const recallHandler = (request: any) => ({
       icon: "◇",
       title: "Memory recall",
       body: <MemoryBody request={request} />,
-    }))
+    })
+    MemoryPermissionRegistry.register("fox_memory_save", saveHandler)
+    MemoryPermissionRegistry.register("kilo_memory_save", saveHandler)
+    MemoryPermissionRegistry.register("fox_memory_recall", recallHandler)
+    MemoryPermissionRegistry.register("kilo_memory_recall", recallHandler)
   }
 }

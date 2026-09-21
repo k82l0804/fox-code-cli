@@ -386,6 +386,8 @@ export function prepare(cfg: Config.Info, flags: Pick<RuntimeFlags.Info, "experi
       ? { notebook_read: "ask" as const, notebook_edit: "ask" as const, notebook_execute: "ask" as const }
       : {}),
     ...(Flag.FOX_CLIENT === "vscode" ? { browser_open: "ask" as const } : {}),
+    fox_memory_recall: "ask",
+    fox_memory_save: "ask",
     kilo_memory_recall: "ask",
     kilo_memory_save: "ask",
   })

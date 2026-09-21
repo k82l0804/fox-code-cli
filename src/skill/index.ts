@@ -26,7 +26,8 @@ const CLAUDE_EXTERNAL_DIR = ".claude"
 const AGENTS_EXTERNAL_DIR = ".agents"
 export const BUILTIN_LOCATION = "builtin"
 const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
-const KILO_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
+const FOX_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
+const KILO_SKILL_PATTERN = FOX_SKILL_PATTERN
 const SKILL_PATTERN = "**/SKILL.md"
 
 export const Info = Schema.Struct({
@@ -231,7 +232,7 @@ const discoverSkills = Effect.fnUntraced(function* (
     const local = primary.has(dir) || rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))
     const trusted = dir === Flag.FOX_CONFIG_DIR || !local
     const sourceRoot = primary.has(dir) ? path.dirname(dir) : projectRoot
-    yield* scan(state, dir, KILO_SKILL_PATTERN, {
+    yield* scan(state, dir, FOX_SKILL_PATTERN, {
       trusted,
       root: trusted ? undefined : projectRoot,
       sourceRoot: trusted ? undefined : sourceRoot,

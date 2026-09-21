@@ -16,14 +16,15 @@ import type { StartInput } from "@/foxcode/cli/cmd/tui/thread"
 import { win32InstallCtrlCGuard } from "@opencode-ai/tui/terminal-win32"
 import { validate as validateSession } from "@/foxcode/cli/cmd/tui"
 import {
-  KILO_PROCESS_ROLE,
-  KILO_RUN_ID,
+  FOX_PROCESS_ROLE,
+  FOX_RUN_ID,
   ensureRunID,
   sanitizedProcessEnv,
 } from "@opencode-ai/core/util/opencode-process"
 import type { RemoteExitBridgeClient } from "@/foxcode/cli/cmd/tui/remote-exit-bridge"
 import type { Exit } from "@opencode-ai/tui/context/exit"
 declare global {
+  const FOX_WORKER_PATH: string
   const KILO_WORKER_PATH: string
 }
 
@@ -99,7 +100,13 @@ function createEventSource(client: RpcClient): EventSource {
 }
 
 async function target() {
-  if (typeof KILO_WORKER_PATH !== "undefined") return KILO_WORKER_PATH
+  const worker =
+    typeof FOX_WORKER_PATH !== "undefined"
+      ? FOX_WORKER_PATH
+      : typeof KILO_WORKER_PATH !== "undefined"
+        ? KILO_WORKER_PATH
+        : undefined
+  if (worker) return worker
   const dist = new URL("./cli/tui/worker.js", import.meta.url)
   if (await Filesystem.exists(fileURLToPath(dist))) return dist
   return new URL("../tui/worker.ts", import.meta.url)
@@ -113,7 +120,7 @@ async function input(value?: string) {
 }
 
 export function resolveThreadDirectory(project?: string, envPWD = process.env.PWD, cwd = process.cwd()) {
-  const dev = process.env.FOX_DEV_CWD ?? process.env.KILO_DEV_CWD
+  const dev = process.env.FOX_DEV_CWD
   const real = Filesystem.resolve(cwd)
   const root = dev
     ? Filesystem.resolve(dev)
@@ -262,8 +269,9 @@ export const TuiThreadCommand = cmd({
       })
       if (!next) return
       const file = await target()
-      const preloads = preload(typeof KILO_WORKER_PATH !== "undefined", () =>
-        import.meta.resolve("@opentui/solid/preload"),
+      const preloads = preload(
+        typeof FOX_WORKER_PATH !== "undefined" || typeof KILO_WORKER_PATH !== "undefined",
+        () => import.meta.resolve("@opentui/solid/preload"),
       )
       try {
         process.chdir(next)
@@ -275,10 +283,10 @@ export const TuiThreadCommand = cmd({
       if (await FoxTuiThreadDaemon.attach({ args, cwd, input: () => input(args.prompt), start })) return
       const auth = FoxTuiThreadDaemon.workerAuth()
       const env = sanitizedProcessEnv({
-        [KILO_PROCESS_ROLE]: "worker",
-        [KILO_RUN_ID]: ensureRunID(),
+        [FOX_PROCESS_ROLE]: "worker",
+        [FOX_RUN_ID]: ensureRunID(),
         ...auth.env,
-        KILO_BACKGROUND_PROCESS_PORTS: "true",
+        FOX_BACKGROUND_PROCESS_PORTS: "true",
       })
       const worker = new Worker(file, {
         preload: preloads,

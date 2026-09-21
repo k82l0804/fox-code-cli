@@ -11,7 +11,7 @@ export namespace DaemonClient {
   }
 
   export function enabled() {
-    return !(process.env.FOX_NO_DAEMON ?? process.env.KILO_NO_DAEMON)
+    return !process.env.FOX_NO_DAEMON
   }
 
   export function headers(state: Daemon.State) {

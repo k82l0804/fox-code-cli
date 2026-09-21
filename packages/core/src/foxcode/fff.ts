@@ -20,7 +20,7 @@ function real(directory: string) {
 
 export function allowed(
   directory: string,
-  home = (process.env.FOX_TEST_HOME ?? process.env.KILO_TEST_HOME ?? os.homedir()).trim(),
+  home = (process.env.FOX_TEST_HOME ?? os.homedir()).trim(),
 ) {
   const value = path.win32.normalize(directory)
   const prefix = "\\\\?\\UNC\\"

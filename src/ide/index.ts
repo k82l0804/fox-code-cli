@@ -29,7 +29,7 @@ export function ide() {
 }
 
 export function alreadyInstalled() {
-  const caller = process.env["FOX_CALLER"] ?? process.env["KILO_CALLER"]
+  const caller = process.env["FOX_CALLER"]
   return caller === "vscode" || caller === "vscode-insiders"
 }
 export async function install(_ide: (typeof SUPPORTED_IDES)[number]["name"]) {

@@ -5,7 +5,7 @@ import { MemoryService } from "@foxcode/memory/effect/service"
 import { MemoryTool } from "@foxcode/memory/tool"
 
 export const MemoryRecallTool = Tool.define(
-  "kilo_memory_recall",
+  "fox_memory_recall",
   Effect.gen(function* () {
     const memory = yield* MemoryService.Service
     return {

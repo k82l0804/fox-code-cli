@@ -26,7 +26,7 @@ export namespace LanceDBRuntime {
 
   export async function ensure(store?: string) {
     if (store !== "lancedb") return
-    if (process.env[env] || process.env[legacyEnv]) return
+    if (process.env[env]) return
     if (process.platform === "darwin" && process.arch === "x64") {
       throw new Error(
         'LanceDB is not supported on Intel Macs. Set "indexing.vectorStore" to "qdrant" and configure a Qdrant server.',
@@ -38,7 +38,6 @@ export namespace LanceDBRuntime {
       const result = await Npm.add(`${pkg}@${version}`)
       if (result.entrypoint) {
         process.env[env] = result.entrypoint
-        process.env[legacyEnv] = result.entrypoint
       }
     })().catch((err) => {
       box.ready = undefined

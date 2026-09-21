@@ -168,9 +168,7 @@ const layer = Layer.effect(
         ...input.env,
         TERM: "xterm-256color",
         FOX_TERMINAL: "1",
-        KILO_TERMINAL: "1",
         FOX_PTY_ID: id,
-        KILO_PTY_ID: id,
       } as Record<string, string>
       // node-pty inherits parent values for omitted keys, so empty tombstones are required.
       env.FOX_SERVER_PASSWORD = ""

@@ -46,7 +46,6 @@ async function init(request: Extract<Request, { method: "init" }>) {
   await dispose(request.key)
   if (request.input.lancedbPath) {
     process.env.FOX_LANCEDB_PATH = request.input.lancedbPath
-    process.env.KILO_LANCEDB_PATH = request.input.lancedbPath
   }
   const [engine, status] = await Promise.all([
     import("@foxcode/indexing/engine"),

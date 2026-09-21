@@ -12,7 +12,7 @@ const DIAGNOSTIC =
 export async function render(file: string, args: string[] = ["--pure"], timeout = 60_000) {
   const { spawn } = await import("@opencode-ai/core/pty/driver")
   const { FoxPtyTermination } = await import("@opencode-ai/core/foxcode/pty/termination")
-  const dir = await mkdtemp(path.join(os.tmpdir(), "kilo-pty-render-"))
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fox-pty-render-"))
   const env: Record<string, string> = {}
   for (const key of ["PATH", "SystemRoot", "SYSTEMROOT", "ComSpec", "LANG", "LC_ALL", "LC_CTYPE", "LANGUAGE"]) {
     const value = process.env[key]
@@ -21,23 +21,14 @@ export async function render(file: string, args: string[] = ["--pure"], timeout 
   Object.assign(env, {
     TERM: "xterm-256color",
     FOX_TERMINAL: "1",
-    KILO_TERMINAL: "1",
     FOX_TEST_HOME: dir,
-    KILO_TEST_HOME: dir,
     FOX_NO_DAEMON: "1",
-    KILO_NO_DAEMON: "1",
     FOX_DISABLE_AUTOUPDATE: "1",
-    KILO_DISABLE_AUTOUPDATE: "1",
     FOX_DISABLE_MODELS_FETCH: "1",
-    KILO_DISABLE_MODELS_FETCH: "1",
     FOX_DISABLE_PROJECT_CONFIG: "1",
-    KILO_DISABLE_PROJECT_CONFIG: "1",
     FOX_DISABLE_DEFAULT_PLUGINS: "1",
-    KILO_DISABLE_DEFAULT_PLUGINS: "1",
     FOX_PURE: "1",
-    KILO_PURE: "1",
     FOX_CONFIG_CONTENT: JSON.stringify({ enabled_providers: ["openai"], experimental: { openTelemetry: false } }),
-    KILO_CONFIG_CONTENT: JSON.stringify({ enabled_providers: ["openai"], experimental: { openTelemetry: false } }),
     FOX_AUTH_CONTENT: "{}",
     OPENAI_API_KEY: "dummy",
     HOME: dir,
@@ -132,7 +123,7 @@ export const PtySmokeCommand = cmd({
   command: "__pty-smoke",
   describe: false,
   async handler() {
-    if (process.env.FOX_PTY_SMOKE !== "1" && process.env.KILO_PTY_SMOKE !== "1") {
+    if (process.env.FOX_PTY_SMOKE !== "1") {
       throw new Error("PTY smoke command is release-only")
     }
     const { PtySmoke } = await import("@opencode-ai/core/foxcode/pty/smoke")

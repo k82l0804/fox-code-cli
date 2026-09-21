@@ -21,8 +21,6 @@ type FoxOptions = {
   apiKey?: string
   token?: string
   organizationId?: string
-  kilocodeOrganizationId?: string
-  kilocodeToken?: string
 }
 type Options = { -readonly [K in keyof FoxOptions]?: FoxOptions[K] } & { apiKey?: string }
 type Result = { readonly models: Models; readonly error?: Failure }
@@ -95,12 +93,12 @@ export const layer: Layer.Layer<
       if (providerID === "fox") {
         const item = config.provider?.[providerID]
         const info = yield* auth.get(providerID)
-        options.kilocodeOrganizationId = organization(item?.options, info)
-        options.kilocodeToken = token(item?.options, info)
+        options.organizationId = organization(item?.options, info)
+        options.token = token(item?.options, info)
         log.debug("auth options resolved", {
           providerID,
-          hasToken: !!options.kilocodeToken,
-          hasOrganizationId: !!options.kilocodeOrganizationId,
+          hasToken: !!options.token,
+          hasOrganizationId: !!options.organizationId,
         })
       }
 
@@ -129,7 +127,7 @@ export const layer: Layer.Layer<
 
     const key = (providerID: string, options?: Options) => {
       if (providerID === "fox") {
-        return JSON.stringify([providerID, options?.baseURL, options?.kilocodeOrganizationId, options?.kilocodeToken])
+        return JSON.stringify([providerID, options?.baseURL, options?.organizationId, options?.token])
       }
       return providerID
     }

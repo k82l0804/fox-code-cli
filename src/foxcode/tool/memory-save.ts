@@ -6,7 +6,7 @@ import { MemoryService } from "@foxcode/memory/effect/service"
 import { MemoryTool } from "@foxcode/memory/tool"
 
 export const MemorySaveTool = Tool.define(
-  "kilo_memory_save",
+  "fox_memory_save",
   Effect.gen(function* () {
     const memory = yield* MemoryService.Service
     return {

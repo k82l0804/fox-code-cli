@@ -273,8 +273,8 @@ export namespace FoxConfigSources {
   }
 
   function runtimeSources(): Pending[] {
-    const autocompact = process.env.FOX_DISABLE_AUTOCOMPACT ?? process.env.KILO_DISABLE_AUTOCOMPACT
-    const prune = process.env.FOX_DISABLE_PRUNE ?? process.env.KILO_DISABLE_PRUNE
+    const autocompact = process.env.FOX_DISABLE_AUTOCOMPACT
+    const prune = process.env.FOX_DISABLE_PRUNE
     return [
       runtimeSource("FOX_PERMISSION", Flag.FOX_PERMISSION, "Runtime permission overlay."),
       runtimeSource("FOX_DISABLE_AUTOCOMPACT", autocompact, "Disables automatic compaction."),

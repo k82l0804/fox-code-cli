@@ -8,7 +8,8 @@ export const FOX_ERROR_CODES = {
 
 export type FoxErrorCode = (typeof FOX_ERROR_CODES)[keyof typeof FOX_ERROR_CODES]
 
-const KILO_ERROR_CODE_VALUES = Object.values(FOX_ERROR_CODES) as string[]
+const FOX_ERROR_CODE_VALUES = Object.values(FOX_ERROR_CODES) as string[]
+const KILO_ERROR_CODE_VALUES = FOX_ERROR_CODE_VALUES
 
 /**
  * Check if an error is a Kilo-specific error (has a known Kilo error code in responseBody).
@@ -77,7 +78,7 @@ export function parseFoxErrorCode(error: ReturnType<NamedError["toObject"]>): Fo
     // Backend sends: { error: { code: "PAID_MODEL_AUTH_REQUIRED" } }
     // or: { code: "PROMOTION_MODEL_LIMIT_REACHED" }
     const code = body?.error?.code ?? body?.code
-    if (typeof code === "string" && KILO_ERROR_CODE_VALUES.includes(code)) {
+    if (typeof code === "string" && FOX_ERROR_CODE_VALUES.includes(code)) {
       return code as FoxErrorCode
     }
   } catch {}

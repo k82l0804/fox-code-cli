@@ -50,8 +50,8 @@ export const BrowserOpenTool = Tool.define<
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
-          const base = (yield* env.get("FOX_BROWSER_BROKER_URL")) ?? (yield* env.get("KILO_BROWSER_BROKER_URL"))
-          const token = (yield* env.get("FOX_BROWSER_BROKER_TOKEN")) ?? (yield* env.get("KILO_BROWSER_BROKER_TOKEN"))
+          const base = yield* env.get("FOX_BROWSER_BROKER_URL")
+          const token = yield* env.get("FOX_BROWSER_BROKER_TOKEN")
           const broker = base && URL.canParse(base) ? new URL(base) : undefined
           if (
             !broker ||

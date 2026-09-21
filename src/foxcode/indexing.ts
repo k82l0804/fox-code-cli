@@ -6,7 +6,7 @@ import { type IndexingTelemetryEvent, type VectorStoreSearchResult } from "@foxc
 import { toIndexingConfigInput, type IndexingConfig } from "@foxcode/indexing/config"
 import { hasIndexingPlugin } from "@foxcode/indexing/detect"
 import { IndexingStatus, disabledIndexingStatus } from "@foxcode/indexing/status"
-import { fetchKiloEmbeddingModelCatalog } from "./indexing-catalog"
+import { fetchEmbeddingModelCatalog } from "./indexing-catalog"
 import { allowed, message } from "@opencode-ai/core/foxcode/fff"
 import { Instance } from "@/foxcode/instance"
 import { Bus } from "@/bus"
@@ -105,7 +105,7 @@ function enrichKilo(input: ReturnType<typeof toIndexingConfigInput>, auth: FoxIn
 async function model(input: ReturnType<typeof toIndexingConfigInput>, auth: FoxIndexingAuth) {
   if (input.embedderProvider !== "fox" || !input.enabled) return input
 
-  const catalog = await fetchKiloEmbeddingModelCatalog({ baseURL: auth.baseUrl, token: auth.apiKey })
+  const catalog = await fetchEmbeddingModelCatalog({ baseURL: auth.baseUrl, token: auth.apiKey })
 
   if (input.modelId) {
     const id = catalog.aliases[input.modelId] ?? input.modelId
@@ -201,10 +201,7 @@ export namespace FoxIndexing {
 
   const boot = async (hit: Cache): Promise<Entry> => {
     const dir = Instance.directory
-    if (
-      process.env["FOX_DISABLE_CODEBASE_INDEXING"] === "vscode-no-workspace" ||
-      process.env["KILO_DISABLE_CODEBASE_INDEXING"] === "vscode-no-workspace"
-    ) {
+    if (process.env["FOX_DISABLE_CODEBASE_INDEXING"] === "vscode-no-workspace") {
       return track(hit, await inert(() => noWorkspace()))
     }
     try {
@@ -485,13 +482,13 @@ export namespace FoxIndexing {
     try {
       const cfg = await AppRuntime.runPromise(Config.Service.use((svc) => svc.getGlobal()))
       const auth = await kiloAuth(cfg)
-      const catalog = await fetchKiloEmbeddingModelCatalog({ baseURL: auth.baseUrl, token: auth.apiKey })
+      const catalog = await fetchEmbeddingModelCatalog({ baseURL: auth.baseUrl, token: auth.apiKey })
       if (catalog.models.length > 0 || (!auth.baseUrl && !auth.apiKey)) return catalog
-      const fallback = await fetchKiloEmbeddingModelCatalog()
+      const fallback = await fetchEmbeddingModelCatalog()
       return fallback.models.length > 0 ? fallback : catalog
     } catch (err) {
-      log.warn("falling back to public Kilo embedding model catalog", { err })
-      return fetchKiloEmbeddingModelCatalog()
+      log.warn("falling back to public Fox embedding model catalog", { err })
+      return fetchEmbeddingModelCatalog()
     }
   }
 

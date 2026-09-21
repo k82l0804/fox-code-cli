@@ -164,7 +164,7 @@ export namespace IndexingWorker {
               root,
               config,
               baselineDirectory,
-              lancedbPath: process.env.FOX_LANCEDB_PATH ?? process.env.KILO_LANCEDB_PATH,
+              lancedbPath: process.env.FOX_LANCEDB_PATH,
             },
           },
           (message) => {

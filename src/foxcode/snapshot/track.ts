@@ -86,9 +86,9 @@ type SessionRuntime = {
 export namespace FoxSnapshotTrack {
   const log = Log.create({ service: "snapshot.track" })
 
-  const duration = (name: string, fallback: number, legacyName?: string) =>
+  const duration = (name: string, fallback: number) =>
     iife(() => {
-      const raw = process.env[name] ?? (legacyName ? process.env[legacyName] : undefined)
+      const raw = process.env[name]
       if (raw) {
         const parsed = Number(raw)
         if (Number.isFinite(parsed) && parsed > 0) return parsed
@@ -96,8 +96,8 @@ export namespace FoxSnapshotTrack {
       return fallback
     })
 
-  export const TIMEOUT_MS = duration("FOX_SNAPSHOT_TRACK_TIMEOUT_MS", 10_000, "KILO_SNAPSHOT_TRACK_TIMEOUT_MS")
-  export const TURN_TIMEOUT_MS = duration("FOX_SNAPSHOT_TURN_TIMEOUT_MS", 120_000, "KILO_SNAPSHOT_TURN_TIMEOUT_MS")
+  export const TIMEOUT_MS = duration("FOX_SNAPSHOT_TRACK_TIMEOUT_MS", 10_000)
+  export const TURN_TIMEOUT_MS = duration("FOX_SNAPSHOT_TURN_TIMEOUT_MS", 120_000)
 
   // Wire values — also function as i18n keys via `labelKey`/`headerKey`.
   // The backend matches replies on `label`, so the canonical English strings

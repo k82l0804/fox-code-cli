@@ -282,10 +282,10 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                     >
                       <TuiStartupProvider
                         value={{
-                          initialRoute: (process.env.FOX_ROUTE ?? process.env.KILO_ROUTE)
-                            ? JSON.parse((process.env.FOX_ROUTE ?? process.env.KILO_ROUTE)!)
+                          initialRoute: process.env.FOX_ROUTE
+                            ? JSON.parse(process.env.FOX_ROUTE)
                             : undefined,
-                          skipInitialLoading: Boolean(process.env.FOX_FAST_BOOT ?? process.env.KILO_FAST_BOOT),
+                          skipInitialLoading: Boolean(process.env.FOX_FAST_BOOT),
                         }}
                       >
                         <ClipboardProvider>

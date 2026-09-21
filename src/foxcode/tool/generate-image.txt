@@ -1,4 +1,4 @@
-Generate a new image from a text prompt or edit an existing image using AI models through the Fox Gateway or OpenRouter.
+Generate a new image from a text prompt or edit an existing image using AI models through OpenRouter or configured local provider.
 
 Usage notes:
   - Provide a `prompt` describing what to generate or how to edit

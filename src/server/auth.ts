@@ -16,11 +16,9 @@ export type DecodedCredentials = {
 
 export class Config extends ConfigService.Service<Config>()("@opencode/ServerAuthConfig", {
   password: EffectConfig.string("FOX_SERVER_PASSWORD").pipe(
-    EffectConfig.orElse(() => EffectConfig.string("KILO_SERVER_PASSWORD")),
     EffectConfig.option,
   ),
   username: EffectConfig.string("FOX_SERVER_USERNAME").pipe(
-    EffectConfig.orElse(() => EffectConfig.string("KILO_SERVER_USERNAME")),
     EffectConfig.withDefault("fox"),
   ),
 }) {}

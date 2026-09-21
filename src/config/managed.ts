@@ -29,7 +29,7 @@ function systemManagedConfigDir(): string {
 }
 
 export function managedConfigDir() {
-  return process.env.FOX_TEST_MANAGED_CONFIG_DIR || process.env.KILO_TEST_MANAGED_CONFIG_DIR || systemManagedConfigDir()
+  return process.env.FOX_TEST_MANAGED_CONFIG_DIR || systemManagedConfigDir()
 }
 
 export function parseManagedPlist(json: string): string {

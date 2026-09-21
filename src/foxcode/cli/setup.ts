@@ -45,7 +45,7 @@ export namespace FoxCli {
       .command(WorktreeCommand)
       .command(CompressionCLICommand)
       .command(StandardSuiteCLICommand)
-    if (process.env.FOX_PTY_SMOKE === "1" || process.env.KILO_PTY_SMOKE === "1") cli.command(PtySmokeCommand)
+    if (process.env.FOX_PTY_SMOKE === "1") cli.command(PtySmokeCommand)
     // Safe self-reference: `cli` is a typed parameter and yargs `.command()` returns the same
     // instance, so the help command can resolve the fully-built root at handler time. This also
     // sidesteps the self-referential type error the old inline registration hit in index.ts.

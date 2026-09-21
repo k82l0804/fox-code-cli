@@ -31,7 +31,7 @@ export namespace FoxSnapshotMaterialize {
    * repository. Tests set `FOX_SNAPSHOT_MATERIALIZE_IDLE_MS=0` to materialize at once.
    */
   export const idle = () => {
-    const raw = Number(process.env["FOX_SNAPSHOT_MATERIALIZE_IDLE_MS"] ?? process.env["KILO_SNAPSHOT_MATERIALIZE_IDLE_MS"])
+    const raw = Number(process.env["FOX_SNAPSHOT_MATERIALIZE_IDLE_MS"])
     return Number.isFinite(raw) && raw >= 0 ? raw : 10_000
   }
   const snapshotRef = (hash: string, time = Date.now()) => `refs/fox/snapshots/${time}/${hash}`

@@ -214,7 +214,6 @@ export namespace BackgroundProcessRunner {
     const input = decode(value)
     if (input.token !== token) throw new Error("Background process runner token mismatch")
     process.env.FOX_BACKGROUND_PROCESS_TOKEN = token
-    process.env.KILO_BACKGROUND_PROCESS_TOKEN = token
     process.exitCode = await run(input)
     return true
   }

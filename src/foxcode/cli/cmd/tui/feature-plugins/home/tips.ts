@@ -55,7 +55,7 @@ function press(shortcut: string, text: string) {
   return `Press ${shortcutText(shortcut)} ${text}`
 }
 
-export const KILO_TIPS: Tip[] = [
+export const FOX_TIPS: Tip[] = [
   "Type {highlight}@{/highlight} followed by a filename to fuzzy search and attach files",
   "Start a message with {highlight}!{/highlight} to run shell commands directly (e.g., {highlight}!ls -la{/highlight})",
   (shortcuts) => press(shortcuts.agentCycle(), "to cycle between Build and Plan agents"),
@@ -177,3 +177,5 @@ export const KILO_TIPS: Tip[] = [
         (shortcuts) => press(shortcuts.terminalSuspend(), "to suspend the terminal and return to your shell"),
       ] satisfies Tip[])),
 ]
+
+export const KILO_TIPS = FOX_TIPS

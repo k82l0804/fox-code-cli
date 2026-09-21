@@ -270,7 +270,7 @@ interface Selection {
 }
 
 function select(): Selection {
-  const override = process.env.FOX_BWRAP_PATH ?? process.env.KILO_BWRAP_PATH
+  const override = process.env.FOX_BWRAP_PATH
   const candidates = override
     ? [{ executable: override }]
     : [{ executable: system }, { executable: bundled(), expected: digest() }]
