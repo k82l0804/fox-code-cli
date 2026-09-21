@@ -19,7 +19,7 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/SessionStatus") {}
 // keys its map by directory, so the session prompt loop (session worktree
-// directory) and the heartbeat gather (a different captured directory in kilo run)
+// directory) and the heartbeat gather (a different captured directory in fox run)
 // used two separate maps and the heartbeat sent sessions:[]. A project id is
 // stable across the linked worktrees of one repo (derived from the git remote),
 // so keying by project makes a busy status set in a section worktree visible to

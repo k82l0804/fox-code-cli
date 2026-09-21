@@ -1,14 +1,14 @@
 import type { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import { FSUtil } from "@opencode-ai/core/fs-util"
-// CLI entry point for `kilo run` and `kilo --mini`.
+// CLI entry point for `fox run` and `fox --mini`.
 //
 // Handles three modes:
 //   1. Non-interactive (default): sends a single prompt, streams events to
 //      stdout, and exits when the session goes idle.
-//   2. Interactive local (`kilo --mini`): boots the split-footer direct mode
+//   2. Interactive local (`fox --mini`): boots the split-footer direct mode
 //      with an in-process server (no external HTTP).
-//   3. Interactive attach (`kilo --mini --attach`): connects to a running
-//      kilo server and runs interactive mode against it.
+//   3. Interactive attach (`fox --mini --attach`): connects to a running
+//      fox server and runs interactive mode against it.
 //
 // Also supports `--command` for slash-command execution, `--format json` for
 // raw event streaming, `--continue` / `--session` for session resumption,
