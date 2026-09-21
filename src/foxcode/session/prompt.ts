@@ -5,7 +5,8 @@ import { SessionID, PartID } from "@/session/schema"
 import { MessageV2 } from "@/session/message-v2"
 import { Session } from "@/session/session"
 import { Agent } from "@/agent/agent"
-import { Instance } from "@/foxcode/instance"
+import { Instance, capture } from "@/foxcode/instance"
+import { registerDisposer } from "@/effect/instance-registry"
 import type { SessionStatus } from "@/session/status"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { PlanFollowup } from "@/foxcode/plan-followup"
@@ -33,13 +34,34 @@ import ASK_CODE_SWITCH from "./ask-code-switch.txt"
 export namespace FoxSessionPrompt {
   const modes = ["ask", "plan", "architect"]
   type Intake = { cancelled: boolean; fiber?: Fiber.Fiber<unknown, unknown> }
-  const intakes = new Map<SessionID, Set<Intake>>()
+  type IntakeRegistry = Map<SessionID, Set<Intake>>
+  const instances = new Map<string, IntakeRegistry>()
+
+  registerDisposer(async (directory) => {
+    instances.delete(directory)
+  })
+
+  function getIntakes(dir?: string): IntakeRegistry {
+    const key = dir ?? capture()?.directory ?? "__global__"
+    let map = instances.get(key)
+    if (!map) {
+      map = new Map()
+      instances.set(key, map)
+    }
+    return map
+  }
+
+  /** Test-only: clear all intake registries across instances. */
+  export function clearIntakes() {
+    instances.clear()
+  }
 
   export function intake<A, E, R>(sessionID: SessionID, work: Effect.Effect<A, E, R>) {
     return Effect.scoped(
       Effect.uninterruptibleMask((restore) =>
         Effect.gen(function* () {
           const scope = yield* Scope.Scope
+          const intakes = getIntakes()
           const entry: Intake = { cancelled: false }
           const cleanup = Effect.sync(() => {
             const entries = intakes.get(sessionID)
@@ -59,6 +81,7 @@ export namespace FoxSessionPrompt {
   }
 
   export const abortIntakes = Effect.fn("FoxSessionPrompt.abortIntakes")(function* (sessionID: SessionID) {
+    const intakes = getIntakes()
     const entries = [...(intakes.get(sessionID) ?? [])]
     yield* Effect.forEach(
       entries,

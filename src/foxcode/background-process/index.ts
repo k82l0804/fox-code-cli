@@ -30,16 +30,35 @@ import path from "path"
 import z from "zod"
 import * as Ports from "./ports"
 import * as BackgroundProcessSchema from "./schema"
+import * as BackgroundProcessTypes from "./types"
+import {
+  MAX_OUTPUT_BYTES,
+  KILL_MS,
+  READY_MS,
+  PUBLISH_MS,
+  PORT_START_MS,
+  PORT_MS,
+  PORT_LIMIT_MS,
+} from "./types"
+import { clamp, readLogOutput } from "./output"
+import {
+  alive,
+  code,
+  connected,
+  group,
+  kill,
+  probe,
+  rollback,
+  stopped,
+  terminal,
+  waitExit,
+  waitGone,
+  waitReady,
+} from "./lifecycle"
 
 export namespace BackgroundProcess {
   const log = Log.create({ service: "background-process" })
-  const MAX = 200 * 1024
-  const KILL_MS = 3_000
-  const READY_MS = 30_000
-  const PUBLISH_MS = 500
-  const PORT_START_MS = 500
-  const PORT_MS = 5_000
-  const PORT_LIMIT_MS = 30_000
+  const MAX = MAX_OUTPUT_BYTES
 
   export type ID = BackgroundProcessSchema.ID
   export const ID = BackgroundProcessSchema.ID
@@ -57,28 +76,10 @@ export namespace BackgroundProcess {
   export const Logs = BackgroundProcessSchema.Logs
   export const Event = BackgroundProcessSchema.Event
 
-  type Active = {
-    ctx: InstanceContext
-    info: Info
-    proc?: ChildProcess
-    start: StartInput
-    pattern?: RegExp
-    resolve?: (ready: boolean) => void
-    notify?: ReturnType<typeof setTimeout>
-    poll?: ReturnType<typeof setTimeout>
-    watch?: ReturnType<typeof setTimeout>
-    retry?: ReturnType<typeof setTimeout>
-    scan?: Promise<boolean>
-    log?: string
-    control?: string
-    token?: string
-    shared?: Shared
-    offset?: number
-    file?: string
-    saved?: boolean
-    saving?: Promise<void>
-    disposed?: boolean
-  }
+  export type Active = BackgroundProcessTypes.Active
+  export type Shared = BackgroundProcessTypes.Shared
+  export type State = BackgroundProcessTypes.State
+  export type Probe = BackgroundProcessTypes.Probe
 
   const Persisted = Schema.Struct({
     scope: Schema.String,
@@ -87,24 +88,6 @@ export namespace BackgroundProcess {
     start: StartInput,
   }).pipe(withStatics((s) => ({ zod: zod(s) })))
   type Persisted = Schema.Schema.Type<typeof Persisted>
-
-  type Shared = {
-    key: string
-    dir: string
-    processes: Map<ID, Active>
-    adopt?: Promise<void>
-    claim?: Promise<boolean>
-    lease?: Flock.Lease
-  }
-
-  type State = {
-    ctx: InstanceContext
-    dir: string
-    processes: Map<ID, Active>
-    shared: Shared
-  }
-
-  type Probe = "owned" | "gone" | "foreign" | "unknown"
 
   class StateService extends Context.Service<StateService, { readonly get: () => Effect.Effect<State> }>()(
     "@foxcode/BackgroundProcess.State",
@@ -224,7 +207,7 @@ export namespace BackgroundProcess {
 
   async function forget(shared: Shared, active: Active) {
     active.saved = false
-    await active.saving?.catch((err) =>
+    await active.saving?.catch((err: unknown) =>
       log.warn("failed to finish persistent process metadata", { err, id: active.info.id }),
     )
     await Promise.all(
@@ -237,34 +220,12 @@ export namespace BackgroundProcess {
     )
   }
 
-  function alive(pid: number | undefined) {
-    if (!pid || pid === process.pid) return false
-    try {
-      process.kill(pid, 0)
-      return true
-    } catch (err) {
-      return code(err) === "EPERM"
-    }
-  }
-
   function clone(info: Info): Info {
     return {
       ...info,
       ports: [...info.ports],
       time: { ...info.time },
     }
-  }
-
-  function terminal(status: Status) {
-    return status === "exited" || status === "failed" || status === "stopped"
-  }
-
-  function clamp(text: string) {
-    const buf = Buffer.from(text, "utf-8")
-    if (buf.length <= MAX) return text
-    let start = buf.length - MAX
-    while (start < buf.length && (buf[start] & 0xc0) === 0x80) start++
-    return buf.subarray(start).toString("utf-8")
   }
 
   function same(a: number[], b: number[]) {
@@ -440,57 +401,7 @@ export namespace BackgroundProcess {
     }
   }
 
-  function connected(port: number) {
-    return new Promise<boolean>((resolve) => {
-      const socket = net.createConnection({ port, host: "127.0.0.1" })
-      const done = (ok: boolean) => {
-        socket.removeAllListeners()
-        socket.destroy()
-        resolve(ok)
-      }
-      socket.setTimeout(500)
-      socket.once("connect", () => done(true))
-      socket.once("error", () => done(false))
-      socket.once("timeout", () => done(false))
-    })
-  }
 
-  async function wait(active: Active, input: Ready) {
-    if (!input.pattern && !input.port) return false
-    if (input.pattern && active.pattern?.test(active.info.output)) {
-      ready(active)
-      return true
-    }
-    return new Promise<boolean>((resolve) => {
-      const timeout = setTimeout(() => {
-        if (active.info.status === "starting") {
-          active.info.status = "running"
-          active.info.time.updated = Date.now()
-          publish(active)
-          persist(active)
-        }
-        active.resolve = undefined
-        resolve(false)
-      }, input.timeout ?? READY_MS)
-      active.resolve = (ok) => {
-        clearTimeout(timeout)
-        resolve(ok)
-      }
-      const poll = async () => {
-        if (!input.port) return
-        while (!terminal(active.info.status) && !active.info.ready && active.resolve) {
-          if (await connected(input.port)) {
-            ready(active)
-            return
-          }
-          await Bun.sleep(250)
-        }
-      }
-      void poll().catch((err) => {
-        log.warn("port readiness check failed", { err, id: active.info.id, port: input.port })
-      })
-    })
-  }
 
   function env(id?: ID, token?: string) {
     const result: NodeJS.ProcessEnv = modelEnv({
@@ -503,207 +414,7 @@ export namespace BackgroundProcess {
     return result
   }
 
-  function stopped(proc: ChildProcess) {
-    return proc.exitCode !== null || proc.signalCode !== null
-  }
 
-  function code(err: unknown) {
-    if (!err || typeof err !== "object" || !("code" in err)) return
-    const value = (err as { code?: unknown }).code
-    return typeof value === "string" ? value : undefined
-  }
-
-  function group(pid: number) {
-    if (process.platform === "win32") return false
-    try {
-      process.kill(-pid, 0)
-      return true
-    } catch (err) {
-      if (code(err) === "EPERM") return true
-      if (code(err) !== "ESRCH") log.debug("failed to probe process group", { err, pid })
-      return false
-    }
-  }
-
-  function pgrp(text: string): number | undefined {
-    const end = text.lastIndexOf(")")
-    if (end < 0) return undefined
-    const fields = text
-      .slice(end + 2)
-      .trim()
-      .split(/\s+/)
-    const value = Number(fields[2])
-    return Number.isInteger(value) && value > 0 ? value : undefined
-  }
-
-  async function linux(active: Active): Promise<Probe> {
-    const pid = active.info.pid
-    const token = active.token
-    if (!pid || !token) return "unknown"
-    const leader = await readFile(`/proc/${pid}/stat`, "utf8").catch(() => undefined)
-    if (leader && pgrp(leader) === pid) {
-      const data = await readFile(`/proc/${pid}/environ`).catch(() => undefined)
-      const parts = data?.toString("utf8").split("\0") ?? []
-      if (parts.includes(`FOX_BACKGROUND_PROCESS_TOKEN=${token}`)) {
-        return "owned"
-      }
-    }
-    const names = await readdir("/proc").catch(() => undefined)
-    if (!names) return "unknown"
-    const members: number[] = []
-    for (const name of names) {
-      if (!/^\d+$/.test(name)) continue
-      const text = await readFile(`/proc/${name}/stat`, "utf8").catch(() => undefined)
-      if (text && pgrp(text) === pid) members.push(Number(name))
-    }
-    if (members.length === 0) return "gone"
-    let read = false
-    for (const member of members) {
-      const data = await readFile(`/proc/${member}/environ`).catch(() => undefined)
-      if (!data) continue
-      read = true
-      const parts = data.toString("utf8").split("\0")
-      if (parts.includes(`FOX_BACKGROUND_PROCESS_TOKEN=${token}`)) {
-        return "owned"
-      }
-    }
-    return read ? "foreign" : "unknown"
-  }
-
-  async function unix(active: Active): Promise<Probe> {
-    const pid = active.info.pid
-    const token = active.token
-    if (!pid || !token) return "unknown"
-    const out = await Process.text(["ps", "eww", "-axo", "pid=,pgid=,command="], {
-      nothrow: true,
-      abort: AbortSignal.timeout(2_000),
-      timeout: 2_000,
-    })
-    if (out.code !== 0) return "unknown"
-    const members = out.text.split(/\r?\n/).flatMap((line) => {
-      const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/)
-      if (!match || Number(match[2]) !== pid) return []
-      return [match[3]]
-    })
-    if (members.length === 0) return "gone"
-    return members.some((command) => command.includes(token)) ? "owned" : "foreign"
-  }
-
-  async function windows(active: Active): Promise<Probe> {
-    const pid = active.info.pid
-    const token = active.token
-    if (!pid || !token) return "unknown"
-    const query = `$p=Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}"; if ($p) { [Console]::Out.Write($p.CommandLine) }`
-    const out = await Process.text(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", query], {
-      nothrow: true,
-      abort: AbortSignal.timeout(2_000),
-      timeout: 2_000,
-    })
-    if (out.code !== 0) return "unknown"
-    if (!out.text.trim()) return "gone"
-    return out.text.includes(token) ? "owned" : "foreign"
-  }
-
-  async function probe(active: Active): Promise<Probe> {
-    if (process.platform === "linux") return linux(active)
-    if (process.platform === "win32") return windows(active)
-    if (process.platform === "darwin" || process.platform === "freebsd") return unix(active)
-    return "unknown"
-  }
-
-  function waitExit(proc: ChildProcess, ms: number) {
-    if (stopped(proc)) return Promise.resolve()
-    return new Promise<void>((resolve) => {
-      const timer = setTimeout(done, ms)
-      function done() {
-        clearTimeout(timer)
-        proc.off("exit", done)
-        proc.off("error", done)
-        resolve()
-      }
-      proc.once("exit", done)
-      proc.once("error", done)
-    })
-  }
-
-  async function waitGone(active: Active) {
-    const end = Date.now() + KILL_MS
-    while (Date.now() < end) {
-      const status = await probe(active)
-      if (status === "gone" || status === "foreign") return
-      await Bun.sleep(100)
-    }
-  }
-
-  async function kill(active: Active) {
-    const pid = active.info.pid
-    if (!pid) return
-    if (active.info.lifetime === "persistent") {
-      const before = await probe(active)
-      if (before === "gone" || before === "foreign") return
-      if (before !== "owned") throw new Error(`Cannot verify ownership of persistent process: ${active.info.id}`)
-      if (process.platform === "win32") {
-        if (!active.control) throw new Error(`Persistent process control path is missing: ${active.info.id}`)
-        await Filesystem.write(active.control, "stop", 0o600)
-        await waitGone(active)
-        const stopped = await probe(active)
-        if (stopped === "gone" || stopped === "foreign") return
-        throw new Error(`Persistent process runner did not stop safely: ${active.info.id}`)
-      }
-      try {
-        process.kill(-pid, "SIGTERM")
-      } catch (err) {
-        if ((await probe(active)) === "owned") throw err
-        return
-      }
-      await waitGone(active)
-      const force = await probe(active)
-      if (force === "owned") {
-        try {
-          process.kill(-pid, "SIGKILL")
-        } catch (err) {
-          if ((await probe(active)) === "owned") throw err
-        }
-      }
-      if (force === "unknown") throw new Error(`Cannot reverify persistent process before SIGKILL: ${active.info.id}`)
-      return
-    }
-    if (active.proc ? stopped(active.proc) : !alive(pid)) return
-    if (process.platform === "win32") {
-      await new Promise<void>((resolve) => {
-        const child = spawn("taskkill", ["/pid", String(pid), "/f", "/t"], {
-          stdio: "ignore",
-          windowsHide: true,
-        })
-        child.once("exit", () => resolve())
-        child.once("error", () => resolve())
-      })
-      return
-    }
-    try {
-      process.kill(-pid, "SIGTERM")
-    } catch (err) {
-      log.warn("failed to terminate process group", { err, pid })
-      try {
-        process.kill(pid, "SIGTERM")
-      } catch (err) {
-        if (code(err) !== "ESRCH") throw err
-      }
-    }
-    if (active.proc) await waitExit(active.proc, KILL_MS)
-    if (!active.proc) await Bun.sleep(KILL_MS)
-    if (!alive(pid) && !group(pid)) return
-    try {
-      process.kill(-pid, "SIGKILL")
-    } catch (err) {
-      log.warn("failed to kill process group", { err, pid })
-      try {
-        process.kill(pid, "SIGKILL")
-      } catch (err) {
-        if (code(err) !== "ESRCH") throw err
-      }
-    }
-  }
 
   function owner(state: State, lifetime: Lifetime) {
     return lifetime === "persistent" ? state.shared.processes : state.processes
@@ -743,21 +454,7 @@ export namespace BackgroundProcess {
   }
 
   async function output(active: Active) {
-    if (!active.log) return
-    const meta = await stat(active.log).catch(() => undefined)
-    if (!meta) return
-    const key = `${meta.dev}:${meta.ino}`
-    if (active.file && active.file !== key) {
-      active.offset = 0
-      active.info.output = ""
-    }
-    active.file = key
-    const size = meta.size
-    const offset = active.offset ?? 0
-    const start = size < offset ? Math.max(0, size - MAX) : offset
-    const next = await Bun.file(active.log).slice(start, size).text()
-    active.offset = size
-    if (next) append(active, next)
+    await readLogOutput(active, append)
   }
 
   function watch(shared: Shared, active: Active) {
@@ -793,34 +490,7 @@ export namespace BackgroundProcess {
     throw new Error(`Persistent process identity could not be verified: ${active.info.id}`)
   }
 
-  async function rollback(active: Active) {
-    const pid = active.info.pid
-    if (!pid) return true
-    const before = await probe(active)
-    if (before === "gone" || before === "foreign") return true
-    if (before === "unknown" && (!active.proc || stopped(active.proc))) return false
-    if (process.platform === "win32") {
-      if (active.control) {
-        await Filesystem.write(active.control, "stop", 0o600)
-      } else {
-        const out = await Process.run(["taskkill", "/pid", String(pid), "/f", "/t"], { nothrow: true })
-        if (out.code !== 0 && (await probe(active)) === "owned") return false
-      }
-    } else {
-      try {
-        process.kill(-pid, "SIGKILL")
-      } catch (err) {
-        if ((await probe(active)) === "owned") throw err
-      }
-    }
-    const end = Date.now() + KILL_MS
-    while (Date.now() < end) {
-      const status = await probe(active)
-      if (status === "gone" || status === "foreign") return true
-      await Bun.sleep(100)
-    }
-    return false
-  }
+
 
   async function launch(state: State, input: StartInput, id = ID.ascending()) {
     const sh = Shell.acceptable()
@@ -922,7 +592,7 @@ export namespace BackgroundProcess {
       }
       publish(active)
       poll(active, PORT_START_MS)
-      if (input.ready) await wait(active, input.ready)
+      if (input.ready) await waitReady(active, input.ready, { ready, publish, persist })
       return clone(active.info)
     } catch (err) {
       active.disposed = true
@@ -1076,7 +746,7 @@ export namespace BackgroundProcess {
             current.processes.clear()
             await current.lease
               ?.release()
-              .catch((err) => log.warn("failed to release persistent process scope", { err, scope: current.key }))
+              .catch((err: unknown) => log.warn("failed to release persistent process scope", { err, scope: current.key }))
           }
           shared.clear()
         }),

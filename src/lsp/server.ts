@@ -17,6 +17,8 @@ import { Npm } from "@opencode-ai/core/npm"
 import { TsCheck } from "../foxcode/ts-check"
 import type { RuntimeFlags } from "@/effect/runtime-flags"
 
+import { validateBinary } from "./validate"
+
 const log = Log.create({ service: "lsp.server" })
 const pathExists = async (p: string) =>
   fs
@@ -664,7 +666,7 @@ export const Zls: Info = {
 
       bin = path.join(Global.Path.bin, "zls" + (platform === "win32" ? ".exe" : ""))
 
-      if (!(await Filesystem.exists(bin))) {
+      if (!(await Filesystem.exists(bin)) || !(await validateBinary(bin))) {
         return
       }
 
@@ -1043,7 +1045,7 @@ export const Clangd: Info = {
     await fs.rm(archive, { force: true })
 
     const bin = path.join(Global.Path.bin, "clangd_" + tag, "bin", "clangd" + ext)
-    if (!(await Filesystem.exists(bin))) {
+    if (!(await Filesystem.exists(bin)) || !(await validateBinary(bin))) {
       return
     }
 
@@ -1340,6 +1342,9 @@ export const KotlinLS: Info = {
         })
       if (!ok) return
       await fs.rm(archivePath, { force: true })
+      if (!(await validateBinary(launcherScript))) {
+        return
+      }
       if (process.platform !== "win32") {
         await fs.chmod(launcherScript, 0o755).catch(() => {})
       }
@@ -1485,7 +1490,7 @@ export const LuaLS: Info = {
       // Binary is located in bin/ subdirectory within the extracted archive
       bin = path.join(installDir, "bin", "lua-language-server" + (platform === "win32" ? ".exe" : ""))
 
-      if (!(await Filesystem.exists(bin))) {
+      if (!(await Filesystem.exists(bin)) || !(await validateBinary(bin))) {
         return
       }
 
@@ -1665,7 +1670,7 @@ export const TerraformLS: Info = {
 
       bin = path.join(Global.Path.bin, "terraform-ls" + (platform === "win32" ? ".exe" : ""))
 
-      if (!(await Filesystem.exists(bin))) {
+      if (!(await Filesystem.exists(bin)) || !(await validateBinary(bin))) {
         return
       }
 
@@ -1750,7 +1755,7 @@ export const TexLab: Info = {
 
       bin = path.join(Global.Path.bin, "texlab" + (platform === "win32" ? ".exe" : ""))
 
-      if (!(await Filesystem.exists(bin))) {
+      if (!(await Filesystem.exists(bin)) || !(await validateBinary(bin))) {
         return
       }
 
@@ -1929,7 +1934,7 @@ export const Tinymist: Info = {
 
       bin = path.join(Global.Path.bin, "tinymist" + (platform === "win32" ? ".exe" : ""))
 
-      if (!(await Filesystem.exists(bin))) {
+      if (!(await Filesystem.exists(bin)) || !(await validateBinary(bin))) {
         return
       }
 

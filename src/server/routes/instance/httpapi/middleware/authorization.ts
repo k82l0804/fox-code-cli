@@ -2,7 +2,7 @@ import { ServerAuth } from "@/server/auth"
 import { Effect, Encoding, Layer, Redacted } from "effect"
 import { HttpEffect, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { HttpApiError, HttpApiMiddleware } from "effect/unstable/httpapi"
-import { hasPtyConnectTicketURL } from "@/server/shared/pty-ticket"
+import { hasPtyConnectTicketURL, isPtyConnectPath } from "@/server/shared/pty-ticket"
 import { isPublicUIPath } from "@/server/shared/public-ui"
 export {
   Authorization as ServerAuthorization,
@@ -41,6 +41,15 @@ function emptyCredential() {
     username: "",
     password: Redacted.make(""),
   }
+}
+
+function isWebSocketUpgrade(request: HttpServerRequest.HttpServerRequest, url: URL): boolean {
+  if (isPtyConnectPath(url.pathname) || hasPtyConnectTicketURL(url)) return true
+  const upgrade = request.headers["upgrade"]
+  if (typeof upgrade === "string" && upgrade.toLowerCase() === "websocket") return true
+  const connection = request.headers["connection"]
+  if (typeof connection === "string" && connection.toLowerCase().includes("upgrade")) return true
+  return false
 }
 
 function validateCredential<A, E, R>(
@@ -85,7 +94,7 @@ function credentialFromRequest(request: HttpServerRequest.HttpServerRequest) {
 
 function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerRequest) {
   const token = url.searchParams.get(AUTH_TOKEN_QUERY)
-  if (token) return decodeCredential(token)
+  if (token && isWebSocketUpgrade(request, url)) return decodeCredential(token)
   const match = /^Basic\s+(.+)$/i.exec(request.headers.authorization ?? "")
   if (match) return decodeCredential(match[1])
   return Effect.succeed(emptyCredential())

@@ -8,6 +8,7 @@ interface Grant {
   remaining: number
 }
 
+const MAX_GRANTS = 1024
 const ttl = 24 * 60 * 60 * 1000
 const grants = new Map<string, Grant>()
 
@@ -15,6 +16,16 @@ function cleanup(now = Date.now()) {
   for (const [token, grant] of grants) {
     if (grant.expires <= now || grant.remaining <= 0) grants.delete(token)
   }
+  while (grants.size >= MAX_GRANTS) {
+    const oldest = grants.keys().next().value
+    if (!oldest) break
+    grants.delete(oldest)
+  }
+}
+
+/** Test-only: clear all active inheritance grants. */
+export function clear() {
+  grants.clear()
 }
 
 export function issue(input: { sessionID: SessionID; directory: string; count: number }) {
