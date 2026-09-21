@@ -35,7 +35,50 @@ import { Usage, type LLMEvent } from "@opencode-ai/llm"
 import { CompressionMetrics } from "@opencode-ai/core/tool/compression-metrics"
 
 
-const DOOM_LOOP_THRESHOLD = 3
+export const DOOM_LOOP_THRESHOLD = 3
+
+export function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) {
+    return false
+  }
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false
+    }
+    return true
+  }
+  if (Array.isArray(b)) return false
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false
+    if (!deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) return false
+  }
+  return true
+}
+
+export function isDoomLoop(
+  parts: SessionV1.Part[],
+  toolName: string,
+  input: unknown,
+  threshold = DOOM_LOOP_THRESHOLD,
+): boolean {
+  const recentParts = parts.slice(-threshold)
+  return (
+    recentParts.length === threshold &&
+    recentParts.every(
+      (part) =>
+        part.type === "tool" &&
+        part.tool === toolName &&
+        part.state.status !== "pending" &&
+        deepEqual(part.state.input, input),
+    )
+  )
+}
+
 export type Result = "compact" | "stop" | "continue"
 
 export interface Handle {
@@ -457,18 +500,7 @@ const layer = Layer.effect(
             const parts = yield* MessageV2.parts(ctx.assistantMessage.id).pipe(
               Effect.provideService(Database.Service, database),
             )
-            const recentParts = parts.slice(-DOOM_LOOP_THRESHOLD)
-
-            if (
-              recentParts.length !== DOOM_LOOP_THRESHOLD ||
-              !recentParts.every(
-                (part) =>
-                  part.type === "tool" &&
-                  part.tool === value.name &&
-                  part.state.status !== "pending" &&
-                  JSON.stringify(part.state.input) === JSON.stringify(input),
-              )
-            ) {
+            if (!isDoomLoop(parts, value.name, input)) {
               return
             }
 

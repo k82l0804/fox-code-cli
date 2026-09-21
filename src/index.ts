@@ -30,6 +30,10 @@ import {
   StatsCommand,
   waitForLazyCommands,
 } from "@/foxcode/cli/lazy-commands"
+
+// @ts-ignore
+globalThis.AI_SDK_LOG_WARNINGS = false
+
 const args = hideBin(process.argv)
 const metadata = ensureProcessMetadata("main")
 if (await FoxCli.runner()) process.exit()

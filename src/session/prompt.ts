@@ -95,8 +95,6 @@ import { FoxSessionControl } from "@/foxcode/session/control"
 import { Goal } from "@/foxcode/session/goal/runner"
 import { GoalPolicy } from "@/foxcode/session/goal/policy"
 import { GoalState } from "@/foxcode/session/goal/state"
-// @ts-ignore
-globalThis.AI_SDK_LOG_WARNINGS = false
 
 const decodeMessageInfo = Schema.decodeUnknownExit(SessionV1.Info)
 const decodeMessagePart = Schema.decodeUnknownExit(SessionV1.Part)

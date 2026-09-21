@@ -28,6 +28,6 @@ section "packages/core"
 (cd packages/core && bun test --timeout 30000)
 
 section "App-level tests (test/)"
-bun test ./test/*.test.ts --timeout 30000
+bun test ./test/*.test.ts ./test/*/*.test.ts --timeout 30000
 
 printf '\n\033[1;32m✓ All tests passed\033[0m\n'

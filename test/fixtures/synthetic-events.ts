@@ -382,11 +382,11 @@ export function makePermissionEvents(
   return { partID, callID, requestID, toolRunning, permissionAsked, makeReply }
 }
 
-export function makeSubagentPart(sessionID: string, callID: string): ToolPart {
+export function makeSubagentPart(childSessionID: string, callID: string, parentSessionID = "parent_sess"): ToolPart {
   return {
     id: `sub_tool_${callID}`,
     type: "tool",
-    sessionID,
+    sessionID: parentSessionID,
     messageID: `sub_msg_${callID}`,
     callID,
     tool: "task",
@@ -394,6 +394,8 @@ export function makeSubagentPart(sessionID: string, callID: string): ToolPart {
       status: "running",
       input: { description: "Subagent task" },
       time: { start: Date.now() },
+      metadata: { sessionID: childSessionID },
     },
+    metadata: { sessionID: childSessionID },
   }
 }

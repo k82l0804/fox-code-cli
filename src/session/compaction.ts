@@ -59,7 +59,7 @@ type CompletedCompaction = {
   summary: string | undefined
 }
 export type PruneReason = "normal" | "post-compaction" | "payload-limit"
-function summaryText(message: SessionV1.WithParts) {
+export function summaryText(message: SessionV1.WithParts) {
   const text = message.parts
     .filter((part): part is SessionV1.TextPart => part.type === "text")
     .map((part) => part.text.trim())
@@ -69,7 +69,7 @@ function summaryText(message: SessionV1.WithParts) {
   return text || undefined
 }
 
-function completedCompactions(messages: SessionV1.WithParts[]) {
+export function completedCompactions(messages: SessionV1.WithParts[]) {
   const users = new Map<MessageID, number>()
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
@@ -86,13 +86,15 @@ function completedCompactions(messages: SessionV1.WithParts[]) {
     return [{ userIndex, assistantIndex, summary: summaryText(msg) }]
   })
 }
-function preserveRecentBudget(input: { cfg: ConfigV1.Info; model: Provider.Model; outputTokenMax?: number }) {
+
+export function preserveRecentBudget(input: { cfg: ConfigV1.Info; model: Provider.Model; outputTokenMax?: number }) {
   return (
     input.cfg.compaction?.preserve_recent_tokens ??
     Math.min(MAX_PRESERVE_RECENT_TOKENS, Math.max(MIN_PRESERVE_RECENT_TOKENS, Math.floor(usable(input) * 0.25)))
   )
 }
-function turns(messages: SessionV1.WithParts[]) {
+
+export function turns(messages: SessionV1.WithParts[]) {
   const result: Turn[] = []
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
