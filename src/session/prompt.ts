@@ -98,43 +98,28 @@ import { GoalState } from "@/foxcode/session/goal/state"
 
 const decodeMessageInfo = Schema.decodeUnknownExit(SessionV1.Info)
 const decodeMessagePart = Schema.decodeUnknownExit(SessionV1.Part)
-const MAX_MCP_RESOURCE_BLOB_BYTES = 10 * 1024 * 1024
-const SUPPORTED_MCP_RESOURCE_ATTACHMENT_MIMES = new Set([
-  "application/pdf",
-  "image/gif",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-])
+import {
+  MAX_MCP_RESOURCE_BLOB_BYTES,
+  REQUEST_PRUNE_BYTES,
+  SUPPORTED_MCP_RESOURCE_ATTACHMENT_MIMES,
+  formatMcpResourceBytes,
+  mcpResourceBase64Size,
+} from "./prompt/attachment"
+import {
+  STRUCTURED_OUTPUT_DESCRIPTION,
+  STRUCTURED_OUTPUT_SYSTEM_PROMPT,
+  createStructuredOutputTool,
+} from "./prompt/structured"
+import { isOrphanedInterruptedTool } from "./prompt/orphan"
+import {
+  CommandInput,
+  bashRegex,
+  interpolateCommandTemplate,
+  parseCommandArgs,
+} from "./prompt/command"
 
-const STRUCTURED_OUTPUT_DESCRIPTION = `Use this tool to return your final response in the requested structured format.
-
-IMPORTANT:
-- You MUST call this tool exactly once at the end of your response
-- The input must be valid JSON matching the required schema
-- Complete all necessary research and tool calls BEFORE calling this tool
-- This tool provides your final answer - no further actions are taken after calling it`
-
-const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `IMPORTANT: The user has requested structured output. You MUST use the StructuredOutput tool to provide your final response. Do NOT respond with plain text - you MUST call the StructuredOutput tool with your answer formatted according to the schema.`
-
+export { createStructuredOutputTool }
 export const shouldAskPlanFollowup = FoxSessionPrompt.shouldAskPlanFollowup
-const REQUEST_PRUNE_BYTES = 1_250_000
-function mcpResourceBase64Size(value: string) {
-  const trimmed = value.replace(/\s/g, "")
-  const padding = trimmed.endsWith("==") ? 2 : trimmed.endsWith("=") ? 1 : 0
-  return Math.max(0, Math.floor((trimmed.length * 3) / 4) - padding)
-}
-
-function formatMcpResourceBytes(value: number) {
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${Math.ceil(value / 1024)} KB`
-  return `${Math.ceil(value / (1024 * 1024))} MB`
-}
-function isOrphanedInterruptedTool(part: SessionV1.ToolPart) {
-  // cleanup() marks abandoned tool_use blocks this way after retries/aborts.
-  // They are not pending work and must not trigger an assistant-prefill request.
-  return part.state.status === "error" && part.state.metadata?.interrupted === true
-}
 
 export interface Interface {
   readonly cancel: (sessionID: SessionID, scope?: FoxSessionControl.AbortScope) => Effect.Effect<void>
@@ -1939,30 +1924,10 @@ export const layer = Layer.effect(
       if (!ticket.current()) return yield* Effect.interrupt
       yield* goals.pause(input.sessionID)
       const agentName = cmd.agent ?? input.agent
-      const raw = input.arguments.match(argsRegex) ?? []
-      const args = raw.map((arg) => arg.replace(quoteTrimRegex, ""))
+      const raw = parseCommandArgs(input.arguments)
+      const args = raw
       const templateCommand = yield* Effect.promise(async () => cmd.template)
-
-      const placeholders = templateCommand.match(placeholderRegex) ?? []
-      let last = 0
-      for (const item of placeholders) {
-        const value = Number(item.slice(1))
-        if (value > last) last = value
-      }
-
-      const withArgs = templateCommand.replaceAll(placeholderRegex, (_, index) => {
-        const position = Number(index)
-        const argIndex = position - 1
-        if (argIndex >= args.length) return ""
-        if (position === last) return args.slice(argIndex).join(" ")
-        return args[argIndex]
-      })
-      const usesArgumentsPlaceholder = templateCommand.includes("$ARGUMENTS")
-      let template = withArgs.replaceAll("$ARGUMENTS", input.arguments)
-
-      if (placeholders.length === 0 && !usesArgumentsPlaceholder && input.arguments.trim()) {
-        template = template + "\n\n" + input.arguments
-      }
+      let template = interpolateCommandTemplate(templateCommand, args, input.arguments)
 
       const shellMatches = ConfigMarkdown.shell(template)
       // mirroring the skill tool's gate (the slash-command path is user-initiated, so it is not prompted).
@@ -2140,70 +2105,7 @@ export const ShellInput = Schema.Struct({
 })
 export type ShellInput = Schema.Schema.Type<typeof ShellInput>
 
-export const CommandInput = Schema.Struct({
-  messageID: Schema.optional(MessageID),
-  sessionID: SessionID,
-  agent: Schema.optional(Schema.String),
-  model: Schema.optional(Schema.String),
-  arguments: Schema.String,
-  command: Schema.String,
-  variant: Schema.optional(Schema.String),
-  snapshotInitialization: Schema.optional(Schema.Literal("wait")).annotate({
-    description: "Wait silently if snapshot initialization is slow instead of asking the user.",
-  }),
-  // Inlined (no identifier annotation) to keep the original SDK output — the
-  // PromptInput call site below references FilePartInput by ref via the
-  // Schema export in message-v2.ts.
-  parts: Schema.optional(
-    Schema.Array(
-      Schema.Union([
-        Schema.Struct({
-          id: Schema.optional(PartID),
-          type: Schema.Literal("file"),
-          mime: Schema.String,
-          filename: Schema.optional(Schema.String),
-          url: Schema.String,
-          source: Schema.optional(SessionV1.FilePartSource),
-        }),
-      ]).annotate({ discriminator: "type" }),
-    ),
-  ),
-})
-export type CommandInput = Schema.Schema.Type<typeof CommandInput>
-
-/** @internal Exported for testing */
-export function createStructuredOutputTool(input: {
-  schema: Record<string, any>
-  onSuccess: (output: unknown) => void
-}): AITool {
-  // Remove $schema property if present (not needed for tool input)
-  const { $schema: _, ...toolSchema } = input.schema
-
-  return tool({
-    description: STRUCTURED_OUTPUT_DESCRIPTION,
-    inputSchema: jsonSchema(toolSchema as JSONSchema7),
-    async execute(args) {
-      // AI SDK validates args against inputSchema before calling execute()
-      input.onSuccess(args)
-      return {
-        output: "Structured output captured successfully.",
-        title: "Structured Output",
-        metadata: { valid: true },
-      }
-    },
-    toModelOutput({ output }) {
-      return {
-        type: "text",
-        value: output.output,
-      }
-    },
-  })
-}
-const bashRegex = /!`([^`]+)`/g
-// Match [Image N] as single token, quoted strings, or non-space sequences
-const argsRegex = /(?:\[Image\s+\d+\]|"[^"]*"|'[^']*'|[^\s"']+)/gi
-const placeholderRegex = /\$(\d+)/g
-const quoteTrimRegex = /^["']|["']$/g
+export { CommandInput }
 
 const repositoryCacheNode = RepositoryCache.node
 export const node = LayerNode.make({
