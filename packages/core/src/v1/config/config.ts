@@ -336,6 +336,33 @@ export const Info = Schema.Struct({
       }),
     }),
   ),
+  autonomous: Schema.optional(
+    Schema.Struct({
+      auto_verify: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Automatically run project tests after mutation tools (edit, apply_patch, write) in autonomous mode. Defaults to true.",
+      }),
+      test_command: Schema.optional(Schema.NullOr(Schema.String)).annotate({
+        description:
+          "Override the auto-detected test command. Set to null to auto-detect from package.json scripts. Defaults to null (auto-detect).",
+      }),
+      test_timeout: Schema.optional(PositiveInt).annotate({
+        description: "Timeout in milliseconds for auto-verification commands. Defaults to 30000.",
+      }),
+      detect_oscillations: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Detect when code edits oscillate between alternating states (A→B→A). Defaults to true.",
+      }),
+      oscillation_threshold: Schema.optional(PositiveInt).annotate({
+        description:
+          "Sliding window size for oscillation detection (number of recent mutations to track per file). Defaults to 4.",
+      }),
+      max_repair_turns: Schema.optional(PositiveInt).annotate({
+        description:
+          "Maximum consecutive failed verification cycles before warning the agent to stop. Defaults to 3.",
+      }),
+    }),
+  ).annotate({ description: "Autonomous verification layer configuration for oscillation detection, auto-testing, and repair budget" }),
 }).annotate({ identifier: "Config" })
 
 export type Info = DeepMutable<Schema.Schema.Type<typeof Info>>

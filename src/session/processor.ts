@@ -33,6 +33,9 @@ import { EventV2Bridge } from "@/event-v2-bridge"
 import { Database } from "@opencode-ai/core/database/database"
 import { Usage, type LLMEvent } from "@opencode-ai/llm"
 import { CompressionMetrics } from "@opencode-ai/core/tool/compression-metrics"
+import { Oscillation } from "@opencode-ai/core/oscillation"
+import { RepairBudgetTracker } from "@opencode-ai/core/repair-budget"
+import { Verification } from "@opencode-ai/core/verification"
 
 
 export const DOOM_LOOP_THRESHOLD = 3
@@ -77,6 +80,32 @@ export function isDoomLoop(
         deepEqual(part.state.input, input),
     )
   )
+}
+
+/**
+ * Extract file paths from mutation tool metadata/output.
+ * Each mutation tool stores file info differently:
+ * - `edit` / `write`: metadata.files[].file or metadata contains file path
+ * - `apply_patch`: metadata.files[].file (array of affected files)
+ */
+function extractMutationFilePaths(toolName: string, metadata: Record<string, any>): string[] {
+  const paths: string[] = []
+
+  // Try metadata.files[].file (edit / apply_patch structured output)
+  if (Array.isArray(metadata.files)) {
+    for (const file of metadata.files) {
+      if (isRecord(file) && typeof file.file === "string") {
+        paths.push(file.file)
+      }
+    }
+  }
+
+  // Try metadata.path (write tool)
+  if (typeof metadata.path === "string" && paths.length === 0) {
+    paths.push(metadata.path)
+  }
+
+  return paths
 }
 
 export type Result = "compact" | "stop" | "continue"
@@ -161,6 +190,35 @@ const layer = Layer.effect(
     const events = yield* EventV2Bridge.Service
     const database = yield* Database.Service
     const flags = yield* RuntimeFlags.Service
+
+    // --- Autonomous Verification Layer: session-scoped state ---
+    const oscillationTrackers = new Map<SessionID, Oscillation.OscillationTracker>()
+    const repairBudgets = new Map<SessionID, RepairBudgetTracker.RepairBudget>()
+    /** Monotonically increasing turn counter per session for oscillation tracking. */
+    const turnCounters = new Map<SessionID, number>()
+
+    const getOscillationTracker = (sessionID: SessionID, threshold?: number) => {
+      let tracker = oscillationTrackers.get(sessionID)
+      if (!tracker) {
+        tracker = Oscillation.createTracker(threshold ?? 4)
+        oscillationTrackers.set(sessionID, tracker)
+      }
+      return tracker
+    }
+    const getRepairBudget = (sessionID: SessionID, maxTurns?: number) => {
+      let budget = repairBudgets.get(sessionID)
+      if (!budget) {
+        budget = RepairBudgetTracker.createBudget(maxTurns ?? 3)
+        repairBudgets.set(sessionID, budget)
+      }
+      return budget
+    }
+    const nextTurn = (sessionID: SessionID) => {
+      const current = turnCounters.get(sessionID) ?? 0
+      const next = current + 1
+      turnCounters.set(sessionID, next)
+      return next
+    }
     const create = Effect.fn("SessionProcessor.create")(function* (input: Input) {
       // Pre-capture snapshot before the LLM stream starts. The AI SDK
       // may execute tools internally before emitting start-step events,
@@ -542,12 +600,60 @@ const layer = Layer.effect(
             )
             const omitted = normalized.filter(Exit.isFailure).length
             const attachments = normalized.filter(Exit.isSuccess).map((item) => item.value)
+            let outputText =
+              omitted === 0
+                ? rawOutput.output
+                : `${rawOutput.output}\n\n[${omitted} image${omitted === 1 ? "" : "s"} omitted: could not be resized below the image size limit.]`
+
+            // --- Autonomous Verification Layer: oscillation detection ---
+            if (Verification.MUTATION_TOOLS.has(value.name)) {
+              const cfg = yield* config.get()
+              const autonomousCfg = cfg.autonomous
+              const oscillationsEnabled = autonomousCfg?.detect_oscillations !== false
+
+              if (oscillationsEnabled) {
+                const threshold = autonomousCfg?.oscillation_threshold ?? 4
+                const tracker = getOscillationTracker(ctx.sessionID, threshold)
+                const turn = nextTurn(ctx.sessionID)
+
+                // Extract file paths from mutation tool metadata/output
+                const filePaths = extractMutationFilePaths(value.name, rawOutput.metadata)
+                for (const filePath of filePaths) {
+                  // Hash the output text as a proxy for the content state
+                  // (includes the diff/patch which reflects the actual change)
+                  const hash = Oscillation.contentHash(`${filePath}:${turn}:${rawOutput.output}`)
+                  const result = Oscillation.recordAndDetect(tracker, filePath, hash, turn)
+                  const warning = Oscillation.OscillationWarning.format(result)
+                  if (warning) {
+                    outputText = `${outputText}\n\n${warning}`
+                  }
+                }
+              }
+            }
+
+            // --- Autonomous Verification Layer: repair budget tracking ---
+            // Track bash tool results for test commands
+            if (value.name === "bash" && isRecord(rawOutput.metadata)) {
+              const exitCode = typeof rawOutput.metadata.exit === "number" ? rawOutput.metadata.exit : undefined
+              const cfg = yield* config.get()
+              const autonomousCfg = cfg.autonomous
+              const maxRepairTurns = autonomousCfg?.max_repair_turns ?? 3
+              const budget = getRepairBudget(ctx.sessionID, maxRepairTurns)
+
+              if (exitCode !== undefined && exitCode !== 0) {
+                const result = RepairBudgetTracker.recordFailure(budget)
+                const warning = RepairBudgetTracker.RepairBudgetWarning.format(budget)
+                if (result.exhausted && warning) {
+                  outputText = `${outputText}\n\n${warning}`
+                }
+              } else if (exitCode === 0) {
+                RepairBudgetTracker.recordSuccess(budget)
+              }
+            }
+
             const output = {
               ...rawOutput,
-              output:
-                omitted === 0
-                  ? rawOutput.output
-                  : `${rawOutput.output}\n\n[${omitted} image${omitted === 1 ? "" : "s"} omitted: could not be resized below the image size limit.]`,
+              output: outputText,
               attachments: attachments.length ? attachments : undefined,
             }
             yield* completeToolCall(value.id, output)

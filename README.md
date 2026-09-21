@@ -7,7 +7,7 @@
 [![Package: @fox/cli](https://img.shields.io/badge/Package-%40fox%2Fcli%20v0.1.0-blue.svg)](package.json)
 [![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.2+-black.svg)](https://bun.sh/)
 [![Architecture: Effect TS](https://img.shields.io/badge/Architecture-Effect_TS-purple.svg)](https://effect.website/)
-[![Tests: 309 Pass](https://img.shields.io/badge/Tests-309_Pass-brightgreen.svg)](#testing)
+[![Tests: 365 Pass](https://img.shields.io/badge/Tests-365_Pass-brightgreen.svg)](#testing)
 [![Standard Suite](https://img.shields.io/badge/Standard_Suite-52_Golden_Fixtures-success.svg)](docs/fox-standard-test-suite-scoreboard.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 
@@ -27,6 +27,10 @@
   - [Two-Phase Atomic Commit & In-Memory Journal](#two-phase-atomic-commit)
   - [4-Tier Match Confidence Scoring](#confidence-scoring)
   - [Unified Tooling Architecture](#unified-tooling)
+- [Autonomous Verification Layer](#autonomous-verification)
+  - [Oscillation Detection](#oscillation-detection)
+  - [Auto-Verification Runner](#auto-verification-runner)
+  - [Repair Budget Tracker](#repair-budget-tracker)
 - [Configuration & Environment Variables](#configuration)
   - [Configuration File Resolution](#configuration-file-resolution)
   - [Environment Flags](#environment-flags)
@@ -250,6 +254,93 @@ Every hunk match is evaluated across four decreasing tiers of certainty (`packag
 <a id="unified-tooling"></a>
 ### Unified Tooling Architecture
 Both the multi-file `apply_patch` tool (`packages/core/src/tool/apply-patch.ts`) and the surgical `edit` tool (`packages/core/src/tool/edit.ts`) execute through the same `FileMutation` transactional journal API (`packages/core/src/file-mutation.ts`). This guarantees unified error handling, logging, and rollback across both multi-hunk diffs and targeted string replacements.
+
+---
+
+<a id="autonomous-verification"></a>
+## 🛡️ Autonomous Verification Layer
+
+The Autonomous Verification Layer provides three composable safety modules that protect against common failure modes in autonomous agent workflows (`fox run --auto` and `/goal` mode). All modules are **opt-in by default** and configurable via `fox.jsonc`.
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                  SESSION PROCESSOR (processor.ts)                 │
+│                                                                   │
+│  Agent invokes: edit / apply_patch / write / bash                │
+│         │                                                         │
+│         ▼                                                         │
+│  ┌──────────────────────────────────────────────────────────┐     │
+│  │ Module 1: OSCILLATION DETECTOR (oscillation.ts)          │     │
+│  │  • SHA-256 content-hash tracking per file across turns   │     │
+│  │  • Detects A→B→A toggle patterns within sliding window   │     │
+│  │  • Injects model-facing ⚠️ OSCILLATION DETECTED warning  │     │
+│  └──────────────────────────────────────────────────────────┘     │
+│         │                                                         │
+│         ▼                                                         │
+│  ┌──────────────────────────────────────────────────────────┐     │
+│  │ Module 2: AUTO-VERIFICATION RUNNER (verification.ts)     │     │
+│  │  • Auto-detect test/typecheck/lint from package.json     │     │
+│  │  • Execute with timeout + compress via LLTC pipeline     │     │
+│  │  • Append compressed result to tool output               │     │
+│  └──────────────────────────────────────────────────────────┘     │
+│         │                                                         │
+│         ▼                                                         │
+│  ┌──────────────────────────────────────────────────────────┐     │
+│  │ Module 3: REPAIR BUDGET TRACKER (repair-budget.ts)       │     │
+│  │  • Consecutive-failure counter per session                │     │
+│  │  • Budget exhaustion → STOP warning to model              │     │
+│  │  • Resets on passing verification or user message         │     │
+│  └──────────────────────────────────────────────────────────┘     │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+<a id="oscillation-detection"></a>
+### Oscillation Detection (`packages/core/src/oscillation.ts`)
+
+Tracks SHA-256 content hashes per file across a sliding window of turns. Detects when an agent toggles the same code between alternating states (A→B→A), which indicates a strategy deadlock. When detected, a model-facing warning is injected into the tool output telling the agent to try a fundamentally different approach.
+
+- **Pattern Detection**: A→B→A toggles, A→B→A→B extended oscillation
+- **No False Positives**: Ignores idempotent edits (A→A) and sequential unique changes (A→B→C→D)
+- **Per-File Independence**: Multiple files tracked independently
+- **Configurable Window**: `autonomous.oscillation_threshold` (default: 4 turns)
+
+<a id="auto-verification-runner"></a>
+### Auto-Verification Runner (`packages/core/src/verification.ts`)
+
+Auto-detects project test commands from `package.json` scripts and provides compressed verification feedback. Prioritizes `scripts.test` > `scripts.typecheck` > `scripts.lint`. User can override with `autonomous.test_command` in `fox.jsonc`.
+
+- **Auto-Detection**: Parses `package.json` for `test`, `test:check`, `typecheck`, `check`, `lint` scripts
+- **Override**: `autonomous.test_command` for custom verification commands
+- **Output Compression**: Truncates large outputs keeping the tail (most useful for error summaries)
+- **Timeout**: `autonomous.test_timeout` (default: 30000ms)
+
+<a id="repair-budget-tracker"></a>
+### Repair Budget Tracker (`packages/core/src/repair-budget.ts`)
+
+Session-scoped counter tracking consecutive failed verification cycles. When the budget is exhausted, emits a warning instructing the agent to stop the current approach.
+
+- **Budget**: `autonomous.max_repair_turns` (default: 3 consecutive failures)
+- **Reset**: Consecutive failure count resets on passing verification or user message
+- **Observability**: `totalRepairTurns` counter never resets (session-wide metric)
+- **Integration**: Reports `blocked` status to GoalState in `/goal` mode
+
+### Configuration
+
+All settings live under the `autonomous` key in `fox.jsonc`:
+
+```jsonc
+{
+  "autonomous": {
+    "auto_verify": true,           // Run tests after mutation tools (default: true)
+    "test_command": null,          // Override auto-detected test command (null = auto-detect)
+    "test_timeout": 30000,         // Verification timeout in ms
+    "detect_oscillations": true,   // Enable oscillation detection (default: true)
+    "oscillation_threshold": 4,    // Sliding window size for oscillation detection
+    "max_repair_turns": 3          // Max consecutive failed verifications before warning
+  }
+}
+```
 
 ---
 
