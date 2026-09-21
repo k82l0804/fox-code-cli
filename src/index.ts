@@ -164,6 +164,20 @@ try {
     FoxCli.shutdown(),
     new Promise((resolve) => setTimeout(resolve, 3000)),
   ])
+  // Wait up to 500ms for stdout/stderr to drain before forcing exit
+  await new Promise<void>((resolve) => {
+    let pending = 2
+    const timer = setTimeout(resolve, 500)
+    const onDrain = () => {
+      pending--
+      if (pending <= 0) {
+        clearTimeout(timer)
+        resolve()
+      }
+    }
+    if (!process.stdout.write("")) process.stdout.once("drain", onDrain); else onDrain()
+    if (!process.stderr.write("")) process.stderr.once("drain", onDrain); else onDrain()
+  })
   // Some subprocesses don't react properly to SIGTERM and similar signals.
   // Most notably, some docker-container-based MCP servers don't handle such signals unless
   // run using `docker run --init`.

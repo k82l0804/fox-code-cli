@@ -26,6 +26,18 @@ const agents = lazy(() => makeRuntime(Agent.Service, AppNodeBuilder.build(Agent.
 const todo = lazy(() => makeRuntime(Todo.Service, Todo.defaultLayer))
 const llm = lazy(() => makeRuntime(LLM.Service, AppNodeBuilder.build(LLM.node)))
 const pending = new Map<SessionID, AbortController>()
+const MAX_PENDING_FOLLOWUPS = 128
+
+function trackPending(sessionID: SessionID, ctl: AbortController) {
+  pending.set(sessionID, ctl)
+  if (pending.size > MAX_PENDING_FOLLOWUPS) {
+    const oldest = pending.keys().next().value
+    if (oldest) {
+      pending.get(oldest)?.abort()
+      pending.delete(oldest)
+    }
+  }
+}
 
 export const PlanFollowupRuntime = {
   agent(name: string): Promise<Agent.Info | undefined> {
@@ -397,7 +409,7 @@ export namespace PlanFollowup {
           }),
         )
         const ctl = new AbortController()
-        pending.set(next.id, ctl)
+        trackPending(next.id, ctl)
         const [{ AppRuntime }, { EventV2Bridge }] = await Promise.all([
           import("@/effect/app-runtime"),
           import("@/event-v2-bridge"),
