@@ -1,6 +1,6 @@
 # 🦊 Fox Code CLI — Competitive SWE Agent Audit & Architectural Feature Roadmap
 
-> **Document Version:** 1.2.0  
+> **Document Version:** 1.3.0  
 > **Status:** Strategic Architectural Plan  
 > **Target Package:** `fox-code-cli` (`@fox/cli`)  
 > **Target Audience:** Core Contributors, Systems Engineers, SWE Agent Researchers  
@@ -234,6 +234,13 @@ Fox maintains a private git repository stored under `~/.local/share/fox/snapshot
 
 ### Blueprint 3: Autonomous Verification Loop & Deadlock / Oscillation Defense
 
+> ✅ **PARTIALLY IMPLEMENTED** — Oscillation detection, repair budget tracking, and auto-verification infrastructure landed in [`packages/core/src/oscillation.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/oscillation.ts), [`packages/core/src/repair-budget.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/repair-budget.ts), and [`packages/core/src/verification.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/verification.ts). Integrated into [`src/session/processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts). Configuration via `autonomous.*` in `fox.jsonc`. 56 tests.
+>
+> **Remaining work** (see Blueprints 3a, 3b, 3c below):
+> - Auto-verification execution pipeline (actually running detected test commands)
+> - Blast-radius regression detection (before/after test baseline tracking)
+> - Auto-lint execution after mutations
+
 #### The Problem with Competitors
 Autonomous agents frequently fall into three disastrous failure modes:
 1. **Infinite retry loops**: Blindly repeating failing edits without changing strategy.
@@ -269,6 +276,61 @@ Autonomous agents frequently fall into three disastrous failure modes:
 ```
 
 **Token Savings**: Raw test outputs often span 200–500 lines (3,000+ tokens). Fox's test filter reduces this to ~25 lines (250 tokens), saving **90%+ tokens per repair turn**.
+
+---
+
+### Blueprint 3a: Auto-Verification Execution Pipeline
+
+> 🔮 **PLANNED** — Depends on Blueprint 3 (implemented). The detection and formatting infrastructure (`detectBestCommand`, `formatVerificationFeedback`) is in place; this blueprint adds the actual command execution.
+
+#### What It Does
+After a mutation tool (`edit`, `apply_patch`, `write`) completes successfully in autonomous mode, Fox automatically:
+1. Detects the project's verification command via `package.json` scripts or `autonomous.test_command` override
+2. Executes the command with `autonomous.test_timeout` (default 30s)
+3. Compresses the output through the LLTC `filterTestOutput` pipeline
+4. Appends the compressed result to the mutation tool's output so the model sees it on the same turn
+
+#### Implementation Notes
+- Requires spawning a bash subprocess from within the session processor's `tool-result` handler
+- Must use the existing `AppProcess` infrastructure for timeout enforcement
+- Output flows through `ToolOutputCompressor.process()` → `filterTestOutput()` → `truncateOutput()`
+- Only activates in autonomous mode (`--auto` flag or active `/goal`)
+- Controlled by `autonomous.auto_verify` config (default: `true`)
+
+---
+
+### Blueprint 3b: Blast-Radius Regression Detection
+
+> 🔮 **PLANNED** — Depends on Blueprint 3a (auto-verification execution).
+
+#### What It Does
+Tracks which specific tests were passing *before* a mutation and which *new* test failures appeared *after*. If a mutation causes previously-passing tests to fail (in modules unrelated to the edit), a **REGRESSION ALERT** is injected into the tool output.
+
+#### Design
+1. **Baseline Capture**: On session start or after a passing verification run, snapshot the set of passing test names
+2. **Delta Comparison**: After a post-mutation verification run fails, diff the new failure set against the baseline
+3. **Regression Classification**: New failures not in the edited file's test module are classified as blast-radius regressions
+4. **Model Warning**: Inject `⚠️ REGRESSION DETECTED: N previously-passing tests now fail in unrelated modules` with the specific test names
+
+#### Token Impact
+- Baseline snapshot: ~50 tokens (stored in-memory, not sent to model)
+- Regression alert: ~100 tokens (only when regressions detected)
+- Net savings: Prevents multi-turn debugging of unrelated breakage
+
+---
+
+### Blueprint 3c: Auto-Lint Execution
+
+> 🔮 **PLANNED** — Depends on Blueprint 3a (auto-verification execution).
+
+#### What It Does
+After mutation tools complete, optionally runs the project's linter (ESLint, Biome, Ruff, etc.) and feeds compressed lint output back to the agent. Separate from test execution to allow independent enable/disable.
+
+#### Design
+1. **Detection**: Auto-detect lint command from `package.json` scripts (`lint`, `eslint`, `biome check`)
+2. **Execution**: Run with short timeout (10s default) after mutations
+3. **Compression**: Filter to only new/changed-file lint errors (not pre-existing warnings)
+4. **Config**: `autonomous.auto_lint` (default: `false`, opt-in) with `autonomous.lint_command` override
 
 ---
 
@@ -337,14 +399,14 @@ Instead of streaming continuous editor state into the prompt prefix:
 
 ### Blueprint 6: Multi-File Patch Ranking & Conflict Detection
 
-#### Building on the Existing Patch Engine
-Fox's [`apply-patch.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/tool/apply-patch.ts) already implements a **prepare-then-apply** pipeline: it resolves all targets, reads source files, computes derived content, and only then writes to disk sequentially. However, today a failure at hunk N leaves hunks 1..N-1 already applied (the tool explicitly reports "Patch partially applied").
+> ✅ **IMPLEMENTED** — Transactional patch engine with in-memory journaling and 4-tier confidence scoring landed in [`packages/core/src/transaction.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/transaction.ts) and [`packages/core/src/transaction-confidence.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/transaction-confidence.ts). Both `apply_patch` and `edit` tools use the transactional `FileMutation` API. 28 tests.
 
-This blueprint upgrades the engine to full transactional safety:
+#### Building on the Existing Patch Engine
+Fox's [`apply-patch.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/tool/apply-patch.ts) now implements a **transactional prepare-then-apply** pipeline with all-or-nothing atomicity:
 1. **Dry-Run Validation**: All patch hunks across all files are validated against in-memory buffers before any disk writes occur.
-2. **Confidence Scoring**: Each hunk reports match quality (exact, whitespace-normalized, or fuzzy context match) so the agent can prioritize high-confidence edits.
-3. **Conflict Detection**: If multiple hunks target overlapping line ranges within the same file, the engine detects the dependency and re-sequences application order.
-4. **All-or-Nothing Transaction**: If any hunk fails dry-run validation, **zero files are touched**, and a precise line-level mismatch is returned to the agent — eliminating the current "partially applied" failure mode.
+2. **4-Tier Confidence Scoring**: Each hunk reports match quality — Exact (1.0), Normalized (0.95), Sliding Context (0.85), Context Trim (0.75) — so the agent gets precise feedback on match quality.
+3. **In-Memory Pre-Image Journal**: Pre-mutation file contents captured as `Uint8Array` byte buffers. On failure, immediate zero-disk-dependency rollback restores all modified files.
+4. **All-or-Nothing Transaction**: If any hunk fails dry-run validation, **zero files are touched**, and a precise line-level mismatch is returned to the agent.
 
 ---
 
@@ -442,13 +504,18 @@ All future capabilities are strictly modular, optional, and governed by user con
     "prompt_commit_on_success": true     // Offer atomic commit dialog when task passes all tests
   },
 
-  // Autonomous SWE Execution Rails (NEW)
+  // Autonomous SWE Execution Rails (PARTIALLY IMPLEMENTED)
   "autonomous": {
-    "max_self_healing_turns": 3,         // Max test-fail retry loops before consulting human
-    "auto_lint": true,                   // Run project linter after edits
+    // ✅ Implemented
+    "auto_verify": true,                 // Run tests after mutation tools (default: true)
     "test_command": null,                // null = auto-detect from package.json; or explicit command
-    "detect_oscillations": true,         // Abort if same code hunk toggled in last 2 turns
-    "oscillation_threshold": 2,          // Number of turn-toggles before triggering deadlock warning
+    "test_timeout": 30000,               // Verification command timeout in ms (default: 30000)
+    "detect_oscillations": true,         // Detect A→B→A code toggle patterns (default: true)
+    "oscillation_threshold": 4,          // Sliding window size for oscillation detection (default: 4)
+    "max_repair_turns": 3,               // Max consecutive failures before warning (default: 3)
+    // 🔮 Planned (Blueprint 3a/3b/3c)
+    "auto_lint": false,                  // Run project linter after edits (default: false)
+    "lint_command": null,                // null = auto-detect; or explicit lint command
     "detect_regressions": true           // Alert if edits break previously passing tests
   },
 
@@ -480,45 +547,60 @@ All future capabilities are strictly modular, optional, and governed by user con
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        FOX CLI IMPLEMENTATION ROADMAP                                  │
 ├─────────────────────────┬─────────────────────────┬────────────────────────────────────┤
-│ Phase 1: Near-Term      │ Phase 2: Autonomous SWE │ Phase 3: Advanced Sandboxing       │
-│ Q4 2026                 │ Q1 2027                 │ Q2 2027                            │
+│ ✅ COMPLETED             │ Phase 2: Autonomous SWE │ Phase 3: Advanced Sandboxing       │
+│ (Delivered)              │ Q1 2027                 │ Q2 2027                            │
 ├─────────────────────────┼─────────────────────────┼────────────────────────────────────┤
-│ • Incremental AST Index │ • Multi-Model Routing   │ • OS-Level Lightweight Sandbox     │
-│   (SQLite + SHA256)     │   Policy Engine         │   (Bubblewrap / Seatbelt)          │
-│ • Patch Confidence &    │ • Deadlock &            │ • MCP Sidecar Security Sandbox     │
-│   Conflict Detection    │   Oscillation Detection │   (Egress allowlist, quotas)       │
-│ • ACP Metadata          │ • Turn-Supersession     │ • Long-Horizon Project Memory      │
-│   Debounce & Batching   │   Context Pruning       │   (`@foxcode/memory`)              │
-│ • Named Shadow          │ • Self-Healing Test     │ • Cross-Session Checklist State    │
-│   Checkpoints & /undo   │   Loop with LLTC Filter │   Machine                          │
-│ • Tool-First AST Tools  │ • Atomic Task Commits   │                                    │
+│ ✅ Transactional Patch   │ • Auto-Verification     │ • OS-Level Lightweight Sandbox     │
+│   Engine (Blueprint 6)  │   Execution Pipeline    │   (Bubblewrap / Seatbelt)          │
+│ ✅ Oscillation Detection │   (Blueprint 3a)        │ • MCP Sidecar Security Sandbox     │
+│   (Blueprint 3)         │ • Blast-Radius          │   (Egress allowlist, quotas)       │
+│ ✅ Repair Budget Tracker │   Regression Detection  │ • Long-Horizon Project Memory      │
+│   (Blueprint 3)         │   (Blueprint 3b)        │   (`@foxcode/memory`)              │
+│ ✅ Auto-Verification     │ • Auto-Lint Execution   │ • Cross-Session Checklist State    │
+│   Infrastructure        │   (Blueprint 3c)        │   Machine                          │
+│                         │ • Multi-Model Routing   │                                    │
+│ Phase 1: Near-Term      │   (Blueprint 4)         │                                    │
+│ Q4 2026                 │ • Atomic Task-Completion│                                    │
+│─────────────────────────│   Commits               │                                    │
+│ • Incremental AST Index │ • Repo-Level Intent     │                                    │
+│   (SQLite + SHA256)     │   Detection             │                                    │
+│ • ACP Metadata          │ • Turn-Supersession     │                                    │
+│   Debounce & Batching   │   Context Pruning       │                                    │
+│ • Named Shadow          │                         │                                    │
+│   Checkpoints & /undo   │                         │                                    │
+│ • Tool-First AST Tools  │                         │                                    │
 └─────────────────────────┴─────────────────────────┴────────────────────────────────────┘
 ```
 
 ### Phase 1: Near-Term (Q4 2026 — Core Foundations & Precision)
-1. **Incremental AST Caching in `@foxcode/indexing`**:
+1. ~~**Patch Confidence Scoring & Conflict Detection**~~ → ✅ **COMPLETED** (Blueprint 6: Transactional Patch Engine with in-memory journal, 4-tier confidence scoring, 28 tests)
+2. **Incremental AST Caching in `@foxcode/indexing`**:
    - Persist symbol index in SQLite keyed by file-level SHA256.
    - Bundle `web-tree-sitter` WASM grammars for TypeScript, Python, Go, Rust, C++.
    - Expose `lookup_symbols` and `fetch_repo_map` as on-demand tools with 0 prefix bloat.
-2. **Patch Confidence Scoring & Conflict Detection**:
-   - Implement dry-run multi-hunk verification in [`packages/core/src/tool/apply-patch.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/tool/apply-patch.ts).
-   - Ensure transactional all-or-nothing patch application.
 3. **Editor Latency Optimization**:
    - Add 150ms debounce and priority channels to [`fox-acp-client`](file:///home/k82l0804/workarea/fox/fox-acp-client/).
 4. **Enhanced Shadow Snapshots & Named Revert**:
    - Surface `/undo` and `/diff` commands in TUI referencing internal shadow git states.
 
 ### Phase 2: Autonomous SWE Execution (Q1 2027 — Self-Healing & Routing)
-1. **Multi-Model Routing Policy Engine**:
+1. ~~**Autonomous Verification & Loop Defense**~~ → ✅ **PARTIALLY COMPLETED** (Blueprint 3: Oscillation detection, repair budget, verification infrastructure)
+2. **Auto-Verification Execution Pipeline** (Blueprint 3a):
+   - Execute detected test commands automatically after mutations in autonomous mode.
+   - Compress output through LLTC `filterTestOutput` pipeline.
+3. **Blast-Radius Regression Detection** (Blueprint 3b):
+   - Capture test baseline snapshots; diff against post-mutation results.
+   - Inject regression alerts for unrelated module breakage.
+4. **Auto-Lint Execution** (Blueprint 3c):
+   - Optionally run project linters after mutations; filter to changed-file errors only.
+5. **Multi-Model Routing Policy Engine** (Blueprint 4):
    - Implement fast coder default with automated escalation to high-reasoning models after 2 consecutive failed turns.
-2. **Autonomous Verification & Loop Defense**:
-   - Trigger project linters/tests after edits; filter traces through LLTC.
-   - Detect oscillating edits and blast-radius regressions.
-   - Apply render-time turn-supersession to prune stale tool outputs from history.
-3. **Atomic Task-Completion Commits**:
+6. **Atomic Task-Completion Commits**:
    - On verified test pass, present interactive commit dialog with conventional commit draft.
-4. **Repo-Level Intent Detection**:
+7. **Repo-Level Intent Detection**:
    - Track `last_edited_file`, `last_touched_symbol`, and `last_failing_command` at the user turn tail.
+8. **Turn-Supersession Context Pruning**:
+   - Apply render-time turn-supersession to prune stale file reads and obsolete git status from earlier turns in LLM context.
 
 ### Phase 3: Advanced Sandboxing & Memory (Q2 2027 — Isolation & Longevity)
 1. **Zero-Overhead OS Sandboxing**:
