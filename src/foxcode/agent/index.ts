@@ -722,42 +722,6 @@ export async function remove(input: {
 
   if (await removeConfigAgent(input.name, sources)) found = true
 
-  // 2. Remove from legacy .kilocodemodes YAML files (read by ModesMigrator)
-  const { ModesMigrator } = await import("@/foxcode/modes-migrator")
-  const { FoxPaths } = await import("@/foxcode/paths")
-  const os = await import("os")
-  const matter = (await import("gray-matter")).default
-  const home = os.default.homedir()
-  const legacy = [
-    {
-      scope: "global" as const,
-      file: path.join(FoxPaths.vscodeGlobalStorage(), "settings", "custom_modes.yaml"),
-    },
-    {
-      scope: "global" as const,
-      file: path.join(home, ".kilocode", "cli", "global", "settings", "custom_modes.yaml"),
-    },
-    { scope: "global" as const, file: path.join(home, ".kilocodemodes") },
-    { scope: "project" as const, file: path.join(input.directory, ".kilocodemodes") },
-  ]
-
-  for (const item of legacy) {
-    if (input.scope && item.scope !== input.scope) continue
-    const modes = await ModesMigrator.readModesFile(item.file)
-    if (!modes.length) continue
-
-    const filtered = modes.filter((m: { slug: string }) => m.slug !== input.name)
-    if (filtered.length === modes.length) continue
-
-    // Rewrite the file without the removed mode
-    const yaml = matter
-      .stringify("", { customModes: filtered })
-      .replace(/^---\n/, "")
-      .replace(/\n---\n?$/, "")
-    await writeFile(item.file, yaml)
-    found = true
-  }
-
   if (!found) throw new RemoveError({ name: input.name, message: "no agent file found on disk" })
 }
 

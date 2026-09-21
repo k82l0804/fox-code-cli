@@ -21,7 +21,6 @@ export const AcpCommand = effectCmd({
     const { ACP } = yield* Effect.promise(() => import("@/acp/agent"))
     ACPProfile.mark("cli.acp.handler")
     process.env.FOX_CLIENT = "acp"
-    process.env.KILO_CLIENT = "acp"
     const opts = yield* resolveNetworkOptions(args)
     const server = yield* Effect.promise(() => ACPProfile.measure("cli.acp.server.listen", () => Server.listen(opts)))
 

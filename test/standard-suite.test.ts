@@ -17,7 +17,8 @@
  *   - Invariant 5: Escape Hatch Fidelity
  *   - Invariant 6: Execution Overhead & Positive ROI
  */
-import { describe, test, expect, beforeAll, beforeEach } from "bun:test"
+import { describe, test, expect, beforeAll, beforeEach, afterAll } from "bun:test"
+import path from "node:path"
 import {
   getAllCorporaFixtures,
   getCorporaStats,
@@ -41,7 +42,7 @@ import { KilocodeSystemPrompt } from "@/foxcode/system-prompt"
 import { createHash } from "node:crypto"
 import process from "node:process"
 
-const WORKSPACE = "/home/k82l0804/workarea/fox/fox-code-cli"
+const WORKSPACE = path.resolve((import.meta as any).dir ?? ".", "..")
 
 function getTestContext(fixture: CorpusFixture): CompressContext {
   return {
@@ -59,6 +60,15 @@ describe("Fox Standard Test Suite", () => {
     process.env.FOX_EXPERIMENTAL_COMPRESS_DIFF = "true"
     process.env.FOX_EXPERIMENTAL_COMPRESS_DATA = "true"
     process.env.FOX_EXPERIMENTAL_COMPRESS_SUPERSEDE = "true"
+  })
+
+  afterAll(() => {
+    delete process.env.FOX_EXPERIMENTAL_COMPRESS
+    delete process.env.FOX_EXPERIMENTAL_COMPRESS_PATHS
+    delete process.env.FOX_EXPERIMENTAL_COMPRESS_GIT
+    delete process.env.FOX_EXPERIMENTAL_COMPRESS_DIFF
+    delete process.env.FOX_EXPERIMENTAL_COMPRESS_DATA
+    delete process.env.FOX_EXPERIMENTAL_COMPRESS_SUPERSEDE
   })
 
   beforeEach(() => {

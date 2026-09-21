@@ -15,7 +15,6 @@
 import { createFoxClient } from "@foxcode/sdk/v2"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { MessageID } from "@/session/schema"
-import { createRunDemo } from "./demo"
 import { resolveModelInfo, resolveRunTuiConfig, resolveSessionInfo } from "./runtime.boot"
 import { createRuntimeLifecycle } from "./runtime.lifecycle"
 import { trace } from "./trace"
@@ -55,7 +54,6 @@ type RunRuntimeInput = {
   backgroundSubagents: boolean
   replay?: boolean
   replayLimit?: number
-  demo?: RunInput["demo"]
 }
 
 type RunLocalInput = {
@@ -74,7 +72,6 @@ type RunLocalInput = {
   backgroundSubagents: boolean
   replay?: boolean
   replayLimit?: number
-  demo?: RunInput["demo"]
 }
 
 type StreamTransportModule = Pick<
@@ -131,7 +128,6 @@ type RuntimeState = {
   sessionTitle?: string
   agent: string | undefined
   switching?: Promise<void>
-  demo?: ReturnType<typeof createRunDemo>
   selectSubagent?: (sessionID: string | undefined) => void
   session?: Promise<void>
   stream?: Promise<StreamState>
@@ -142,7 +138,7 @@ function hasSession(input: RunRuntimeInput, state: RuntimeState) {
 }
 
 function eagerStream(input: RunRuntimeInput, ctx: BootContext) {
-  return ctx.resume === true || !input.resolveSession || !!input.demo
+  return ctx.resume === true || !input.resolveSession
 }
 
 function variantsFor(providers: RunProvider[], model: RunInput["model"]) {
@@ -246,25 +242,13 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
     tuiConfig,
     backgroundSubagents: input.backgroundSubagents,
     onPermissionReply: async (next) => {
-      if (state.demo?.permission(next)) {
-        return
-      }
-
       log?.write("send.permission.reply", next)
       await ctx.sdk.permission.reply(next)
     },
     onQuestionReply: async (next) => {
-      if (state.demo?.questionReply(next)) {
-        return
-      }
-
       await ctx.sdk.question.reply(next)
     },
     onQuestionReject: async (next) => {
-      if (state.demo?.questionReject(next)) {
-        return
-      }
-
       await ctx.sdk.question.reject(next)
     },
     onCycleVariant: () => {
@@ -414,16 +398,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
     })
   }
 
-  if (input.demo) {
-    await ensureSession()
-    state.demo = createRunDemo({
-      footer,
-      sessionID: state.sessionID,
-      thinking: input.thinking,
-      limits: () => state.limits,
-    })
-  }
-
   if (input.afterPaint) {
     void Promise.resolve(input.afterPaint(ctx)).catch(() => {})
   }
@@ -537,9 +511,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
 
   const runQueue = async () => {
     let includeFiles = true
-    if (state.demo) {
-      await state.demo.start()
-    }
 
     const mod = await import("./runtime.queue")
     const createSession = input.createSession
@@ -581,14 +552,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
               state.history = []
               state.localRows = []
               includeFiles = true
-              state.demo = input.demo
-                ? createRunDemo({
-                    footer,
-                    sessionID: state.sessionID,
-                    thinking: input.thinking,
-                    limits: () => state.limits,
-                  })
-                : undefined
               log?.write("session.new", {
                 sessionID: state.sessionID,
               })
@@ -617,7 +580,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
                 phase: "final",
                 source: "system",
               })
-              await state.demo?.start()
             } catch (error) {
               footer.event({
                 type: "stream.patch",
@@ -639,9 +601,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
           }
         : undefined,
       run: async (prompt, signal) => {
-        if (state.demo && (await state.demo.prompt(prompt, signal))) {
-          return
-        }
 
         await state.switching?.catch(() => {})
 
@@ -748,7 +707,6 @@ export async function runInteractiveLocalMode(input: RunLocalInput): Promise<voi
     backgroundSubagents: input.backgroundSubagents,
     replay: input.replay,
     replayLimit: input.replayLimit,
-    demo: input.demo,
     resolveSession: () => {
       if (session) {
         return session
@@ -797,7 +755,6 @@ export async function runInteractiveMode(
       backgroundSubagents: input.backgroundSubagents,
       replay: input.replay,
       replayLimit: input.replayLimit,
-      demo: input.demo,
       boot: async () => ({
         sdk: input.sdk,
         directory: input.directory,

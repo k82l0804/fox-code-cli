@@ -14,7 +14,6 @@ import SidebarCompression from "@/foxcode/plugins/sidebar-compression"
 import Sandbox from "@/foxcode/plugins/sandbox"
 import Reload from "@/foxcode/plugins/reload"
 import SessionSwitcher from "@/foxcode/plugins/session-switcher"
-import SessionV2Debug from "@/foxcode/plugins/session-v2-debug"
 import type { RuntimeFlags } from "@/effect/runtime-flags"
 
 const plugins = [
@@ -40,7 +39,6 @@ export function withKiloTuiPlugins(
 ) {
   return [
     ...plugins,
-    ...(flags.experimentalEventSystem ? [SessionV2Debug] : []),
     ...(flags.experimentalSessionSwitcher ? [SessionSwitcher] : []),
     ...builtins,
   ]

@@ -5,7 +5,6 @@ import { Glob } from "@opencode-ai/core/util/glob"
 import { Schema } from "effect"
 import { Command } from "@/command"
 import { configEntryNameFromPath } from "@/config/entry-name"
-import { WorkflowsMigrator } from "@/foxcode/workflows-migrator"
 
 export const Info = Schema.Struct({
   name: Schema.String,
@@ -55,9 +54,25 @@ function precedence(files: File[]) {
   return result
 }
 
+function extractDescription(content: string): string | undefined {
+  const lines = content.split("\n")
+  let foundTitle = false
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith("#")) {
+      foundTitle = true
+      continue
+    }
+    if (foundTitle && trimmed.length > 0) {
+      return trimmed.slice(0, 200)
+    }
+  }
+  return undefined
+}
+
 function description(cmd: Command.Info, file?: File) {
   if (cmd.description) return cmd.description
-  if (file) return WorkflowsMigrator.extractDescription(file.content)
+  if (file) return extractDescription(file.content)
   return undefined
 }
 
@@ -67,9 +82,6 @@ function literal(cmd: Command.Info) {
 
 export async function discover(input: { commands: readonly Command.Info[]; directories: readonly string[]; directory: string }) {
   const all = []
-  for (const item of await WorkflowsMigrator.discoverWorkflows(input.directory)) {
-    all.push({ name: item.name, location: item.path, content: item.content })
-  }
   for (const dir of input.directories) all.push(...(await files(dir)))
   const by = precedence(all)
   return input.commands

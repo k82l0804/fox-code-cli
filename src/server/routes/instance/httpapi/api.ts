@@ -36,7 +36,6 @@ import { IndexingApi } from "@/foxcode/server/httpapi/groups/indexing"
 import { InstanceReloadApi } from "@/foxcode/server/httpapi/groups/instance-reload"
 // Fox CLI: KiloGatewayApi removed (cloud-only, not used in local-only mode)
 import { FoxcodeApi, KilocodeApi } from "@/foxcode/server/httpapi/groups/foxcode"
-import { MigrateApi } from "@/foxcode/server/httpapi/groups/migrate"
 import { NetworkApi } from "@/foxcode/server/httpapi/groups/network"
 import { RemoteApi } from "@/foxcode/server/httpapi/groups/remote"
 import { SandboxApi } from "@/foxcode/server/httpapi/groups/sandbox"
@@ -103,7 +102,6 @@ export const InstanceHttpApi = HttpApi.make("opencode-instance")
   .addHttpApi(InstanceReloadApi)
   // Fox CLI: KiloGatewayApi removed (cloud-only)
   .addHttpApi(FoxcodeApi)
-  .addHttpApi(MigrateApi)
   .addHttpApi(NetworkApi)
   .addHttpApi(RemoteApi)
   .addHttpApi(SandboxApi)

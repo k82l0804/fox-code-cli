@@ -13,11 +13,6 @@ import { isRecord } from "@/util/record"
 import { ConfigErrorV1 as ConfigError } from "@opencode-ai/core/v1/config/error"
 import type { Config } from "../../config/config"
 import type { ConfigAgentV1 } from "@opencode-ai/core/v1/config/agent"
-import { ModesMigrator } from "../modes-migrator"
-import { RulesMigrator } from "../rules-migrator"
-import { WorkflowsMigrator } from "../workflows-migrator"
-import { McpMigrator } from "../mcp-migrator"
-import { IgnoreMigrator } from "../ignore-migrator"
 
 export namespace FoxConfig {
   const log = Log.create({ service: "foxcode.config" })
@@ -36,11 +31,11 @@ export namespace FoxConfig {
 
   // ── Config file constants ────────────────────────────────────────────
 
-  /** All config file names in precedence order (fox + kilo + opencode). */
-  export const ALL_CONFIG_FILES = ["fox.jsonc", "fox.json", "kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json"] as const
+  /** All config file names in precedence order (fox only). */
+  export const ALL_CONFIG_FILES = ["fox.jsonc", "fox.json"] as const
 
   /** Config directory suffixes in update-target preference order. */
-  export const FOX_DIR_SUFFIXES = [".fox", ".kilo", ".kilocode"] as const
+  export const FOX_DIR_SUFFIXES = [".fox"] as const
   export const KILO_DIR_SUFFIXES = FOX_DIR_SUFFIXES
 
   /**
@@ -340,83 +335,11 @@ export namespace FoxConfig {
    * Load all Kilocode legacy configs (modes, workflows, rules, MCP, ignore).
    * These have the lowest precedence in the config chain.
    */
-  export async function loadLegacyConfigs(input: {
+  export async function loadLegacyConfigs(_input: {
     projectDir: string
     merge: MergeFn
   }): Promise<{ config: Config.Info; warnings: Config.Warning[] }> {
-    const warnings: Config.Warning[] = []
-    let result: Config.Info = {}
-
-    // Load Kilocode custom modes
-    try {
-      const migration = await ModesMigrator.migrate({ projectDir: input.projectDir })
-      if (Object.keys(migration.agents).length > 0) {
-        result = input.merge(result, { agent: migration.agents })
-        log.debug("loaded kilocode custom modes", {
-          count: Object.keys(migration.agents).length,
-          modes: Object.keys(migration.agents),
-        })
-      }
-      for (const skipped of migration.skipped) {
-        log.debug("skipped kilocode mode", { slug: skipped.slug, reason: skipped.reason })
-      }
-    } catch (err) {
-      log.warn("failed to load kilocode modes", { error: err })
-    }
-
-    // Load Kilocode workflows as commands
-    try {
-      const migration = await WorkflowsMigrator.migrate({ projectDir: input.projectDir })
-      if (Object.keys(migration.commands).length > 0) {
-        result = input.merge(result, { command: migration.commands })
-        log.debug("loaded kilocode workflows as commands", {
-          count: Object.keys(migration.commands).length,
-          commands: Object.keys(migration.commands),
-        })
-      }
-    } catch (err) {
-      log.warn("failed to load kilocode workflows", { error: err })
-    }
-
-    // Load Kilocode rules
-    try {
-      const migration = await RulesMigrator.migrate({ projectDir: input.projectDir })
-      if (migration.instructions.length > 0) {
-        result = input.merge(result, { instructions: migration.instructions })
-        log.debug("loaded kilocode rules", {
-          count: migration.instructions.length,
-          files: migration.instructions,
-        })
-      }
-      for (const warning of migration.warnings) {
-        log.debug("kilocode rules warning", { warning })
-      }
-    } catch (err) {
-      log.warn("failed to load kilocode rules", { error: err })
-    }
-
-    // Load Kilocode MCP servers (skip global VSCode extension paths unless running in an editor or Console daemon)
-    const skipGlobal = process.env["FOX_PLATFORM"] !== "vscode" && process.env["KILOCODE_FEATURE"] !== "daemon"
-    const mcp = await McpMigrator.loadMcpConfig(input.projectDir, skipGlobal)
-    if (Object.keys(mcp).length > 0) {
-      result = input.merge(result, { mcp })
-    }
-
-    // Load .kilocodeignore patterns
-    try {
-      const permission = await IgnoreMigrator.loadIgnoreConfig(input.projectDir)
-      if (Object.keys(permission).length > 0) {
-        result = input.merge(result, { permission })
-        log.debug("loaded kilocode ignore patterns", {
-          hasRead: !!(permission as Record<string, unknown>).read,
-          hasEdit: !!(permission as Record<string, unknown>).edit,
-        })
-      }
-    } catch (err) {
-      log.warn("failed to load kilocode ignore patterns", { error: err })
-    }
-
-    return { config: result, warnings }
+    return { config: {}, warnings: [] }
   }
 
   // ── Organization modes ───────────────────────────────────────────────
@@ -434,7 +357,7 @@ export namespace FoxConfig {
   // ── Bash permission migration ────────────────────────────────────────
 
   /** Global config file names in read-merge order (lowest-to-highest precedence). */
-  export const GLOBAL_CONFIG_FILES = ["config.json", "kilo.json", "kilo.jsonc", "opencode.json", "opencode.jsonc", "fox.json", "fox.jsonc"]
+  export const GLOBAL_CONFIG_FILES = ["fox.json", "fox.jsonc"]
   const BASH_PERMISSION_MIGRATION = ".bash-permission-migrated"
 
   /**

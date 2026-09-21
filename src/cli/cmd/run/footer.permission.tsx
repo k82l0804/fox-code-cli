@@ -101,7 +101,7 @@ export function RejectField(props: {
       minHeight={1}
       maxHeight={3}
       wrapMode="word"
-      placeholder={"Tell Kilo what to do differently" /* kilocode_change */}
+      placeholder={"Tell Fox what to do differently"}
       placeholderColor={props.theme.muted}
       textColor={props.theme.text}
       focusedTextColor={props.theme.text}
@@ -286,7 +286,7 @@ export function RunPermissionBody(props: {
           </Match>
           <Match when={state().stage === "reject"}>
             <box paddingLeft={1}>
-              <text fg={props.theme.muted}>{"Tell Kilo what to do differently" /* kilocode_change */}</text>
+              <text fg={props.theme.muted}>{"Tell Fox what to do differently"}</text>
             </box>
           </Match>
         </Switch>

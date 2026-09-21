@@ -67,15 +67,12 @@ let cli = yargs(args)
   .middleware(async (opts) => {
     if (opts.printLogs) {
       process.env.FOX_PRINT_LOGS = "1"
-      process.env.KILO_PRINT_LOGS = "1" // backward compat
     }
     if (opts.logLevel) {
       process.env.FOX_LOG_LEVEL = opts.logLevel
-      process.env.KILO_LOG_LEVEL = opts.logLevel // backward compat
     }
     if (opts.pure) {
       process.env.FOX_PURE = "1"
-      process.env.KILO_PURE = "1" // backward compat
     }
 
     Heap.start()
@@ -83,7 +80,6 @@ let cli = yargs(args)
     process.env.AGENT = "1"
     process.env.OPENCODE = "1"
     process.env.FOX_PID = String(process.pid)
-    process.env.KILO_PID = String(process.pid) // backward compat
     await FoxCli.bootstrap(opts)
     Log.Default.info("fox", {
       version: InstallationVersion,

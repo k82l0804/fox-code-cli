@@ -29,8 +29,10 @@ export namespace MemoryReject {
     /\bagents\.md\b/gi,
     /\bsystem\s*\/\s*developer\b/gi,
   ]
+  const pathAsSubject = /^(?:~?[.\w/-]+\/)?(?:agents\.md|claude\.md)\b\s+is\b/i
 
   function provenance(input: string) {
+    if (pathAsSubject.test(input)) return true
     const count = sourceMarkers.reduce((sum, rule) => sum + (input.match(rule)?.length ?? 0), 0)
     // Only short-circuit when the value IS the source path (path-as-subject, e.g. describing what a
     return count >= 3

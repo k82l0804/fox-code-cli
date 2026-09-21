@@ -18,7 +18,6 @@ import { indexingHandlers } from "./handlers/indexing"
 import { instanceReloadHandlers } from "./handlers/instance-reload"
 import { foxcodeHandlers, kilocodeHandlers } from "./handlers/foxcode"
 import { memoryHandlers } from "./handlers/memory"
-import { migrateHandlers } from "./handlers/migrate"
 import { networkHandlers } from "./handlers/network"
 import { remoteHandlers } from "./handlers/remote"
 import { sandboxHandlers } from "./handlers/sandbox"
@@ -36,7 +35,6 @@ export const provide = Layer.provide([
   instanceReloadHandlers,
   foxcodeHandlers,
   memoryHandlers,
-  migrateHandlers,
   networkHandlers,
   remoteHandlers,
   sandboxHandlers,

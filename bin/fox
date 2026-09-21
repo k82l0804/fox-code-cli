@@ -16,7 +16,6 @@ const child = spawn(
     env: {
       ...process.env,
       FOX_CLIENT: "cli",
-      KILO_CLIENT: "cli",
       // Sextant glyphs (U+1FB00+) require Unicode 13 font support (e.g. Nerd Fonts).
       // Default to the half-block fallback; set FOX_UNICODE_LOGO=true to opt in.
       FOX_UNICODE_LOGO: process.env.FOX_UNICODE_LOGO ?? "false",

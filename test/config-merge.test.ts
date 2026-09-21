@@ -255,8 +255,7 @@ describe("config constants", () => {
     const files = FoxConfig.ALL_CONFIG_FILES
     expect(files[0]).toBe("fox.jsonc")
     expect(files[1]).toBe("fox.json")
-    expect(files).toContain("kilo.jsonc")
-    expect(files).toContain("opencode.json")
+    expect(files).toEqual(["fox.jsonc", "fox.json"])
   })
 
   test("FOX_DIR_SUFFIXES starts with .fox", () => {

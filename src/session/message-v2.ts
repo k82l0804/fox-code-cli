@@ -38,7 +38,6 @@ import type { Provider } from "@/provider/provider"
 import { Snapshot } from "@/snapshot"
 import { buildSupersededSet } from "./supersede"
 import { SessionNetwork } from "./network"
-import { CodexAuthExpiredError } from "@/foxcode/provider/codex-refresh"
 import { FoxSessionMessageOrder } from "@/foxcode/session/message-order"
 import { FoxPartLifecycle } from "@/foxcode/session/part-lifecycle"
 import * as TextStream from "@/foxcode/text-stream"
@@ -733,14 +732,6 @@ export function fromError(
       return new AuthError(
         {
           providerID: ctx.providerID,
-          message: e.message,
-        },
-        { cause: e },
-      ).toObject()
-    case e instanceof CodexAuthExpiredError:
-      return new AuthError(
-        {
-          providerID: "openai",
           message: e.message,
         },
         { cause: e },

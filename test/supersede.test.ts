@@ -110,7 +110,7 @@ describe("buildSupersededSet", () => {
       assistantMsg("a2", [editPart("edit-1", "src/foo.ts")]),
       assistantMsg("a3", [readPart("read-2", "src/foo.ts")]),
     ]
-    const result = buildSupersededSet(msgs) // no options = uses Flag (default false)
+    const result = buildSupersededSet(msgs, { enabled: false })
     expect(result.size).toBe(0)
   })
 
