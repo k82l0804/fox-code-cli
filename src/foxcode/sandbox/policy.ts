@@ -22,8 +22,24 @@ import { SandboxStore } from "./store"
 export type Snapshot = SandboxStore.Snapshot
 export type Target = { id: SessionID; directory: string }
 
+const MAX_POLICY_SNAPSHOTS = 200
 const snapshots = new Map<string, Snapshot>()
 const synced = new Map<string, number>()
+
+function cacheSnapshot(id: string, snapshot: Snapshot, syncVersion?: number) {
+  if (snapshots.size >= MAX_POLICY_SNAPSHOTS) {
+    const oldest = snapshots.keys().next().value
+    if (oldest) {
+      snapshots.delete(oldest)
+      synced.delete(oldest)
+    }
+  }
+  snapshots.set(id, snapshot)
+  if (syncVersion !== undefined) {
+    synced.set(id, syncVersion)
+  }
+}
+
 const locks = new Map<SessionID, { semaphore: Semaphore.Semaphore; refs: number }>()
 const refreshes = new Map<SessionID, { semaphore: Semaphore.Semaphore; refs: number }>()
 const gates = new Map<SessionID, { semaphore: Semaphore.Semaphore; refs: number }>()
@@ -290,7 +306,7 @@ const read = Effect.fn("SandboxPolicy.read")(function* (directory: string, sessi
   const current = snapshots.get(id)
   if (current) return current
   const stored = yield* Effect.promise(() => SandboxStore.read(directory, sessionID))
-  if (stored) snapshots.set(id, stored)
+  if (stored) cacheSnapshot(id, stored)
   return stored
 })
 
@@ -312,8 +328,7 @@ const snapshot = Effect.fn("SandboxPolicy.snapshot")(function* (sessionID: Sessi
       const next = yield* resolveInitial(directory, sessionID)
       yield* Effect.promise(() => SandboxStore.write(directory, sessionID, next))
       const id = key(directory, sessionID)
-      snapshots.set(id, next)
-      synced.set(id, version)
+      cacheSnapshot(id, next, version)
       return { directory, state: next }
     }),
   )
@@ -379,8 +394,7 @@ const reconcile = Effect.fn("SandboxPolicy.reconcile")(function* (sessionID: Ses
         return false
       }
       yield* Effect.promise(() => SandboxStore.write(directory, sessionID, next))
-      snapshots.set(id, next)
-      synced.set(id, version)
+      cacheSnapshot(id, next, version)
       yield* Effect.sync(() => changed(sessionID, directory, next))
       return true
     }),
@@ -427,8 +441,7 @@ function change<E, R, F = never, Q = never, P = never, S = never>(
             const next: Snapshot = { ...base, enabled: enabling, version: status.version + 1 }
             yield* Effect.promise(() => SandboxStore.write(directory, sessionID, next))
             const id = key(directory, sessionID)
-            snapshots.set(id, next)
-            synced.set(id, version)
+            cacheSnapshot(id, next, version)
             if (enabling) {
               yield* Effect.forEach(
                 targets,
@@ -519,8 +532,7 @@ const inheritSnapshot = Effect.fn("SandboxPolicy.inheritSnapshot")(function* (
     return
   yield* Effect.promise(() => SandboxStore.write(directory, sessionID, next))
   const id = key(directory, sessionID)
-  snapshots.set(id, next)
-  synced.set(id, version)
+  cacheSnapshot(id, next, version)
   yield* Effect.sync(() => changed(sessionID, directory, next))
 })
 
