@@ -4,10 +4,11 @@ import { spawn } from "child_process"
 import { createServer } from "net"
 import { randomUUID } from "node:crypto"
 import { open, readFile, rm, mkdir } from "fs/promises"
-import z from "zod"
+import { Exit, Option, Schema, SchemaGetter } from "effect"
 import { Global } from "@opencode-ai/core/global"
 import { Flock } from "@opencode-ai/core/util/flock"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { NonNegativeInt, PositiveInt, optionalOmitUndefined, withStatics } from "@opencode-ai/core/schema"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
 import { serverUrls } from "@/foxcode/cli/server-urls"
@@ -17,52 +18,73 @@ export namespace Daemon {
   const lock = "kilocode-daemon"
   export const PortRange = { start: 4097, end: 4116 } as const
 
-  export const Network = z.object({
-    hostname: z.string(),
-    port: z.number().int().nonnegative(),
-    mdns: z.boolean(),
-    mdnsDomain: z.string(),
-    cors: z.array(z.string()).transform((items) => [...new Set(items)].sort()),
+  const NetworkBase = Schema.Struct({
+    hostname: Schema.String,
+    port: NonNegativeInt,
+    mdns: Schema.Boolean,
+    mdnsDomain: Schema.String,
+    cors: Schema.Array(Schema.String),
   })
-  export type Network = z.infer<typeof Network>
+
+  export const Network = NetworkBase.pipe(
+    Schema.decodeTo(NetworkBase, {
+      decode: SchemaGetter.transform((value) => ({
+        ...value,
+        cors: [...new Set(value.cors)].sort(),
+      })),
+      encode: SchemaGetter.passthrough({ strict: false }),
+    }),
+    withStatics((s) => ({
+      parse: (input: unknown): Network => Schema.decodeUnknownSync(s)(input),
+    })),
+  )
+  export type Network = Schema.Schema.Type<typeof Network>
   export type NetworkOption = keyof Network
 
-  export const State = z.object({
-    pid: z.number().int().positive(),
-    hostname: z.string(),
-    port: z.number().int().positive(),
-    url: z.string(),
-    urls: z
-      .object({
-        local: z.string(),
-        network: z.string().optional(),
-        bind: z.string(),
-      })
-      .optional(),
-    username: z.string(),
-    password: z.string(),
-    token: z.string(),
-    version: z.string(),
-    startedAt: z.string(),
-    log: z.string(),
-    options: Network.optional(),
-  })
-  export type State = z.infer<typeof State>
+  export const State = Schema.Struct({
+    pid: PositiveInt,
+    hostname: Schema.String,
+    port: PositiveInt,
+    url: Schema.String,
+    urls: optionalOmitUndefined(
+      Schema.Struct({
+        local: Schema.String,
+        network: optionalOmitUndefined(Schema.String),
+        bind: Schema.String,
+      }),
+    ),
+    username: Schema.String,
+    password: Schema.String,
+    token: Schema.String,
+    version: Schema.String,
+    startedAt: Schema.String,
+    log: Schema.String,
+    options: optionalOmitUndefined(Network),
+  }).pipe(
+    withStatics((s) => ({
+      parse: (input: unknown): State => Schema.decodeUnknownSync(s)(input),
+    })),
+  )
+  export type State = Schema.Schema.Type<typeof State>
 
-  export const Status = z.object({
-    running: z.boolean(),
-    stale: z.boolean(),
-    state: State.optional(),
-    health: z
-      .object({
-        healthy: z.boolean(),
-        version: z.string(),
-      })
-      .optional(),
-    reason: z.string().optional(),
-    file: z.string(),
-  })
-  export type Status = z.infer<typeof Status>
+  export const Status = Schema.Struct({
+    running: Schema.Boolean,
+    stale: Schema.Boolean,
+    state: optionalOmitUndefined(State),
+    health: optionalOmitUndefined(
+      Schema.Struct({
+        healthy: Schema.Boolean,
+        version: Schema.String,
+      }),
+    ),
+    reason: optionalOmitUndefined(Schema.String),
+    file: Schema.String,
+  }).pipe(
+    withStatics((s) => ({
+      parse: (input: unknown): Status => Schema.decodeUnknownSync(s)(input),
+    })),
+  )
+  export type Status = Schema.Schema.Type<typeof Status>
 
   export type Options = Network & {
     command?: string[]
@@ -111,13 +133,13 @@ export namespace Daemon {
     return input
   }
 
-  export async function read() {
+  export async function read(): Promise<State | undefined> {
     const data = await Filesystem.readJson(file()).catch((err) => {
       if (code(err) === "ENOENT") return undefined
       throw err
     })
     if (!data) return undefined
-    return State.parse(data)
+    return Option.getOrUndefined(Schema.decodeUnknownOption(State)(data))
   }
 
   async function write(input: State) {
@@ -145,6 +167,11 @@ export namespace Daemon {
     }
   }
 
+  const Health = Schema.Struct({
+    healthy: Schema.Boolean,
+    version: Schema.String,
+  })
+
   async function health(input: State) {
     const ctl = new AbortController()
     const timer = setTimeout(() => ctl.abort(), 2_000)
@@ -156,7 +183,9 @@ export namespace Daemon {
         },
       })
       if (!res.ok) return undefined
-      return z.object({ healthy: z.boolean(), version: z.string() }).parse(await res.json())
+      const json = await res.json()
+      const exit = Schema.decodeUnknownExit(Health)(json)
+      return Exit.isSuccess(exit) ? exit.value : undefined
     } catch {
       return undefined
     } finally {
@@ -166,7 +195,7 @@ export namespace Daemon {
 
   export async function status(): Promise<Status> {
     const state = await read().catch((err) => {
-      if (err instanceof z.ZodError || err instanceof SyntaxError) return undefined
+      if (err instanceof SyntaxError) return undefined
       throw err
     })
     if (!state) return { running: false, stale: false, file: file(), reason: "not running" }
