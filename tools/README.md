@@ -3,7 +3,7 @@
 ## logo_gen.py — Logo Generator
 
 Generates the `Foxy CLI` pixel-art logo used in the TUI splash screen.
-Output is TypeScript-ready strings for `src/kilocode/cli/logo.ts`.
+Output is TypeScript-ready strings for `src/foxcode/cli/logo.ts`.
 
 ### How it works
 
@@ -26,7 +26,7 @@ python3 tools/logo_gen.py --install   # installs pyfiglet via pip
 python3 tools/logo_gen.py "Foxy CLI" --font banner --rows 4
 ```
 
-Paste the output into `src/kilocode/cli/logo.ts` replacing the `modern` and `fallback` blocks.
+Paste the output into `src/foxcode/cli/logo.ts` replacing the `modern` and `fallback` blocks.
 
 ### Try different fonts
 

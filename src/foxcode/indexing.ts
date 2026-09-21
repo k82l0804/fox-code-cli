@@ -33,13 +33,14 @@ import { primaryWorktree } from "./primary-worktree"
 
 const log = Log.create({ service: "foxcode-indexing" })
 const auth = makeRuntime(Auth.Service, Auth.defaultLayer)
+const MAX_CONSENT_PROJECTS = 100
 const consent = new Map<string, boolean>()
 const missing = () => disabledIndexingStatus("Indexing plugin is not enabled for this workspace.")
 const noWorkspace = () =>
   disabledIndexingStatus("Codebase indexing is disabled because no workspace folder is open in VS Code.")
 const unsafeRoot = () => disabledIndexingStatus(message)
 const noConsent = () =>
-  disabledIndexingStatus("Codebase indexing is disabled until you enable it for this project in Kilo Settings.")
+  disabledIndexingStatus("Codebase indexing is disabled until you enable it for this project in Fox Settings.")
 
 export const IndexingModelError = NamedError.create("IndexingModelError", {
   model: Schema.String,
@@ -460,6 +461,10 @@ export namespace FoxIndexing {
     const dir = Instance.directory
     const project = (await AppRuntime.runPromise(primaryWorktree(dir))) ?? dir
     if (consent.get(project) === enabled) return
+    if (consent.size >= MAX_CONSENT_PROJECTS) {
+      const oldest = consent.keys().next().value
+      if (oldest) consent.delete(oldest)
+    }
     consent.set(project, enabled)
     const hits = [...cache.entries()].filter(([path]) => (projects.get(path) ?? path) === project)
     for (const [path, hit] of hits) {

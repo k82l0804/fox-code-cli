@@ -3,7 +3,7 @@
 // Bun's process object lacks `type`, so stdio transports flash a CMD window on
 // every MCP server start. We patch it before the SDK is imported.
 if (process.platform === "win32" && !("type" in process)) {
-  Object.defineProperty(process, "type", { value: "kilo-bun", configurable: true })
+  Object.defineProperty(process, "type", { value: "fox-bun", configurable: true })
 }
 import path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -127,7 +127,6 @@ export type Status = Schema.Schema.Type<typeof Status>
 
 // Store transports for OAuth servers to allow finishing auth
 type TransportWithAuth = StreamableHTTPClientTransport | SSEClientTransport
-const pendingOAuthTransports = new Map<string, { transport: TransportWithAuth; provider?: McpOAuthPendingProvider }>()
 
 // Prompt cache types
 type PromptInfo = Awaited<ReturnType<MCPClient["listPrompts"]>>["prompts"][number]
@@ -231,6 +230,7 @@ const layer = Layer.effect(
     const browser = yield* McpBrowser.Service
 
     type Transport = StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport
+    const pendingOAuthTransports = new Map<string, { transport: TransportWithAuth; provider?: McpOAuthPendingProvider }>()
 
     /**
      * Connect a client via the given transport with resource safety:
@@ -335,7 +335,7 @@ const layer = Layer.effect(
                 return events
                   .publish(TuiEvent.ToastShow, {
                     title: "MCP Authentication Required",
-                    message: `Server "${key}" requires authentication. Run: kilo mcp auth ${key}`,
+                    message: `Server "${key}" requires authentication. Run: fox mcp auth ${key}`,
                     variant: "warning",
                     duration: 8000,
                   })

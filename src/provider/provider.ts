@@ -58,6 +58,7 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
   if (!res.headers.get("content-type")?.includes("text/event-stream")) return res
 
   const reader = res.body.getReader()
+  let activeTimeout: ReturnType<typeof setTimeout> | undefined
   const body = new ReadableStream<Uint8Array>({
     async pull(ctrl) {
       const part = await new Promise<Awaited<ReturnType<typeof reader.read>>>((resolve, reject) => {
@@ -67,14 +68,17 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
           void reader.cancel(err).catch(() => undefined)
           reject(err)
         }, ms)
+        activeTimeout = id
 
         reader.read().then(
           (part) => {
             clearTimeout(id)
+            activeTimeout = undefined
             resolve(part)
           },
           (err) => {
             clearTimeout(id)
+            activeTimeout = undefined
             reject(err)
           },
         )
@@ -88,6 +92,10 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
       ctrl.enqueue(part.value)
     },
     async cancel(reason) {
+      if (activeTimeout) {
+        clearTimeout(activeTimeout)
+        activeTimeout = undefined
+      }
       ctl.abort(reason)
       await reader.cancel(reason)
     },

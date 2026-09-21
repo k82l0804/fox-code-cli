@@ -160,7 +160,10 @@ try {
   }
   process.exitCode = 1
 } finally {
-  await FoxCli.shutdown()
+  await Promise.race([
+    FoxCli.shutdown(),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ])
   // Some subprocesses don't react properly to SIGTERM and similar signals.
   // Most notably, some docker-container-based MCP servers don't handle such signals unless
   // run using `docker run --init`.
