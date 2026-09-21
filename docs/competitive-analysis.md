@@ -1,7 +1,8 @@
 # 🥊 Why Fox? Competitive Landscape & Performance Comparison
 
 > **Specification Reference:** [docs/competitive-analysis.md](../../docs/competitive-analysis.md)  
-> **Topic:** AI Coding Agent CLI Architectural & Performance Benchmark Comparison
+> **Topic:** AI Coding Agent CLI Architectural & Performance Benchmark Comparison  
+> **Future Capabilities Plan:** [`future/plan-competitive-features-roadmap.md`](future/plan-competitive-features-roadmap.md)
 
 For the full detailed document, see [`../../docs/competitive-analysis.md`](../../docs/competitive-analysis.md).
 
