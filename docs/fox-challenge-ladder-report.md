@@ -1,6 +1,6 @@
 # 🦊 Fox Challenge Ladder — Historical Report
 
-> **Version:** 1.0 (Phase 1B Complete)
+> **Version:** 1.1 (Phase 2.0 Adaptive Compression Complete)
 > **Date:** 2026-09-22
 > **Fixtures:** 334 (expanded from 300)
 > **Fox CLI Version:** 0.1.0
@@ -9,9 +9,9 @@
 
 ## Executive Summary
 
-The Fox Challenge Ladder is a 334-fixture deterministic compression stress test. After Phase 1B (Compression Hardening), Fox achieves **334/334 (100.0%)** with **15.8% average token savings** across all fixture categories, while maintaining a 100% correctness pass rate.
+The Fox Challenge Ladder is a 334-fixture deterministic compression stress test. After Phase 2.0 (Adaptive Compression), Fox achieves **334/334 (100.0%)** with **19.1% average token savings** (26,095 tokens saved) across all fixture categories, while maintaining a 100% correctness pass rate.
 
-Three compression bugs were found and fixed, and the test suite was expanded with 34 new fixtures covering advanced GitOps workflows, CI/CD pipelines, adversarial encodings, and deep structural DOM trees.
+Phase 1B fixed 3 compression bugs and expanded the suite from 300 → 334 fixtures. Phase 2.0 added a heuristic content classifier with risk profiles and 3 new adaptive transforms (timestamp stripping, boilerplate removal, repeated pattern collapsing), improving token savings from 15.8% → 19.1% with zero correctness regressions.
 
 ---
 

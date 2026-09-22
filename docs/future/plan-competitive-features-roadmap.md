@@ -1,7 +1,7 @@
 # 🦊 Fox Code CLI — Competitive SWE Agent Audit & Architectural Feature Roadmap
 
-> **Document Version:** 1.4.0  
-> **Status:** Strategic Architectural Plan — Comprehensive Reconciliation of All Deferred Items  
+> **Document Version:** 1.5.0  
+> **Status:** Strategic Architectural Plan — Updated 2026-09-22 (Phase 1B + Phase 2.0 Complete)  
 > **Target Package:** `fox-code-cli` (`@fox/cli`)  
 > **Target Audience:** Core Contributors, Systems Engineers, SWE Agent Researchers  
 > **Reference Specification:** [`../../docs/competitive-analysis.md`](../../docs/competitive-analysis.md)
@@ -765,62 +765,93 @@ Nice-to-haves, not essential for autonomous capability.
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        FOX CLI IMPLEMENTATION ROADMAP                                  │
+│                        (Updated 2026-09-22)                                            │
 ├─────────────────────────┬─────────────────────────┬────────────────────────────────────┤
-│ ✅ COMPLETED             │ Phase 2A: Autonomy Core │ Phase 2B: Refinement              │
-│ (Delivered)              │ Q1 2027                 │ Q1–Q2 2027                        │
+│ ✅ COMPLETED             │ 🔧 Phase 2A: Guardian   │ Phase 2B: Refinement              │
+│ (Delivered)              │ Core — Q4 2026          │ Q1–Q2 2027                        │
 ├─────────────────────────┼─────────────────────────┼────────────────────────────────────┤
-│ ✅ Transactional Patch   │ • Auto-Verification     │ • Auto-Lint Execution (3c)        │
-│   Engine (Blueprint 6)  │   Execution (3a)        │ • Snapshot ↔ Oscillation (3d)     │
-│ ✅ Oscillation Detection │ • Multi-Model Routing   │ • Paginated Message Loading       │
-│   (Blueprint 3)         │   Policy Engine (4)     │   (Blueprint 11.2)                │
-│ ✅ Repair Budget Tracker │ • Turn-Supersession     │ • JSON Serialization Bypass       │
-│   (Blueprint 3)         │   Context Pruning       │   (Blueprint 11.3)                │
-│ ✅ Auto-Verification     │ • Atomic Task-Completion│ • Semantic & LSP Diagnostic       │
-│   Infrastructure        │   Commits               │   Confidence Scoring (6a)         │
-│ ✅ Incremental AST Index │ • Blast-Radius          │ • Repo-Level Intent Detection     │
-│   (Blueprint 1 Phase 1) │   Regression (3b)       │ • Heuristic Workload              │
-│ ✅ Static Tool Closure   │ • Dynamic Context       │   Classification (BP 12)          │
-│   Resolution (BP 11.1)  │   Window Discovery (4b) │ • TUI Live Telemetry              │
-│ ✅ All-or-Nothing Repair │                         │   Dashboard (BP 13)               │
-│   Prompts (BP 6a)       │─────────────────────────│                                    │
-│                         │ Phase 3: Architecture   │────────────────────────────────────│
-│ Phase 1: Remaining      │ Q2 2027                 │                                    │
-│ Q4 2026                 │─────────────────────────│                                    │
-│─────────────────────────│ • OS-Level Sandbox      │                                    │
-│ • ACP Metadata          │   (BP 10)               │                                    │
-│   Debounce & Batching   │ • MCP Sidecar Security  │                                    │
-│ • Named Shadow          │   (BP 8)                │                                    │
-│   Checkpoints & /undo   │ • Long-Horizon Project  │                                    │
-│ • Local Model Profiles  │   Memory (BP 7)         │                                    │
-│   & Prompts Matrix      │ • Mini-TUI Decoupling   │                                    │
-│ • CI Invariant &        │ • ACP Multi-Root &      │                                    │
-│   Compression Gate      │   Diff Cards            │                                    │
-│                         │ • Cross-Session          │                                    │
-│                         │   Checklist State        │                                    │
+│ ✅ Transactional Patch   │ • Guardian Agent Core   │ • Multi-Model Routing (BP 4)      │
+│   Engine (Blueprint 6)  │   (Intake + Oversight)  │ • Blast-Radius Regression (3b)    │
+│ ✅ Oscillation Detection │ • Auto-Verification     │ • Auto-Lint Execution (3c)        │
+│   (Blueprint 3)         │   Execution (3a)        │ • Snapshot ↔ Oscillation (3d)     │
+│ ✅ Repair Budget Tracker │ • Turn-Supersession     │ • Paginated Message Loading       │
+│   (Blueprint 3)         │   Context Pruning       │   (Blueprint 11.2)                │
+│ ✅ Auto-Verification     │ • Atomic Task-Completion│ • JSON Serialization Bypass       │
+│   Infrastructure        │   Commits               │   (Blueprint 11.3)                │
+│ ✅ Incremental AST Index │ • Dynamic Context       │ • Semantic & LSP Diagnostic       │
+│   (Blueprint 1 Phase 1) │   Window Discovery (4b) │   Confidence Scoring (6a)         │
+│ ✅ Static Tool Closure   │                         │ • Repo-Level Intent Detection     │
+│   Resolution (BP 11.1)  │─────────────────────────│ • TUI Live Telemetry              │
+│ ✅ All-or-Nothing Repair │ Phase 3: Architecture   │   Dashboard (BP 13)               │
+│   Prompts (BP 6a)       │ Q1–Q2 2027              │                                    │
+│ ✅ Phase 1B: Compression │─────────────────────────│────────────────────────────────────│
+│   Hardening (334/334)   │ • OS-Level Sandbox      │                                    │
+│ ✅ Phase 2.0: Adaptive   │   (BP 10)               │                                    │
+│   Compression (19.1%)   │ • MCP Sidecar Security  │                                    │
+│ ✅ Challenge Ladder      │   (BP 8)                │                                    │
+│   + CI Gate             │ • Long-Horizon Project  │                                    │
+│                         │   Memory (BP 7)         │                                    │
+│ Phase 1: Remaining      │ • Mini-TUI Decoupling   │                                    │
+│ (Low Priority)          │ • ACP Multi-Root &      │                                    │
+│─────────────────────────│   Diff Cards            │                                    │
+│ • ACP Metadata          │ • Cross-Session          │                                    │
+│   Debounce & Batching   │   Checklist State        │                                    │
+│ • Named Shadow          │                         │                                    │
+│   Checkpoints & /undo   │                         │                                    │
+│ • Local Model Profiles  │                         │                                    │
+│   & Prompts Matrix      │                         │                                    │
 └─────────────────────────┴─────────────────────────┴────────────────────────────────────┘
 ```
 
 > 📋 **Canonical autonomous workflow reference**: See [`docs/future/autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md) for the gold-standard 10-step autonomous SWE loop that Fox is targeting.
 > Phase 2A maps directly to Steps 4–8 of that workflow, completing the autonomous closed loop.
+>
+> 📋 **Current flow**: `Phase 1 ✅ → Phase 1B ✅ → Phase 2.0 ✅ → Phase 2A (Guardian) 🔧 → Phase 2B → Phase 3`
 
 ### Phase 1: Near-Term (Q4 2026 — Core Foundations & Precision)
 1. ~~**Patch Confidence Scoring & Conflict Detection**~~ → ✅ **COMPLETED** (Blueprint 6: Transactional Patch Engine with in-memory journal, 4-tier confidence scoring, 28 tests)
 2. ~~**Incremental AST Caching in `@foxcode/indexing`**~~ → ✅ **COMPLETED** (Blueprint 1 Phase 1: SQLite-backed SHA1 file-keyed Tree-sitter indexing, `lookup_symbols` + `fetch_repo_map` tools, 36 WASM grammars, enabled by default)
-3. **Editor Latency Optimization**:
+3. **Editor Latency Optimization**: ⏳ **OPEN**
    - Add 150ms debounce and priority channels to [`fox-acp-client`](file:///home/k82l0804/workarea/fox/fox-acp-client/).
-4. **Enhanced Shadow Snapshots & Named Revert**:
+4. **Enhanced Shadow Snapshots & Named Revert**: ⏳ **OPEN**
    - Surface `/undo` and `/diff` commands in TUI referencing internal shadow git states.
 5. ~~**Static Tool Closure Resolution Caching**~~ → ✅ **COMPLETED** (Blueprint 11.1: Decoupled `resolveDefinitions` from `bindExecutionContext` in `tools.ts`, enabling static definition caching across turns)
-6. **Local Open-Weights Model Family Profiles & Prompts Matrix** (Blueprint 12):
+6. **Local Open-Weights Model Family Profiles & Prompts Matrix** (Blueprint 12): ⏳ **OPEN**
    - Curate and test profiles in `prompts.json` for Qwen 2.5, DeepSeek R1/V3, Llama 3, Codestral.
-7. **Continuous Invariant & Compression CI Drift Gate** (Blueprint 13):
-   - Gate CI on `bun run test:standard-suite` with strict non-expansion and prefix stability checks.
+7. ~~**Continuous Invariant & Compression CI Drift Gate**~~ (Blueprint 13) → ✅ **COMPLETED** (Challenge Ladder CI gate: `test:challenge` in `package.json`, 334-fixture suite with min score ≥285, historical snapshots in `docs/challenge-history/`)
 
-### Phase 2A: Autonomous Core (Q1 2027 — Closing the Autonomous Loop)
+### Phase 1B: Compression Hardening → ✅ **COMPLETED** (2026-09-22)
 
-> Maps to Steps 4–8 of [`autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md). Completing these 6 items enables the full `edit → verify → detect → route → prune → commit` closed loop.
+> All 6 items resolved. Challenge Ladder: **334/334 (100.0%)**. Token savings: **19.1%**.
+> This phase was added after Challenge Ladder v1 revealed 3 compression bugs (287.4/300).
+> All bugs fixed, suite expanded to 334 fixtures, 100% correctness achieved.
 
-1. ~~**Autonomous Verification & Loop Defense**~~ → ✅ **PARTIALLY COMPLETED** (Blueprint 3: Oscillation detection, repair budget, verification infrastructure)
+1. ~~**GitOps Preservation Rule**~~ → ✅ Fixed. Branch names, commit messages, author/date lines preserved in multi-step gitops traces.
+2. ~~**Stability Fixes**~~ → ✅ Fixed. ROI auto-skip reset between passes; `command` field passed consistently to classifier.
+3. ~~**GAIA Keyword Fix**~~ → ✅ Fixed. GAIA reasoning markers protected via `risk: critical` classification.
+4. ~~**Score Tracking Infrastructure**~~ → ✅ Delivered. `tools/challenge-snapshot.ts` + `docs/challenge-history/` JSON snapshots.
+5. ~~**CI Gate for Challenge Score**~~ → ✅ Delivered. `test:challenge` script in `package.json` with `--timeout 60000`.
+6. ~~**Heuristic Workload Classification (BP 12)**~~ → ✅ Delivered as **Adaptive Compression** (see Phase 2.0).
+
+### Phase 2.0: Adaptive Compression → ✅ **COMPLETED** (2026-09-22)
+
+> Content classifier + 3 new risk-gated transforms. Token savings: **15.8% → 19.1%** (+3.3pp).
+> Zero correctness regressions. 279 smoke tests pass. Sub-millisecond overhead.
+
+1. ~~**Content Classifier (`compression-levels.ts`)**~~ → ✅ Heuristic classifier assigns `CompressionLevel` (0-3), `RiskProfile` (safe/cautious/critical), content type hints. Sub-millisecond. Zero LLM calls.
+2. ~~**Timestamp Stripping (Level 1)**~~ → ✅ Strips ISO/HH:MM:SS timestamps from log lines. Skips diffs, commits, structured data.
+3. ~~**Boilerplate Header Stripping (Level 1)**~~ → ✅ Strips npm warnings, pip notices, Docker layer progress. Allowlist-based.
+4. ~~**Repeated Pattern Collapsing (Level 2)**~~ → ✅ Collapses runs of ≥5 similar lines. Preserves first, last, and all error/warning lines.
+5. ~~**Pipeline Integration**~~ → ✅ `process()` classifies content, gates transforms by `minLevel`. Error-signal detection (OOMKilled, CrashLoop → cautious). `# no-truncate` escape hatch → critical.
+6. ~~**Guardian-Ready Interface**~~ → ✅ `CompressionPolicyOverride` type: `process(text, ctx, { maxLevel: 0, source: "guardian" })`.
+
+### Phase 2A: Guardian + Autonomy Core (Q4 2026 — Closing the Autonomous Loop)
+
+> Maps to Steps 4–8 of [`autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md). Completing these items enables the full `edit → verify → detect → route → prune → commit` closed loop.
+> See also: [`autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-dual-agent-design.md) for Guardian architecture.
+
+0. ~~**Autonomous Verification & Loop Defense**~~ → ✅ **COMPLETED** (Blueprint 3: Oscillation detection, repair budget, verification infrastructure)
+1. **Guardian Agent Core** — **NEW, HIGHEST PRIORITY.** Dual-agent oversight layer. Intake gatekeeper, post-failure classification, pre-commit review, progress monitoring. See [`autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-dual-agent-design.md).
 2. **Auto-Verification Execution Pipeline** (Blueprint 3a) — *Workflow Step 4*:
    - Execute detected test commands automatically after mutations in autonomous mode.
    - Compress output through LLTC `filterTestOutput` pipeline.
@@ -886,7 +917,7 @@ Competitors have chosen to solve SWE complexity by **adding weight**: heavier pr
 
 Fox takes the opposite path:
 1. **Speed & Latency**: Sub-5ms startup and sub-millisecond execution overhead via Bun and Effect TS.
-2. **Token Economics**: Cutting prompt costs by **52% to 76%** through tool boundary compression and byte-stable KV-cache retention.
+2. **Token Economics**: Cutting prompt costs by **19.1%** globally (measured across 334 fixtures) through adaptive compression, tool boundary optimization, and byte-stable KV-cache retention.
 3. **Tool-First Precision**: Structural AST indexing on-demand without poisoning the prompt prefix.
 4. **Zero-Pollution Safety**: Shadow git snapshots providing total undo safety without littering the developer's commit history.
 5. **Defensive Autonomy**: Routing heuristics, deadlock detection, and incremental caching that guarantee predictability on real-world codebases.
