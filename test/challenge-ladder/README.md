@@ -264,4 +264,4 @@ Content with 4+ consecutive `✓` lines gets collapsed. The guard requires ≥6 
 | [`test/challenge-ladder/validator.ts`](../test/challenge-ladder/validator.ts) | Fixture validation rules |
 | [`packages/core/src/tool/compress.ts`](../packages/core/src/tool/compress.ts) | The actual compression pipeline under test |
 | [`packages/core/src/tool/compression-metrics.ts`](../packages/core/src/tool/compression-metrics.ts) | ROI tracking for compression transforms |
-| [`docs/fox-challenge-ladder-report.md`](../docs/fox-challenge-ladder-report.md) | Latest results report |
+| [`docs/2026-09-22T15-54_fox-challenge-ladder-report.md`](../docs/2026-09-22T15-54_fox-challenge-ladder-report.md) | Latest results report |

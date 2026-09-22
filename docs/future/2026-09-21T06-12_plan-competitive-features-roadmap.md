@@ -803,7 +803,7 @@ Nice-to-haves, not essential for autonomous capability.
 └─────────────────────────┴─────────────────────────┴────────────────────────────────────┘
 ```
 
-> 📋 **Canonical autonomous workflow reference**: See [`docs/future/autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md) for the gold-standard 10-step autonomous SWE loop that Fox is targeting.
+> 📋 **Canonical autonomous workflow reference**: See [`docs/future/2026-09-22T15-16_autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md) for the gold-standard 10-step autonomous SWE loop that Fox is targeting.
 > Phase 2A maps directly to Steps 4–8 of that workflow, completing the autonomous closed loop.
 >
 > 📋 **Current flow**: `Phase 1 ✅ → Phase 1B ✅ → Phase 2.0 ✅ → Phase 2A (Guardian) 🔧 → Phase 2B → Phase 3`
@@ -847,11 +847,11 @@ Nice-to-haves, not essential for autonomous capability.
 
 ### Phase 2A: Guardian + Autonomy Core (Q4 2026 — Closing the Autonomous Loop)
 
-> Maps to Steps 4–8 of [`autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md). Completing these items enables the full `edit → verify → detect → route → prune → commit` closed loop.
-> See also: [`autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-dual-agent-design.md) for Guardian architecture.
+> Maps to Steps 4–8 of [`2026-09-22T15-16_autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md). Completing these items enables the full `edit → verify → detect → route → prune → commit` closed loop.
+> See also: [`2026-09-22T15-16_autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md) for Guardian architecture.
 
 0. ~~**Autonomous Verification & Loop Defense**~~ → ✅ **COMPLETED** (Blueprint 3: Oscillation detection, repair budget, verification infrastructure)
-1. **Guardian Agent Core** — **NEW, HIGHEST PRIORITY.** Dual-agent oversight layer. Intake gatekeeper, post-failure classification, pre-commit review, progress monitoring. See [`autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-dual-agent-design.md).
+1. **Guardian Agent Core** — **NEW, HIGHEST PRIORITY.** Dual-agent oversight layer. Intake gatekeeper, post-failure classification, pre-commit review, progress monitoring. See [`2026-09-22T15-16_autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md).
 2. **Auto-Verification Execution Pipeline** (Blueprint 3a) — *Workflow Step 4*:
    - Execute detected test commands automatically after mutations in autonomous mode.
    - Compress output through LLTC `filterTestOutput` pipeline.

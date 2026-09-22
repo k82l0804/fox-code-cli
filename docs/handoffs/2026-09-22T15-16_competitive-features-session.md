@@ -42,12 +42,12 @@ Full implementation of SQLite-backed Tree-sitter symbol indexing:
 
 ### ✅ 4. Roadmap Restructured
 - Split Phase 2 into **Phase 2A (Autonomy Core)** and **Phase 2B (Refinement & Performance)**
-- Phase 2A maps to Steps 4–8 of [`autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md)
+- Phase 2A maps to Steps 4–8 of [`2026-09-22T15-16_autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md)
 - Promoted Turn-Supersession and Atomic Commits to Phase 2A (were buried in Phase 2)
 - Demoted Snapshot↔Oscillation to Phase 2B (works standalone, integration is refinement)
 - Added missing Blueprint 11.3 (JSON Serialization Bypass) to Phase 2B
 - Added risk callouts to routing, regression detection, and snapshot integration items
-- Reconciled [`priorities-plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/priorities-plan-competitive-features-roadmap.md)
+- Reconciled [`2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md)
 
 ---
 
@@ -64,9 +64,9 @@ Full implementation of SQLite-backed Tree-sitter symbol indexing:
 
 | Document | Purpose |
 |----------|---------|
-| [`docs/future/plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/plan-competitive-features-roadmap.md) | Master roadmap with phased implementation plan |
-| [`docs/future/priorities-plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/priorities-plan-competitive-features-roadmap.md) | Priority tiers and risk analysis (reconciled) |
-| [`docs/future/autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md) | Gold-standard 10-step autonomous SWE loop |
+| [`docs/future/2026-09-21T06-12_plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-21T06-12_plan-competitive-features-roadmap.md) | Master roadmap with phased implementation plan |
+| [`docs/future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md) | Priority tiers and risk analysis (reconciled) |
+| [`docs/future/2026-09-22T15-16_autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md) | Gold-standard 10-step autonomous SWE loop |
 
 ---
 

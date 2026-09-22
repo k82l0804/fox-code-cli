@@ -2,7 +2,7 @@
 
 > **Purpose**: Identify the standard benchmarks for evaluating autonomous SWE
 > agents, assess their relevance to Fox, and define an evaluation strategy.
-> Links to the [reference architecture](./autonomous-agent-workflow.md) phases
+> Links to the [reference architecture](./2026-09-22T15-16_autonomous-agent-workflow.md) phases
 > where each benchmark provides signal.
 
 ---
@@ -28,7 +28,7 @@ requires coverage across multiple dimensions.
 | **Dataset** | 500 human-verified instances from real Python repositories (Django, scikit-learn, sympy, etc.). Curated to remove ambiguous/unsolvable tasks. |
 | **Evaluation** | Dockerized harness. Each task runs in an isolated container matching the repo state at issue time. Binary pass/fail: patch must make relevant tests pass without breaking existing tests. |
 | **Metric** | Resolution rate (% of instances resolved). |
-| **Why it matters** | Tests the full autonomous loop: context discovery → planning → mutation → verification. Directly maps to Phases 1–5 of our [reference architecture](./autonomous-agent-workflow.md). |
+| **Why it matters** | Tests the full autonomous loop: context discovery → planning → mutation → verification. Directly maps to Phases 1–5 of our [reference architecture](./2026-09-22T15-16_autonomous-agent-workflow.md). |
 
 **How to run against a custom agent:**
 

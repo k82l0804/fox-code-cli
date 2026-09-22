@@ -1,0 +1,87 @@
+# 🦊 Fox Code CLI — Documentation Hub
+
+Welcome to the **Fox Code CLI** documentation library. This directory contains current architectural specifications, benchmark reports, execution roadmaps, and session handoffs.
+
+> [!TIP]
+> **Looking for historical or superseded documents?**  
+> All superseded research notes, early benchmarks, completed cleanup plans, and review trackers have been organized chronologically in [`archived/`](./archived/README.md).
+
+---
+
+## 🧭 Active Documentation Index
+
+```
+docs/
+├── README.md                                 # This navigation hub
+├── 2026-09-22T15-54_fox-challenge-ladder-report.md           # Master benchmark report (334 fixtures, 100% pass)
+├── 2026-09-22T15-16_daemon-architecture.md                   # Daemon & IPC client architecture specification
+├── challenge-history/                        # Deterministic test run JSON telemetry snapshots
+│   └── 2026-09-22.json                      # Latest baseline run (334/334, 19.1% compression)
+├── future/                                  # Strategic roadmaps & autonomous SWE architecture
+│   ├── 2026-09-21T06-12_plan-competitive-features-roadmap.md # Master roadmap (v1.5.0) with phased milestones
+│   ├── 2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md # Reconciled priorities & risk matrix
+│   ├── 2026-09-22T15-16_autonomous-dual-agent-design.md     # Fox Guardian dual-agent architecture & design
+│   ├── 2026-09-22T15-16_autonomous-agent-workflow.md         # Reference architecture (10-step closed loop)
+│   ├── 2026-09-22T15-16_autonomous-agent-std-tests.md        # Benchmark strategy (SWE-bench, RepoQA, etc.)
+│   ├── 2026-09-22T15-16_adaptive-compression.md              # Phase 2.0 Adaptive Compression design & classifier
+│   └── 2026-09-22T15-16_opinion-ideal-sw-agent-workflow.md   # Core design principles and research backing
+├── handoffs/                                # Inter-session state handoffs & next-step briefs
+│   ├── 2026-09-22T16-24_phase-1-remaining.md                 # Handoff for Phase 1 remaining items
+│   └── 2026-09-22T15-16_competitive-features-session.md # Competitive features session brief
+└── archived/                                # Chronologically ordered archive of superseded docs
+    └── README.md                            # Supersession index & redirect guide
+```
+
+---
+
+## 📚 Core Documentation Areas
+
+### 1. Benchmarks & Testing
+- **[`2026-09-22T15-54_fox-challenge-ladder-report.md`](./2026-09-22T15-54_fox-challenge-ladder-report.md)**  
+  *Canonical benchmark report (v1.1)*. Details the 334-fixture deterministic stress test across 4 tiers: Baseline (80), Long-Horizon (100), Adversarial (66), and External Benchmarks (88). Verifies 100% pass rate with 19.1% average token savings after Phase 2.0 Adaptive Compression.
+- **[`challenge-history/`](./challenge-history/)**  
+  Automated JSON telemetry snapshots produced by `bun run challenge:snapshot`.
+
+### 2. Architecture & Systems Design
+- **[`2026-09-22T15-16_daemon-architecture.md`](./2026-09-22T15-16_daemon-architecture.md)**  
+  Architecture specification for the Fox background daemon, JSON-RPC 2.0 over Unix domain sockets / Windows named pipes, multi-session state isolation, and client lifecycle management.
+- **[`future/2026-09-22T15-16_autonomous-dual-agent-design.md`](./future/2026-09-22T15-16_autonomous-dual-agent-design.md)**  
+  *Fox Guardian* design specification: dual-agent architecture with an Intake Gatekeeper, Failure Classifier, Verification & Lint Gate, and Pre-Commit Inspector running in an isolated sub-process.
+- **[`future/2026-09-22T15-16_autonomous-agent-workflow.md`](./future/2026-09-22T15-16_autonomous-agent-workflow.md)**  
+  The 10-step autonomous SWE closed-loop reference architecture: `intake → search → plan → edit → verify → detect → route → prune → commit → handoff`.
+
+### 3. Roadmaps & Strategy
+- **[`future/2026-09-21T06-12_plan-competitive-features-roadmap.md`](./future/2026-09-21T06-12_plan-competitive-features-roadmap.md)**  
+  *Master Architectural Roadmap (v1.5.0)*. Contains competitive audits against Claude Code, Aider, Codex, OpenCode, and Cursor, plus the Master Deferred Items Traceability Ledger and phased delivery schedule (Phase 1, 2A, 2B, 3).
+- **[`future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md`](./future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md)**  
+  Strategic priorities, risk analysis, and tier ordering guiding implementation.
+- **[`future/2026-09-22T15-16_adaptive-compression.md`](./future/2026-09-22T15-16_adaptive-compression.md)**  
+  Phase 2.0 Adaptive Compression design: heuristic content classifier (`compression-levels.ts`) and adaptive transforms.
+- **[`future/2026-09-22T15-16_autonomous-agent-std-tests.md`](./future/2026-09-22T15-16_autonomous-agent-std-tests.md)**  
+  Standard autonomous agent benchmark strategy: SWE-bench Verified, RepoQA, and local validation suites.
+
+### 4. Active Handoffs
+- **[`handoffs/2026-09-22T16-24_phase-1-remaining.md`](./handoffs/2026-09-22T16-24_phase-1-remaining.md)**  
+  Handoff document detailing the remaining items in Phase 1 (Worktree support, Model tiering, ACP batching, Token budgeting).
+- **[`handoffs/2026-09-22T15-16_competitive-features-session.md`](./handoffs/2026-09-22T15-16_competitive-features-session.md)**  
+  Summary of competitive roadmap execution, Phase 2.0 implementation, and regression fixes.
+
+---
+
+## 🏷️ Document Naming Convention
+
+All Markdown (`.md`) files in `docs/` (recursively across all subdirectories, including `future/`, `handoffs/`, and `archived/`) must follow the ISO 8601 prefix standard:
+
+```
+YYYY-MM-DDTHH-MM_<descriptive-name>.md
+```
+
+- **Natural Chronological Sorting**: File browsers and `ls` automatically display documents in exact historical sequence.
+- **Entrypoint Exception**: `README.md` files are the only exempt files, remaining un-prefixed to serve as landing pages.
+- **Archiving Rule**: Any document superseded by later implementations or roadmaps must be moved to `docs/archived/` via `git mv`, preserving its timestamp prefix. See [`.agents/rules/documentation-naming.md`](../../.agents/rules/documentation-naming.md).
+
+---
+
+## 🗄️ Historical & Archived Docs
+
+All prior research notes, early benchmark runs (52 fixtures), completed codebase cleanup plans, and initial review trackers are preserved in **[`archived/`](./archived/README.md)**. Files are prefixed with ISO 8601 timestamps (`YYYY-MM-DDTHH-MM_`) for chronological ordering.

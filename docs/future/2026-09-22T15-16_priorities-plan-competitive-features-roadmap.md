@@ -2,7 +2,7 @@
 
 > **Status**: Reconciled as of 2026-09-22. Phase 1B and Phase 2.0 now complete.
 > Revised to incorporate the Guardian Agent concept from
-> [`autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-dual-agent-design.md).
+> [`2026-09-22T15-16_autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md).
 > Multi-Model Routing (BP 4) demoted from Tier 1 — the guardian subsumes
 > deterministic routing decisions with flexible LLM-based reasoning.
 
@@ -54,7 +54,7 @@ This is a correct concern. You must avoid coupling snapshot logic into the core 
 
 ## 🧭 Priority Tiers (Revised 2026-09-22)
 
-Based on the [reference architecture](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md), the [dual-agent design](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-dual-agent-design.md), and the [Challenge Ladder results](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/fox-challenge-ladder-report.md):
+Based on the [reference architecture](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md), the [dual-agent design](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md), and the [Challenge Ladder results](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/2026-09-22T15-54_fox-challenge-ladder-report.md):
 
 ### ✅ **Phase 1B — Compression Hardening** → COMPLETE (2026-09-22)
 

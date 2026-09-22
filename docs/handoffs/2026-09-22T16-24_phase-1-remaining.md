@@ -4,7 +4,7 @@
 > **Status:** Open — 3 items remaining (not blocking Phase 2A)
 > **Priority:** Low — these improve UX/DX but don't block the autonomous loop
 > **Originating Session:** [`188a6acb`](../../.gemini/antigravity-ide/brain/188a6acb-cd0f-451e-873f-af0d1ba57900/walkthrough.md)
-> **Roadmap Reference:** [`plan-competitive-features-roadmap.md`](../future/plan-competitive-features-roadmap.md) Phase 1 items 3, 4, 6
+> **Roadmap Reference:** [`2026-09-21T06-12_plan-competitive-features-roadmap.md`](../future/2026-09-21T06-12_plan-competitive-features-roadmap.md) Phase 1 items 3, 4, 6
 
 ---
 

@@ -515,7 +515,7 @@ The Guardian and adaptive compression are complementary — not competing:
 
 Guardian's only compression involvement: setting a session-level policy at intake ("this is a production debugging session, maximize fidelity") and triggering the Chaff Shield during context compaction.
 
-> 📄 Full design: [`docs/future/autonomous-dual-agent-design.md`](docs/future/autonomous-dual-agent-design.md)
+> 📄 Full design: [`docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md`](docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md)
 
 ---
 
@@ -633,7 +633,7 @@ CI=true bun test test/challenge-ladder.test.ts  # 334-fixture ladder + A/B showd
 | **Phase 2B** | 📋 Planned | Multi-model routing, blast-radius regression detection, LSP confidence scoring |
 | **Phase 3** | 📋 Planned | Guardian task decomposition, OS-level sandboxing, long-horizon project memory |
 
-> 📄 Full roadmap: [`docs/future/priorities-plan-competitive-features-roadmap.md`](docs/future/priorities-plan-competitive-features-roadmap.md)
+> 📄 Full roadmap: [`docs/future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md`](docs/future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md)
 
 ---
 

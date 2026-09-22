@@ -48,7 +48,7 @@ import {
 import { CompressionMetrics } from "../packages/core/src/tool/compression-metrics"
 
 const WORKSPACE = "/home/k82l0804/workarea/fox/fox-code-cli"
-const OUTPUT_MD_PATH = resolve(WORKSPACE, "docs/fox-standard-test-suite-scoreboard.md")
+const OUTPUT_MD_PATH = resolve(WORKSPACE, "docs/archived/2026-09-20T19-32_fox-standard-test-suite-scoreboard.md")
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4)

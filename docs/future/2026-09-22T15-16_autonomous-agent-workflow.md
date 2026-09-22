@@ -8,7 +8,7 @@
 > **Influences**: This spec synthesizes the inner-loop mechanics (oscillation
 > detection, confidence scoring, LLTC compression) with the outer-loop
 > discipline of spec-driven, gated workflows (see
-> [`opinion-ideal-sw-agent-workflow.md`](./opinion-ideal-sw-agent-workflow.md)
+> [`2026-09-22T15-16_opinion-ideal-sw-agent-workflow.md`](./2026-09-22T15-16_opinion-ideal-sw-agent-workflow.md)
 > for the research backing the spec-centric approach).
 
 ---

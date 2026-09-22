@@ -5,10 +5,10 @@
 > unlock the dual-agent pattern by growing the infrastructure we already have.
 >
 > **Related documents**:
-> - [Reference Architecture](./autonomous-agent-workflow.md) — the ideal 11-phase SWE loop
-> - [Daemon Architecture](../daemon-architecture.md) — internal mechanics of `fox serve` & clients
-> - [Benchmark Strategy](./autonomous-agent-std-tests.md) — how to measure progress
-> - [Spec-Driven Opinion](./opinion-ideal-sw-agent-workflow.md) — research backing
+> - [Reference Architecture](./2026-09-22T15-16_autonomous-agent-workflow.md) — the ideal 11-phase SWE loop
+> - [Daemon Architecture](../2026-09-22T15-16_daemon-architecture.md) — internal mechanics of `fox serve` & clients
+> - [Benchmark Strategy](./2026-09-22T15-16_autonomous-agent-std-tests.md) — how to measure progress
+> - [Spec-Driven Opinion](./2026-09-22T15-16_opinion-ideal-sw-agent-workflow.md) — research backing
 
 ---
 
@@ -506,7 +506,7 @@ The ultimate destination for Fox CLI is serving as the physical **execution body
 ## Impact on Reference Architecture
 
 Phase A alone closes 3 of the top 7 gaps identified in the
-[reference architecture](./autonomous-agent-workflow.md):
+[reference architecture](./2026-09-22T15-16_autonomous-agent-workflow.md):
 
 | Ref Architecture Gap | Phase A Impact |
 |---|---|
