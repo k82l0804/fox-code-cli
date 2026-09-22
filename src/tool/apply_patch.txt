@@ -31,3 +31,10 @@ It is important to remember:
 
 - You must include a header with your intended action (Add/Delete/Update)
 - You must prefix new lines with `+` even when creating a new file
+
+## Error Recovery
+
+This tool uses **all-or-nothing** (transactional) semantics:
+- If ANY file operation in your patch fails validation, **no changes are applied** — all files remain exactly as they were before.
+- When you see "Patch failed; no changes applied", the file contents have NOT changed.
+- To recover: re-read the affected file(s) to get the current content, then construct a completely fresh patch. Do NOT attempt to "fix" the previous patch incrementally — the original file is unchanged, so your new patch must be based on the original content.

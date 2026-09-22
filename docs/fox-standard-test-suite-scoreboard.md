@@ -1,6 +1,6 @@
 # 🦊 Fox Standard Test Suite: Baseline Scoreboard
 
-> **Generated:** 2026-09-20  
+> **Generated:** 2026-09-22  
 > **Test Harness:** `test/standard-suite.test.ts`  
 > **Specification:** [docs/research/std-test-suite-sort-of.md](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/std-test-suite-sort-of.md)  
 > **Status:** **100% Invariant Validation Verified (All 6 Corpora)**
@@ -14,8 +14,8 @@ Fox establishes its canonical baseline across **52 golden fixtures** spanning 6 
 | Metric | Raw Baseline (Kilo Mode) | Fox Compressed (Fox Mode) | Delta / Efficiency |
 | :--- | :---: | :---: | :---: |
 | **Total Benchmark Tokens** | **33,036** | **15,766** | **+17,270 tokens (52.3% saved)** |
-| **Total Pipeline Overhead** | 0.00 ms | **4.18 ms** | Sub-millisecond avg per tool turn |
-| **Compression ROI** | 0.0 chars/ms | **16,561.2 chars/ms** | High ROI tier (>5.0 threshold) |
+| **Total Pipeline Overhead** | 0.00 ms | **5.69 ms** | Sub-millisecond avg per tool turn |
+| **Compression ROI** | 0.0 chars/ms | **12,166.3 chars/ms** | High ROI tier (>5.0 threshold) |
 | **Invariant Verification** | N/A | **100% Passed (356+ assertions)** | Zero diagnostic or patch line loss |
 | **Prefix Stability Hash** | Volatile | **Deterministic sha256** | 100% stable KV-cache reusability |
 

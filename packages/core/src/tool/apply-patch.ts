@@ -250,7 +250,7 @@ const layer = Layer.effectDiscard(
                     tx.rollback(fs).pipe(Effect.catch(() => Effect.void)),
                   ),
                   Effect.mapError(() => new ToolFailure({
-                    message: "Patch failed; no changes applied. All files have been rolled back to their original state.",
+                    message: "Patch failed; no changes applied. All files remain in their original state. To recover: re-read the target file(s) and construct a fresh patch from their current (unchanged) content.",
                   })),
                 )
 

@@ -1,0 +1,6 @@
+Locate symbol definitions (functions, classes, interfaces, types, methods) across the repository using the AST index, without reading entire files.
+
+- This tool searches a pre-built symbol index backed by Tree-sitter parsing. Results include the file path, line number, symbol kind, and one-line signature.
+- Use this to find where a symbol is defined, discover related types, or understand API surfaces before reading files.
+- The query matches symbol names using substring search. Use the `kind` parameter to filter to specific symbol types.
+- If the index is still being built (first session in a project), results may be incomplete.

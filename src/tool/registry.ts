@@ -42,6 +42,8 @@ import { Env } from "@/env"
 import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
+import { LookupSymbolsTool } from "./lookup_symbols"
+import { FetchRepoMapTool } from "./fetch_repo_map"
 import { Glob } from "@opencode-ai/core/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -142,6 +144,8 @@ const layer = Layer.effect(
     const skilltool = yield* SkillTool
     const agent = yield* Agent.Service
     const suggesttool = yield* SuggestTool
+    const lookupSymbolsTool = yield* LookupSymbolsTool
+    const repoMapTool = yield* FetchRepoMapTool
     const manager = Option.getOrUndefined(yield* Effect.serviceOption(AgentManager.Service))
     const notebook = Option.getOrUndefined(yield* Effect.serviceOption(Notebook.Service))
     const kiloToolInfos = yield* FoxToolRegistry.infos(manager, notebook).pipe(Effect.provide(MemoryService.layer))
@@ -268,6 +272,8 @@ const layer = Layer.effect(
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
           suggest: Tool.init(suggesttool),
+          lookupSymbols: Tool.init(lookupSymbolsTool),
+          repoMap: Tool.init(repoMapTool),
           ...(codeModeTool ? { execute: Tool.init(codeModeTool) } : {}),
         })
         const kilo = yield* FoxToolRegistry.build(kiloToolInfos, {
@@ -299,6 +305,8 @@ const layer = Layer.effect(
               ...FoxToolRegistry.extra(kilo, cfg, flags),
               ...(tool.execute ? [tool.execute] : []),
               ...(flags.experimentalLspTool ? [tool.lsp] : []),
+              tool.lookupSymbols,
+              tool.repoMap,
             ],
             kilo,
           ),

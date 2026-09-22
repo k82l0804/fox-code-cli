@@ -4,10 +4,16 @@ import {
   detectBestCommand,
   formatVerificationFeedback,
   truncateOutput,
+  readPackageScripts,
+  executeVerification,
   MUTATION_TOOLS,
   MAX_VERIFICATION_OUTPUT_BYTES,
+  DEFAULT_VERIFICATION_TIMEOUT_MS,
   type VerificationResult,
 } from "@opencode-ai/core/verification"
+import { mkdtemp, writeFile, rm, mkdir } from "fs/promises"
+import { join } from "path"
+import { tmpdir } from "os"
 
 describe("Verification", () => {
   describe("MUTATION_TOOLS", () => {
@@ -178,6 +184,262 @@ describe("Verification", () => {
       const { output, truncated } = truncateOutput("")
       expect(output).toBe("")
       expect(truncated).toBe(false)
+    })
+  })
+
+  // =========================================================================
+  // New Tests: readPackageScripts
+  // =========================================================================
+
+  describe("readPackageScripts", () => {
+    let tempDir: string
+
+    test("reads scripts from valid package.json", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        await writeFile(
+          join(tempDir, "package.json"),
+          JSON.stringify({ name: "test-pkg", scripts: { test: "jest", build: "tsc" } }),
+        )
+        const scripts = await readPackageScripts(tempDir)
+        expect(scripts).toBeDefined()
+        expect(scripts!.test).toBe("jest")
+        expect(scripts!.build).toBe("tsc")
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("returns undefined when package.json is missing", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        const scripts = await readPackageScripts(tempDir)
+        expect(scripts).toBeUndefined()
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("returns undefined for invalid JSON", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        await writeFile(join(tempDir, "package.json"), "not valid json {{{")
+        const scripts = await readPackageScripts(tempDir)
+        expect(scripts).toBeUndefined()
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("returns undefined when package.json has no scripts field", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        await writeFile(join(tempDir, "package.json"), JSON.stringify({ name: "no-scripts" }))
+        const scripts = await readPackageScripts(tempDir)
+        expect(scripts).toBeUndefined()
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("returns undefined for non-existent directory", async () => {
+      const scripts = await readPackageScripts("/tmp/fox-verify-nonexistent-" + Date.now())
+      expect(scripts).toBeUndefined()
+    })
+  })
+
+  // =========================================================================
+  // New Tests: executeVerification
+  // =========================================================================
+
+  describe("executeVerification", () => {
+    let tempDir: string
+
+    test("returns passed=true for exit code 0", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        const result = await executeVerification("echo 'all tests passed'", {
+          cwd: tempDir,
+        })
+        expect(result.passed).toBe(true)
+        expect(result.exitCode).toBe(0)
+        expect(result.command).toBe("echo 'all tests passed'")
+        expect(result.compressedOutput).toContain("all tests passed")
+        expect(result.elapsedMs).toBeGreaterThan(0)
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("returns passed=false for non-zero exit code", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        const result = await executeVerification("sh -c 'echo FAIL src/app.test.ts && exit 1'", {
+          cwd: tempDir,
+        })
+        expect(result.passed).toBe(false)
+        expect(result.exitCode).toBe(1)
+        expect(result.compressedOutput).toContain("FAIL src/app.test.ts")
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("times out and kills process tree", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        const result = await executeVerification("sleep 60", {
+          cwd: tempDir,
+          timeoutMs: 500, // Very short timeout
+        })
+        expect(result.passed).toBe(false)
+        expect(result.exitCode).toBe(124) // GNU timeout convention
+        expect(result.compressedOutput).toContain("timed out")
+        expect(result.elapsedMs).toBeLessThan(5000) // Should not wait for the full 60s
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("injects CI=true environment variable", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        const result = await executeVerification("echo CI=$CI", {
+          cwd: tempDir,
+        })
+        expect(result.passed).toBe(true)
+        expect(result.compressedOutput).toContain("CI=true")
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("applies LLTC compression on passing test lines", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        // Create a script that outputs many passing lines
+        await writeFile(
+          join(tempDir, "fake-test.sh"),
+          [
+            "#!/bin/sh",
+            'echo "Test Suite"',
+            'echo "✓ test 1"',
+            'echo "✓ test 2"',
+            'echo "✓ test 3"',
+            'echo "✓ test 4"',
+            'echo "✓ test 5"',
+            'echo "✓ test 6"',
+            'echo "Summary: 6 passed"',
+          ].join("\n"),
+        )
+        const result = await executeVerification("sh fake-test.sh", {
+          cwd: tempDir,
+        })
+        expect(result.passed).toBe(true)
+        // filterTestOutput should collapse ≥4 consecutive ✓ lines
+        expect(result.compressedOutput).toContain("passing tests omitted")
+        expect(result.compressedOutput).toContain("Summary: 6 passed")
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("truncates very large output", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        // Generate output larger than MAX_VERIFICATION_OUTPUT_BYTES
+        const bigOutput = "x".repeat(MAX_VERIFICATION_OUTPUT_BYTES + 2000)
+        await writeFile(
+          join(tempDir, "big-output.sh"),
+          `#!/bin/sh\nprintf '${bigOutput}'\nexit 1`,
+        )
+        const result = await executeVerification("sh big-output.sh", {
+          cwd: tempDir,
+        })
+        expect(result.passed).toBe(false)
+        expect(result.truncated).toBe(true)
+        expect(result.compressedOutput).toContain("truncated")
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("returns exit code 127 for invalid command", async () => {
+      tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        const result = await executeVerification("nonexistent_command_xyz_12345", {
+          cwd: tempDir,
+        })
+        expect(result.passed).toBe(false)
+        // Shell returns 127 for command not found
+        expect(result.exitCode).toBeGreaterThan(0)
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  // =========================================================================
+  // End-to-end: detection + execution + formatting
+  // =========================================================================
+
+  describe("end-to-end pipeline", () => {
+    test("detect + execute + format produces complete feedback", async () => {
+      const tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        // Create a project with a test script that passes
+        await writeFile(
+          join(tempDir, "package.json"),
+          JSON.stringify({
+            name: "e2e-test-project",
+            scripts: { test: "echo 'all tests passed'" },
+          }),
+        )
+
+        const scripts = await readPackageScripts(tempDir)
+        expect(scripts).toBeDefined()
+
+        const cmd = detectBestCommand(scripts)
+        expect(cmd).toBeDefined()
+        expect(cmd!.command).toBe("npm run test")
+
+        // Use the raw command since we don't have npm set up
+        const result = await executeVerification("echo 'all tests passed'", {
+          cwd: tempDir,
+        })
+
+        const feedback = formatVerificationFeedback(result)
+        expect(feedback).toContain("PASSED")
+        expect(feedback).toContain("All checks passed")
+        expect(feedback).toContain("Exit code: 0")
+        expect(feedback).toContain("Auto-Verification")
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("detect + execute + format handles failure with compressed output", async () => {
+      const tempDir = await mkdtemp(join(tmpdir(), "fox-verify-"))
+      try {
+        await writeFile(
+          join(tempDir, "package.json"),
+          JSON.stringify({
+            name: "e2e-fail-project",
+            scripts: { test: "echo 'FAIL' && exit 1" },
+          }),
+        )
+
+        const result = await executeVerification("sh -c 'echo FAIL && exit 1'", {
+          cwd: tempDir,
+        })
+
+        const feedback = formatVerificationFeedback(result)
+        expect(feedback).toContain("FAILED")
+        expect(feedback).toContain("Compressed failure output")
+        expect(feedback).toContain("FAIL")
+      } finally {
+        await rm(tempDir, { recursive: true, force: true })
+      }
     })
   })
 })

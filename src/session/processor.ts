@@ -629,10 +629,46 @@ const layer = Layer.effect(
                   }
                 }
               }
+
+              // --- Autonomous Verification Layer: auto-verify after mutation ---
+              const autoVerifyEnabled = autonomousCfg?.auto_verify !== false
+              if (autoVerifyEnabled) {
+                const dirs = yield* config.directories()
+                const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+                const scripts: Record<string, string> | undefined = yield* Effect.promise(() =>
+                  Verification.readPackageScripts(projectDir),
+                )
+                const testCmd = Verification.detectBestCommand(scripts, autonomousCfg?.test_command)
+
+                if (testCmd) {
+                  const timeoutMs = autonomousCfg?.test_timeout ?? Verification.DEFAULT_VERIFICATION_TIMEOUT_MS
+                  const verifyResult: Verification.VerificationResult = yield* Effect.promise(() =>
+                    Verification.executeVerification(testCmd.command, {
+                      cwd: projectDir,
+                      timeoutMs,
+                    }),
+                  )
+                  const feedback = Verification.formatVerificationFeedback(verifyResult)
+                  outputText = `${outputText}\n\n${feedback}`
+
+                  // Update repair budget based on verification outcome
+                  const maxRepairTurns = autonomousCfg?.max_repair_turns ?? 3
+                  const budget = getRepairBudget(ctx.sessionID, maxRepairTurns)
+                  if (!verifyResult.passed) {
+                    const budgetResult = RepairBudgetTracker.recordFailure(budget)
+                    const warning = RepairBudgetTracker.RepairBudgetWarning.format(budget)
+                    if (budgetResult.exhausted && warning) {
+                      outputText = `${outputText}\n\n${warning}`
+                    }
+                  } else {
+                    RepairBudgetTracker.recordSuccess(budget)
+                  }
+                }
+              }
             }
 
             // --- Autonomous Verification Layer: repair budget tracking ---
-            // Track bash tool results for test commands
+            // Track bash tool results for test commands (manual test runs)
             if (value.name === "bash" && isRecord(rawOutput.metadata)) {
               const exitCode = typeof rawOutput.metadata.exit === "number" ? rawOutput.metadata.exit : undefined
               const cfg = yield* config.get()

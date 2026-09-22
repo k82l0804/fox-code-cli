@@ -1,0 +1,7 @@
+Generate a hierarchical map of repository files and their symbol definitions.
+
+- Shows the file structure with symbol summaries (functions, classes, interfaces, methods) for each file.
+- Use this to understand repository architecture, discover modules, or plan navigation before reading files.
+- Use the `directory` parameter to scope the map to a subdirectory.
+- Use the `depth` parameter to control how deep into the directory tree to display (default: 3 levels).
+- The map is generated from a pre-built AST index. If the index is still building, results may be incomplete.

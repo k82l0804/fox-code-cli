@@ -153,6 +153,9 @@ export function makePromptLoop(deps: PromptLoopDeps) {
       instructions?: string[]
       mcpInstructions?: string | undefined
     } = {}
+    // Cache static tool definitions across loop steps (Blueprint 11.1).
+    // Invalidated when agent, model, or provider changes.
+    let toolDefCache: SessionTools.ToolDefinitionCache | undefined
 
     while (true) {
       yield* status.set(sessionID, { type: "busy" })
@@ -341,7 +344,26 @@ export function makePromptLoop(deps: PromptLoopDeps) {
               Effect.provideService(RuntimeFlags.Service, flags),
             )
           : undefined
-        const tools = yield* SessionTools.resolve({
+        // --- Tool Definition Cache (Blueprint 11.1) ---
+        // Phase 1: Resolve static definitions (cached across loop steps)
+        const toolCacheKey = `${agent.name}:${model.id}:${model.providerID}`
+        if (!toolDefCache || toolDefCache.key !== toolCacheKey) {
+          toolDefCache = yield* SessionTools.resolveDefinitions({
+            agent,
+            session,
+            model,
+            bypassAgentCheck,
+          }).pipe(
+            Effect.provideService(ToolRegistry.Service, registry),
+            Effect.provideService(MCP.Service, mcp),
+            Effect.provideService(Config.Service, config),
+            Effect.provideService(Database.Service, database),
+            Effect.provideService(RuntimeFlags.Service, flags),
+            Effect.withSpan("SessionPrompt.resolveDefinitions", { attributes: { step, agent: agent.name } }),
+          )
+        } // cache hit — reuse existing definitions
+        // Phase 2: Bind per-step execution context (cheap, every step)
+        const tools = yield* SessionTools.bindExecutionContext(toolDefCache, {
           agent,
           session,
           model,
@@ -356,14 +378,13 @@ export function makePromptLoop(deps: PromptLoopDeps) {
           Effect.provideService(Permission.Service, permission),
           Effect.provideService(Agent.Service, agents),
           Effect.provideService(Session.Service, sessions),
-          Effect.provideService(ToolRegistry.Service, registry),
           Effect.provideService(MCP.Service, mcp),
           Effect.provideService(Truncate.Service, truncate),
           Effect.provideService(Config.Service, config),
           Effect.provideService(Provider.Service, provider),
           Effect.provideService(Database.Service, database),
           Effect.provideService(RuntimeFlags.Service, flags),
-          Effect.withSpan("SessionPrompt.resolveTools", { attributes: { step, agent: agent.name } }),
+          Effect.withSpan("SessionPrompt.bindExecutionContext", { attributes: { step, agent: agent.name } }),
         )
 
         if (lastUser.format?.type === "json_schema") {

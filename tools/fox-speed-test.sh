@@ -58,7 +58,8 @@ for i in "${!PROMPTS[@]}"; do
 
   # Poll for completion
   elapsed=0
-  while [ $elapsed -lt 90 ]; do
+  timeout="${SPEED_TIMEOUT_SEC:-240}"
+  while [ $elapsed -lt "$timeout" ]; do
     msgs=$(curl "${CURL_OPTS[@]}" "${FOX_SERVER}/session/${sid}/message" 2>/dev/null || echo "[]")
     last_role=$(echo "$msgs" | jq -r 'if type == "array" then .[-1].info.role // "none" else "none" end' 2>/dev/null)
     last_completed=$(echo "$msgs" | jq -r 'if type == "array" then .[-1].info.time.completed // "null" else "null" end' 2>/dev/null)

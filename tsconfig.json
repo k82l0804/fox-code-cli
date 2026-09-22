@@ -12,7 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
     "noEmit": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "jsxImportSource": "@opentui/solid",
     "noUncheckedIndexedAccess": false,
     "customConditions": ["browser"],

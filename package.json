@@ -16,7 +16,7 @@
   "bugs": "https://github.com/k82l0804/fox/issues",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "bun build --target bun --packages=external ./src/index.ts --outdir ./dist",
+    "build": "bun build --target bun --packages=external --jsx-import-source=@opentui/solid ./src/index.ts --outdir ./dist",
     "dev": "bun run ./src/index.ts",
     "fox": "bun run ./src/index.ts",
     "test": "bash scripts/test-all.sh",
@@ -29,7 +29,12 @@
     "test:standard-suite": "bun test test/standard-suite.test.ts --timeout 30000",
     "test:schema-stability": "bun test packages/core/test/schema-stability.test.ts --timeout 10000",
     "test:app": "bun test ./test/*.test.ts ./test/*/*.test.ts --timeout 30000",
-    "scoreboard": "bun run tools/fox-standard-scoreboard.ts"
+    "scoreboard": "bun run tools/fox-standard-scoreboard.ts",
+    "showdown": "bun run tools/fox-vs-kilo-showdown.ts",
+    "ab:standard": "bun run tools/fox-standard-ab-eval.ts",
+    "test:challenge": "bun test test/challenge-ladder.test.ts --timeout 60000",
+    "challenge:scoreboard": "bun run tools/fox-challenge-scoreboard.ts",
+    "challenge:snapshot": "bun run tools/challenge-snapshot.ts"
   },
   "bin": {
     "fox": "./bin/fox",
@@ -43,6 +48,21 @@
       "bun": "./src/storage/db.bun.ts",
       "node": "./src/storage/db.node.ts",
       "default": "./src/storage/db.bun.ts"
+    },
+    "#sqlite": {
+      "bun": "./packages/core/src/database/sqlite.bun.ts",
+      "node": "./packages/core/src/database/sqlite.node.ts",
+      "default": "./packages/core/src/database/sqlite.bun.ts"
+    },
+    "#pty": {
+      "bun": "./packages/core/src/pty/pty.bun.ts",
+      "node": "./packages/core/src/pty/pty.node.ts",
+      "default": "./packages/core/src/pty/pty.bun.ts"
+    },
+    "#fff": {
+      "bun": "./packages/core/src/filesystem/fff.bun.ts",
+      "node": "./packages/core/src/filesystem/fff.node.ts",
+      "default": "./packages/core/src/filesystem/fff.bun.ts"
     }
   },
   "workspaces": {
@@ -98,7 +118,6 @@
     "@typescript/native-preview": "catalog:",
     "drizzle-kit": "catalog:",
     "prettier": "3.6.2",
-    "typescript": "catalog:",
     "vscode-languageserver-types": "3.17.5",
     "@types/npmcli__arborist": "6.3.3",
     "@babel/core": "7.29.6",
@@ -111,6 +130,7 @@
     "@ai-sdk/provider-utils": "4.0.40",
     "@clack/prompts": "1.0.0-alpha.1",
     "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-bun": "catalog:",
     "@ff-labs/fff-bun": "0.9.4",
     "@foxcode/indexing": "workspace:*",
     "@foxcode/memory": "workspace:*",
@@ -121,6 +141,7 @@
     "@lydell/node-pty": "catalog:",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@npmcli/arborist": "9.4.0",
+    "@npmcli/config": "10.8.1",
     "@opencode-ai/codemode": "workspace:*",
     "@opencode-ai/core": "workspace:*",
     "@opencode-ai/llm": "workspace:*",
@@ -134,6 +155,7 @@
     "@parcel/watcher": "2.5.1",
     "@silvia-odwyer/photon-node": "0.3.4",
     "@types/ws": "8.18.1",
+    "acorn": "8.15.0",
     "ai": "catalog:",
     "bun-pty": "0.4.8",
     "chardet": "2.1.1",
@@ -149,6 +171,7 @@
     "iconv-lite": "0.7.2",
     "ignore": "7.0.5",
     "immer": "11.1.4",
+    "ipaddr.js": "catalog:",
     "jsonc-parser": "3.3.1",
     "mammoth": "1.12.0",
     "mime-types": "3.0.2",
@@ -165,6 +188,7 @@
     "tree-sitter-bash": "0.25.0",
     "tree-sitter-powershell": "0.25.10",
     "tree-sitter-wasms": "^0.1.12",
+    "typescript": "catalog:",
     "turndown": "7.2.0",
     "ulid": "catalog:",
     "vscode-jsonrpc": "8.2.1",

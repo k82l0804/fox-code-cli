@@ -15,6 +15,9 @@ export * as ToolOutputCompressor from "./compress"
 import { Flag } from "../flag/flag"
 import { Log } from "../util/log"
 import { CompressionMetrics } from "./compression-metrics"
+import { classifyContent, type ContentClassification, type CompressionLevel, type CompressionPolicyOverride } from "./compression-levels"
+
+export type { ContentClassification, CompressionLevel, CompressionPolicyOverride }
 
 const log = Log.create({ service: "compression" })
 
@@ -120,6 +123,8 @@ export interface CompressContext {
   readonly toolName: string
   /** Active agent workflow profile */
   readonly workflow?: WorkflowType
+  /** Original command (for classifier hints, e.g. # no-truncate detection). */
+  readonly command?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +137,8 @@ interface Transform {
   readonly span: string
   readonly enabled: (policy: WorkflowPolicy) => boolean
   readonly apply: (text: string, ctx: CompressContext) => string
+  /** Minimum adaptive compression level required (undefined = always run). */
+  readonly minLevel?: CompressionLevel
 }
 
 const transforms: readonly Transform[] = [
@@ -177,6 +184,28 @@ const transforms: readonly Transform[] = [
     enabled: (p) => Flag.FOX_EXPERIMENTAL_COMPRESS_DATA && p.tabular,
     apply: compressJsonKeys,
   },
+  // -- Adaptive transforms (Phase 2.0) --
+  {
+    name: "stripTimestamps",
+    span: "compression.adaptive.timestamps",
+    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_ADAPTIVE,
+    apply: stripTimestamps,
+    minLevel: 1,
+  },
+  {
+    name: "stripBoilerplate",
+    span: "compression.adaptive.boilerplate",
+    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_ADAPTIVE,
+    apply: stripBoilerplate,
+    minLevel: 1,
+  },
+  {
+    name: "collapseRepeatedPatterns",
+    span: "compression.adaptive.repeated_patterns",
+    enabled: () => Flag.FOX_EXPERIMENTAL_COMPRESS_ADAPTIVE,
+    apply: collapseRepeatedPatterns,
+    minLevel: 2,
+  },
 ]
 
 /**
@@ -186,14 +215,38 @@ const transforms: readonly Transform[] = [
  * Each enabled transform is instrumented with timing and char-savings
  * metrics, emitted as structured log entries compatible with OTLP/Jaeger.
  */
-export function process(text: string, ctx: CompressContext): string {
+export function process(
+  text: string,
+  ctx: CompressContext,
+  override?: CompressionPolicyOverride,
+): string {
   const originalLen = text.length
   let anyEnabled = false
   let totalOverheadMs = 0
   const policy = getWorkflowPolicy(ctx.workflow)
 
+  // Classify content for adaptive transforms
+  let classification: ContentClassification | undefined
+  if (Flag.FOX_EXPERIMENTAL_COMPRESS_ADAPTIVE) {
+    classification = classifyContent(text, ctx.toolName, ctx.command)
+    // Apply user/guardian-level overrides
+    if (override?.maxLevel != null && classification.level > override.maxLevel) {
+      classification = { ...classification, level: override.maxLevel }
+    }
+    // Apply global max level flag
+    const flagMax = Flag.FOX_ADAPTIVE_MAX_LEVEL
+    if (classification.level > flagMax) {
+      classification = { ...classification, level: flagMax as CompressionLevel }
+    }
+  }
+
   for (const transform of transforms) {
     if (!transform.enabled(policy)) continue
+
+    // Adaptive level gate: skip transforms that require a higher level
+    if (transform.minLevel != null) {
+      if (!classification || classification.level < transform.minLevel) continue
+    }
 
     // ROI auto-skip: skip transforms with consistently low ROI
     if (CompressionMetrics.shouldSkip(transform.name)) {
@@ -413,7 +466,40 @@ export function compressJsonKeys(text: string, _ctx?: CompressContext): string {
 export function compressGitStatus(text: string, _ctx?: CompressContext): string {
   if (!text.includes("On branch ") && !text.startsWith("On branch ")) return text
 
+  // Guard: skip multi-step agent traces (step boundaries, tool headers)
+  // These contain git status blocks mixed with other content that must not be dropped.
+  if (
+    text.includes("[Step ") ||
+    text.includes("tool=") ||
+    text.includes("\n---\n")
+  ) {
+    return text
+  }
+
   const lines = text.split("\n")
+
+  // Guard: if the content has substantial non-git-status lines, it's mixed content.
+  // Count lines that look like git status vs lines that don't.
+  const gitStatusPatterns = /^(On branch |Your branch |Changes to be committed|Changes not staged|Untracked files|no changes added|nothing to commit|\s*\(use |$)/
+  let nonGitLines = 0
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed && !gitStatusPatterns.test(trimmed)) {
+      // Check if it's a file status line (matches staged/unstaged patterns)
+      const isFileStatus = /^(?:modified|new file|deleted|renamed|typechange):\s+/i.test(trimmed)
+        || /^\?\??\s+/.test(trimmed)
+        || /^[MADRCU?!]\s+/.test(trimmed)
+      if (!isFileStatus) {
+        nonGitLines++
+      }
+    }
+  }
+  // If more than 20% of non-empty lines are non-git-status, bail out
+  const nonEmptyLines = lines.filter(l => l.trim()).length
+  if (nonEmptyLines > 0 && nonGitLines / nonEmptyLines > 0.2) {
+    return text
+  }
+
   let branch = ""
   let tracking = ""
   const staged: string[] = []
@@ -511,6 +597,17 @@ export function compressGitStatus(text: string, _ctx?: CompressContext): string 
 export function filterTestOutput(text: string, _ctx?: CompressContext): string {
   const lines = text.split("\n")
   if (lines.length < 6) return text
+
+  // Guard: only apply to actual test runner output.
+  // Require at least 6 lines that look like pass/fail test results.
+  // This prevents CI pipeline logs, deployment reports, etc. with incidental
+  // ✓/✔ symbols from being incorrectly collapsed.
+  const passFailPattern = /^\s*(?:✓|✔|✗|✘|PASS\b|FAIL\b|ok\s+\d+|not ok\s+\d+)/
+  let passFailCount = 0
+  for (const line of lines) {
+    if (passFailPattern.test(line.trim())) passFailCount++
+  }
+  if (passFailCount < 6) return text
 
   const isPassLine = (line: string): boolean => {
     const trimmed = line.trim()
@@ -647,8 +744,10 @@ export function trimDiffContext(text: string, _ctx?: CompressContext): string {
       continue
     }
 
-    // Hunk header: start a new hunk
-    if (line.startsWith("@@") && inDiff) {
+    // Hunk header: start a new hunk — BUT only if it looks like a real hunk header
+    // (not content that happens to contain @@). A real hunk header starts at column 0
+    // and matches the @@ -N,N +N,N @@ pattern.
+    if (line.startsWith("@@") && inDiff && /^@@ -\d/.test(line)) {
       flushHunk()
       hunkLines = [line]
       continue
@@ -681,6 +780,8 @@ export function trimDiffContext(text: string, _ctx?: CompressContext): string {
 function trimHunkContext(hunkLines: string[], keep: number): string[] {
   if (hunkLines.length <= 1) return hunkLines
 
+
+
   const header = hunkLines[0]!
   const body = hunkLines.slice(1)
 
@@ -712,6 +813,9 @@ function trimHunkContext(hunkLines: string[], keep: number): string[] {
       trimmedBody.push(body[i]!)
     }
   }
+
+  // If nothing was trimmed, return original to preserve exact hunk headers
+  if (trimmedBody.length === body.length) return hunkLines
 
   // Recalculate hunk header counts
   let oldCount = 0
@@ -880,4 +984,198 @@ export function truncateShellOutput(
   return { output: `${outLines.join("\n")}${notice}`, truncated: true }
 }
 
+// ---------------------------------------------------------------------------
+// Adaptive Transform: Timestamp Stripping (Level 1+)
+// ---------------------------------------------------------------------------
 
+/**
+ * Strip timestamps from log-like lines. Preserves the content after the
+ * timestamp. Only acts on lines that have structured content following
+ * the timestamp — never strips lines that ARE the timestamp.
+ *
+ * Patterns recognized:
+ *   2026-09-22T18:05:20 INFO ...  → INFO ...
+ *   2026-09-22 18:05:20 INFO ...  → INFO ...
+ *   [2026-09-22T18:05:20] INFO ... → INFO ...
+ *   09:15:32.123 INFO ...          → INFO ...
+ */
+const TS_LINE_PATTERN = /^(\s*)(?:\[?\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?\s+)(.+)/
+const TIME_ONLY_PATTERN = /^(\s*)(?:\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+)(.+)/
+const EPOCH_LINE_PATTERN = /^(\s*)(?:\d{10,13}\s+)(.+)/
+
+export function stripTimestamps(text: string, _ctx?: CompressContext): string {
+  const lines = text.split("\n")
+  let stripped = 0
+
+  const result = lines.map((line) => {
+    // Don't strip from diff content, commit messages, or structured data
+    if (line.startsWith("diff ") || line.startsWith("commit ") ||
+        line.startsWith("Date:") || line.startsWith("Author:") ||
+        line.startsWith("+") || line.startsWith("-") ||
+        line.startsWith(" {") || line.startsWith("{")) {
+      return line
+    }
+
+    // Try ISO timestamp
+    let match = TS_LINE_PATTERN.exec(line)
+    if (match && match[2]!.length > 5) {
+      stripped++
+      return match[1] + match[2]
+    }
+
+    // Try time-only (HH:MM:SS)
+    match = TIME_ONLY_PATTERN.exec(line)
+    if (match && match[2]!.length > 5) {
+      stripped++
+      return match[1] + match[2]
+    }
+
+    return line
+  })
+
+  if (stripped < 3) return text // Not worth it if fewer than 3 timestamps found
+  return result.join("\n")
+}
+
+// ---------------------------------------------------------------------------
+// Adaptive Transform: Boilerplate Header Stripping (Level 1+)
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip recognized boilerplate patterns that carry no task-relevant information.
+ * Uses an allowlist of known patterns to avoid false positives.
+ */
+interface BoilerplateRule {
+  readonly pattern: RegExp
+  readonly label: string
+}
+
+const BOILERPLATE_RULES: readonly BoilerplateRule[] = [
+  { pattern: /^npm warn (?:deprecated|old lockfile|peer dep|optional dep|skipping integrity).*$/i, label: "npm deprecation warning" },
+  { pattern: /^npm notice .*$/i, label: "npm notice" },
+  { pattern: /^\s*(?:WARNING|DEPRECATION):.*pip.*$/i, label: "pip warning" },
+  { pattern: /^\s*\[notice\] A new release of pip is available.*$/i, label: "pip upgrade notice" },
+  { pattern: /^[a-f0-9]{12}: (?:Pulling|Waiting|Downloading|Extracting|Pull complete|Already exists).*$/i, label: "Docker layer progress" },
+  { pattern: /^Step \d+\/\d+ : (?:FROM|RUN|COPY|ADD|WORKDIR|ENV|EXPOSE|CMD|ENTRYPOINT).*$/i, label: "Dockerfile step" },
+  { pattern: /^Sending build context to docker daemon.*$/i, label: "Docker build context" },
+  { pattern: /^(?:Removing intermediate container|Successfully built|Successfully tagged).*$/i, label: "Docker build status" },
+]
+
+export function stripBoilerplate(text: string, _ctx?: CompressContext): string {
+  const lines = text.split("\n")
+  const result: string[] = []
+  let currentLabel: string | null = null
+  let currentCount = 0
+
+  const flushGroup = () => {
+    if (currentLabel && currentCount > 0) {
+      result.push(`[${currentCount} ${currentLabel}${currentCount > 1 ? "s" : ""} stripped]`)
+      currentLabel = null
+      currentCount = 0
+    }
+  }
+
+  for (const line of lines) {
+    let matched = false
+
+    for (const rule of BOILERPLATE_RULES) {
+      if (rule.pattern.test(line)) {
+        if (currentLabel === rule.label) {
+          currentCount++
+        } else {
+          flushGroup()
+          currentLabel = rule.label
+          currentCount = 1
+        }
+        matched = true
+        break
+      }
+    }
+
+    if (!matched) {
+      flushGroup()
+      result.push(line)
+    }
+  }
+
+  flushGroup()
+
+  const output = result.join("\n")
+  return output.length < text.length ? output : text
+}
+
+// ---------------------------------------------------------------------------
+// Adaptive Transform: Repeated Pattern Collapsing (Level 2+)
+// ---------------------------------------------------------------------------
+
+/**
+ * Collapse runs of consecutive lines that share the same structure into
+ * a summary. Keeps first line, last line, and any lines containing
+ * ERROR/WARN/FAIL/panic keywords.
+ *
+ * A "run" is detected when ≥5 consecutive lines share the same prefix
+ * (first 10 chars) and have similar lengths.
+ */
+export function collapseRepeatedPatterns(text: string, _ctx?: CompressContext): string {
+  const lines = text.split("\n")
+  if (lines.length < 10) return text // Too short to have meaningful runs
+
+  const result: string[] = []
+  let runStart = 0
+  let runPrefix = ""
+  const CRITICAL_RE = /\b(ERROR|WARN(?:ING)?|FAIL(?:ED)?|panic|fatal|exception|denied|refused|OOM|Killed|killed|crash|timeout|abort|BackOff)\b/i
+  const MIN_RUN = 5
+
+  const flushRun = (endExclusive: number) => {
+    const runLen = endExclusive - runStart
+    if (runLen < MIN_RUN) {
+      // Not long enough to collapse — emit all lines
+      for (let i = runStart; i < endExclusive; i++) result.push(lines[i]!)
+      return
+    }
+
+    // Collect critical lines within the run
+    const criticals: string[] = []
+    for (let i = runStart + 1; i < endExclusive - 1; i++) {
+      if (CRITICAL_RE.test(lines[i]!)) criticals.push(lines[i]!)
+    }
+
+    // Emit: first line, [collapsed notice], critical lines, last line
+    result.push(lines[runStart]!)
+    const collapsedCount = runLen - 2 - criticals.length
+    if (collapsedCount > 0) {
+      result.push(`[... ${collapsedCount} similar lines collapsed ...]`)
+    }
+    for (const c of criticals) result.push(c)
+    result.push(lines[endExclusive - 1]!)
+  }
+
+  // Detect runs
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    const prefix = line.slice(0, 10)
+
+    if (i === 0) {
+      runStart = 0
+      runPrefix = prefix
+      continue
+    }
+
+    const prev = lines[i - 1]!
+    const sameStructure =
+      prefix.length >= 5 &&
+      prefix === runPrefix &&
+      Math.abs(line.length - prev.length) < Math.max(line.length, prev.length) * 0.5
+
+    if (!sameStructure) {
+      flushRun(i)
+      runStart = i
+      runPrefix = prefix
+    }
+  }
+
+  flushRun(lines.length)
+
+  const output = result.join("\n")
+  return output.length < text.length ? output : text
+}

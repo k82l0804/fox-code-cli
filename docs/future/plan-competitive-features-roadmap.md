@@ -1,7 +1,7 @@
 # 🦊 Fox Code CLI — Competitive SWE Agent Audit & Architectural Feature Roadmap
 
-> **Document Version:** 1.3.0  
-> **Status:** Strategic Architectural Plan  
+> **Document Version:** 1.4.0  
+> **Status:** Strategic Architectural Plan — Comprehensive Reconciliation of All Deferred Items  
 > **Target Package:** `fox-code-cli` (`@fox/cli`)  
 > **Target Audience:** Core Contributors, Systems Engineers, SWE Agent Researchers  
 > **Reference Specification:** [`../../docs/competitive-analysis.md`](../../docs/competitive-analysis.md)
@@ -148,6 +148,18 @@ Evaluation legend:
 
 ### Blueprint 1: Scalable Tool-First AST Indexing (`@foxcode/indexing`)
 
+> ✅ **PHASE 1 COMPLETED** — SQLite-backed SHA1 file-keyed Tree-sitter symbol indexing landed in `packages/fox-indexing/src/ast/` (Session [`8d3ee5e0`](../../.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md)):
+> - `schema.ts`: SQLite schema (symbol_files + symbols tables) using bun:sqlite
+> - `grammars.ts`: Lazy WASM grammar loading for 36 languages via tree-sitter-wasms
+> - `extractor.ts`: Language-specific symbol extraction (TS/JS, Python, Go, Rust + generic fallback)
+> - `indexer.ts`: Core engine with git blob SHA1 caching, background scan, lookup/repoMap APIs
+> - `src/tool/lookup_symbols.ts`: On-demand symbol lookup tool
+> - `src/tool/fetch_repo_map.ts`: On-demand repository map tool
+> - Enabled by default, no config gate, zero external dependencies
+> - Per-project DBs at `~/.local/state/fox/ast-cache/<project-hash>.db`
+>
+> **Phase 2 deferred**: Embedding-based semantic search, vector store integration, file watcher incremental updates, SHA256 fallback for non-git dirs, cross-project symbol sharing.
+
 #### The Scalability Challenge
 In large monorepos (e.g. 50,000+ files across TypeScript, Rust, and Python), in-memory symbol graphs keyed to git tree hashes face severe memory bloat and cold-start parsing delays.
 
@@ -234,12 +246,13 @@ Fox maintains a private git repository stored under `~/.local/share/fox/snapshot
 
 ### Blueprint 3: Autonomous Verification Loop & Deadlock / Oscillation Defense
 
-> ✅ **PARTIALLY IMPLEMENTED** — Oscillation detection, repair budget tracking, and auto-verification infrastructure landed in [`packages/core/src/oscillation.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/oscillation.ts), [`packages/core/src/repair-budget.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/repair-budget.ts), and [`packages/core/src/verification.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/verification.ts). Integrated into [`src/session/processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts). Configuration via `autonomous.*` in `fox.jsonc`. 56 tests.
+> ✅ **PARTIALLY IMPLEMENTED** — Oscillation detection, repair budget tracking, and auto-verification infrastructure landed in [`packages/core/src/oscillation.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/oscillation.ts), [`packages/core/src/repair-budget.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/repair-budget.ts), and [`packages/core/src/verification.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/verification.ts) (Session [`1c9c41c5`](../../.gemini/antigravity-ide/brain/1c9c41c5-dbdf-4170-9bb8-4e6c07104d24/walkthrough.md)). Integrated into [`src/session/processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts). Configuration via `autonomous.*` in `fox.jsonc`. 56 tests.
 >
-> **Remaining work** (see Blueprints 3a, 3b, 3c below):
+> **Remaining work deferred to future phases** (see Blueprints 3a, 3b, 3c, 3d below):
 > - Auto-verification execution pipeline (actually running detected test commands)
 > - Blast-radius regression detection (before/after test baseline tracking)
 > - Auto-lint execution after mutations
+> - Snapshot.Service ↔ Oscillation integration (stateful rollback on deadlock)
 
 #### The Problem with Competitors
 Autonomous agents frequently fall into three disastrous failure modes:
@@ -281,7 +294,7 @@ Autonomous agents frequently fall into three disastrous failure modes:
 
 ### Blueprint 3a: Auto-Verification Execution Pipeline
 
-> 🔮 **PLANNED** — Depends on Blueprint 3 (implemented). The detection and formatting infrastructure (`detectBestCommand`, `formatVerificationFeedback`) is in place; this blueprint adds the actual command execution.
+> 🔮 **PLANNED** — Captures deferred capability from the Autonomous Verification Layer ([`1c9c41c5`](../../.gemini/antigravity-ide/brain/1c9c41c5-dbdf-4170-9bb8-4e6c07104d24/walkthrough.md)). The detection and formatting infrastructure (`detectBestCommand`, `formatVerificationFeedback`) is in place; this blueprint adds the actual command execution.
 
 #### What It Does
 After a mutation tool (`edit`, `apply_patch`, `write`) completes successfully in autonomous mode, Fox automatically:
@@ -334,6 +347,22 @@ After mutation tools complete, optionally runs the project's linter (ESLint, Bio
 
 ---
 
+### Blueprint 3d: Snapshot.Service ↔ Oscillation Integration
+
+> 🔮 **PLANNED** — Depends on Blueprint 3 (implemented). Complements oscillation detection with git-level rollback capabilities.
+
+#### What It Does
+Today, oscillation detection uses content hashes and `Snapshot.Service` uses shadow git checkpoints — they are complementary systems operating independently. This blueprint integrates them so that:
+
+1. **Snapshot-Aware Rollback**: When oscillation is detected, the agent can offer to roll back to the last known-good snapshot state (not just warn)
+2. **Hash Verification**: Use `Snapshot.Service` pre-image data to verify oscillation hashes against actual file state, eliminating hash-proxy inaccuracies
+3. **Session-Level Undo on Budget Exhaustion**: When repair budget is exhausted, automatically create a named checkpoint and offer `/undo` to the user
+
+#### Why It Was Deferred
+Oscillation detection is intentionally pure and stateless (content hashes only). Adding snapshot integration introduces a dependency on the git snapshot infrastructure, which requires careful layering to avoid coupling the core detection module to the session layer.
+
+---
+
 ### Blueprint 4: Multi-Model Routing Policy Engine
 
 #### The Escalation & Downgrade State Machine
@@ -381,6 +410,24 @@ Fox implements a deterministic model router to balance cost, latency, and reason
 
 ---
 
+### Blueprint 4b: Dynamic Model Context Discovery (`/v1/models`)
+
+> 🔮 **PLANNED** — Discovered and deferred during Fox prompt optimization ([`3f85032c`](../../.gemini/antigravity-ide/brain/3f85032c-52a2-4e10-83fd-e82182859e3d/walkthrough.md)). Resolves hardcoded context window limits for local models.
+
+#### What It Does
+In modern local LLM serving environments (LiteLLM proxy, Ollama, vLLM, LM Studio, Hugging Face TGI), the server's `/v1/models` endpoint exposes runtime metadata, including context window capacity (`max_model_len`, `context_window`, or `max_tokens`). 
+
+Currently, Fox relies on static configuration or default assumptions (e.g. 128K). Blueprint 4b adds asynchronous context window querying during provider initialization:
+1. **Asynchronous Endpoint Discovery**: On first provider connect or background warmup, query `GET /v1/models` to introspect the active model's true token capacity.
+2. **Dynamic Compaction Thresholding**: Automatically calibrate `compaction.reserved` and token overflow limits (`FoxSessionOverflow.limit`) based on the detected context window rather than fixed magic numbers.
+3. **Adaptive Repair Budget**: Scale the autonomous verification repair budget (`max_repair_turns`) to match model context capacity — larger contexts allow deeper self-healing traces before forced compaction.
+4. **Graceful Fallback**: If `/v1/models` does not provide context metadata or fails to respond within 2,000ms, fall back immediately to the user's configured `max_tokens` or the safe default (128K) with zero disruption.
+
+#### Why It Was Deferred
+Originally deferred because provider initialization in the legacy architecture was synchronous, making an async HTTP fetch invasive without refactoring provider lifecycle layers. With Effect-native service lifecycles in place, this can now be cleanly implemented as an Effect service dependency.
+
+---
+
 ### Blueprint 5: Repo-Level Intent Detection (Zero-Prefix Bloat)
 
 #### The Problem with Cursor & Windsurf
@@ -399,14 +446,34 @@ Instead of streaming continuous editor state into the prompt prefix:
 
 ### Blueprint 6: Multi-File Patch Ranking & Conflict Detection
 
-> ✅ **IMPLEMENTED** — Transactional patch engine with in-memory journaling and 4-tier confidence scoring landed in [`packages/core/src/transaction.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/transaction.ts) and [`packages/core/src/transaction-confidence.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/transaction-confidence.ts). Both `apply_patch` and `edit` tools use the transactional `FileMutation` API. 28 tests.
+> ✅ **IMPLEMENTED (Phase 1)** — Transactional patch engine with in-memory journaling and 4-tier syntactic confidence scoring landed in [`packages/core/src/transaction.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/transaction.ts) and [`packages/core/src/transaction-confidence.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/transaction-confidence.ts). Both `apply_patch` and `edit` tools use the transactional `FileMutation` API. 28 tests.
 
 #### Building on the Existing Patch Engine
 Fox's [`apply-patch.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/tool/apply-patch.ts) now implements a **transactional prepare-then-apply** pipeline with all-or-nothing atomicity:
 1. **Dry-Run Validation**: All patch hunks across all files are validated against in-memory buffers before any disk writes occur.
-2. **4-Tier Confidence Scoring**: Each hunk reports match quality — Exact (1.0), Normalized (0.95), Sliding Context (0.85), Context Trim (0.75) — so the agent gets precise feedback on match quality.
-3. **In-Memory Pre-Image Journal**: Pre-mutation file contents captured as `Uint8Array` byte buffers. On failure, immediate zero-disk-dependency rollback restores all modified files.
+2. **4-Tier Syntactic Confidence Scoring**: Each hunk reports match quality — Exact (1.0), Normalized (0.95), Sliding Context (0.85), Context Trim (0.75) — so the agent gets precise feedback on match quality.
+3. **In-Memory Pre-Image Journal**: Pre-mutation file contents captured as `Uint8Array` byte buffers. On failure, immediate zero-disk-dependency rollback restores all modified files. (Git snapshots are retained exclusively for session-level `/undo` and crash recovery).
 4. **All-or-Nothing Transaction**: If any hunk fails dry-run validation, **zero files are touched**, and a precise line-level mismatch is returned to the agent.
+5. **Unified Mutation Semantics**: The single-file `edit` tool participates in the identical `FileMutation.Transaction` API for shared rollback and scoring semantics.
+
+---
+
+### Blueprint 6a: Semantic & LSP Diagnostic Confidence Scoring
+
+> 🔮 **PLANNED (Phase 2)** — Captures deferred capability from the Transactional Patch Engine Architectural Review. Extends syntactic confidence scoring to semantic compiler/language server feedback once the transactional core is stable.
+
+#### Why LSP Was Deferred in Phase 1
+During the architectural review, integrating language server diagnostics directly into Phase 1 patch confidence scoring was intentionally rejected to avoid premature complexity:
+- Language server diagnostics can be noisy and vary widely across language ecosystems.
+- Running heavy semantic checks on every patch hunk slows down the sub-millisecond patch pipeline.
+- Diagnostics can fluctuate between turns, risking false negative patch rejections.
+
+#### Phase 2 Architectural Plan: Post-Edit Diagnostics Delta
+In Phase 2, semantic confidence is integrated into the **Autonomous Verification Layer** (Blueprint 3):
+1. **Pre/Post Diagnostics Delta**: Capture baseline compiler diagnostics prior to transaction commit; evaluate diagnostics immediately post-apply.
+2. **"Did this edit introduce new errors?" Gate**: If an edit resolves existing errors without introducing new ones, confidence is boosted; if new type/lint errors are created, a `SEMANTIC REGRESSION` signal is returned.
+3. **Type-Checking Confidence**: For strongly typed projects (TypeScript `tsc`, Rust `cargo check`, Go `go vet`), incorporate compiler exit codes into transaction verification.
+4. **Agent Repair Templates (Breaking Change Mitigation)**: With transactional patch failures returning *"Patch failed; no changes applied"* (rather than legacy *"Patch partially applied"*), update agent prompt templates and error-recovery heuristics so models understand no partial edits were committed and can attempt a full clean retry.
 
 ---
 
@@ -445,6 +512,11 @@ When Fox acts as an ACP server to VS Code ([`fox-acp-client`](file:///home/k82l0
 - **Priority Channel Separation**: Text edit events use high-priority channels; background telemetry or symbol lookups use low-priority background queues.
 - **No Event Loop Blocking**: Heavy AST scans run in worker threads, ensuring the ACP JSON-RPC channel responds in <1ms.
 
+#### Fox ACP Client Post-V1 Enhancements
+Deferred items from the Fox ACP Client implementation roadmap ([`b54439fa`](../../.gemini/antigravity-ide/brain/b54439fa-058d-4b70-b231-09371dabdbef/walkthrough.md) and [`8ce19d09`](../../.gemini/antigravity-ide/brain/8ce19d09-ce8d-411e-9d27-74ba0471e56b/walkthrough.md)):
+- **Multi-Root Workspace Support**: Resolve `${workspaceFolder}` across heterogeneous multi-root VSCode workspaces.
+- **In-Chat Webview Diff Cards**: Rich side-by-side diff review cards rendered directly inside the chat webview as an alternative to quickpick staging.
+
 ---
 
 ### Blueprint 10: Local Process Sandboxing (`@foxcode/sandbox`)
@@ -460,6 +532,65 @@ Instead of heavy virtualization, Fox leverages native OS-level lightweight isola
 - **Linux**: Namespaces & Bubblewrap (`bwrap`) restricting write access exclusively to the target workspace.
 - **macOS**: `sandbox-exec` with Seatbelt profile policies.
 - **Overhead**: **<1 millisecond** initialization; 0 MB additional disk storage.
+
+---
+
+### Blueprint 11: High-Velocity Turn Orchestration & Tool Resolution Caching
+
+> 🔮 **PLANNED** — Captures deferred optimization items from the Post-Review Action Plan ([`bf001c70`](../../.gemini/antigravity-ide/brain/bf001c70-5d32-431c-ad34-0c413df508fb/walkthrough.md)) and Prompt Engine Optimization ([`3f85032c`](../../.gemini/antigravity-ide/brain/3f85032c-52a2-4e10-83fd-e82182859e3d/walkthrough.md)).
+
+#### 1. Static Tool Resolution Caching
+- **The Bottleneck**: Currently, `SessionPrompt.resolveTools` re-evaluates tool registries, file paths, and schema wrappers on every single turn loop step because tool closures capture per-step processor handles ([`tools.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/tool/tools.ts)). On large projects with many MCP tools, this burns 10–50ms per step.
+- **The Solution**: Structurally decouple static tool definition and JSON Schema construction from the dynamic per-turn execution context. Cache tool definitions once per session/agent instance; inject step-scoped handles (`ProcessorID`, `TurnID`, permission brokers) solely at tool execution dispatch time.
+
+#### 2. Incremental / Paginated Message Loading
+- **The Bottleneck**: Long-running autonomous sessions (30–100+ turns) currently load and deserialize the entire historical `MessageV2` sequence from SQLite/KV into memory on every turn.
+- **The Solution**: Implement a sliding-window active message cache. The prompt engine only holds recent turns (e.g. last 10 turns + system prompt) in memory. Historical turns are streamed from SQLite only when compaction summarization or user history search is explicitly triggered.
+
+#### 3. Redundant Serialization Bypass
+- **The Bottleneck**: Large tool payloads pass through repeated `JSON.stringify` calls for safety limits and doom-loop detection.
+- **The Solution**: Maintain incremental byte counters during streaming ingestion, replacing expensive full-string serialization passes with streaming length bounds.
+
+---
+
+### Blueprint 12: Dynamic Workload Classification & Local Model Compatibility Matrix
+
+> 🔮 **PLANNED** — Captures deferred items from Lossless Token Compression Phase 2 ([`3a6c6255`](../../.gemini/antigravity-ide/brain/3a6c6255-5938-4142-8218-72febfc90551/walkthrough.md) and [`8710aa9b`](../../.gemini/antigravity-ide/brain/8710aa9b-25c1-4dc4-960d-32c51e0afc4c/walkthrough.md)).
+
+#### 1. Deterministic Heuristic Workload Classifier
+- **The Opportunity**: Fox currently ships 5 hardened workflow compression policies (`swe`, `data`, `research`, `shell`, `none`) with an alias `auto` that defaults statically to `swe`.
+- **The Solution**: Upgrade `auto` to use a deterministic, zero-latency (<1ms) heuristic classifier:
+  - **Code / SWE**: Triggers on file extensions (`.ts`, `.py`, `.rs`, `.go`, `.c`, `.cpp`), tool calls (`edit`, `apply_patch`, `read`), or diff hunks. Activates full LLTC stack (Git rewrites, diff trimming, lockfile collapsing, test filtering).
+  - **Data Analysis**: Triggers on tabular data files (`.csv`, `.tsv`, `.parquet`), SQL queries, or large JSON payloads. Activates columnar encoding and JSON key compaction while preserving full logs.
+  - **Research / Docs**: Triggers on markdown specs (`.md`), documentation, or long prose. Preserves raw formatting while optimizing prompt tokens.
+  - **DevOps / Shell**: Triggers on terminal/PTY workflows, Docker, or Kubernetes configs. Retains full unfiltered logs.
+- **Anti-Pattern Guard**: No runtime ML models or external LLM calls for classification — pure regex and workspace path heuristics only.
+
+#### 2. Local Open-Weights Model Family Profiles & Compatibility Matrix
+- **The Opportunity**: Different open-weights models respond differently to prompt compaction and tool signatures:
+  - **Qwen 2.5 / 2.5-Coder**: Thrives on compact signatures and parallel tool calling; benefits from concise Chinese/English bilingual prompts.
+  - **DeepSeek R1 / V3**: Emits `<think>...</think>` reasoning tokens; requires specialized streaming handlers that preserve reasoning blocks without counting them against tool output compression budgets.
+  - **Llama 3.1 / 3.3**: Requires explicit tool schemas and parameter types; sensitive to over-minified JSON schemas.
+  - **Mistral / Codestral**: Requires precise system instruction formatting and strict indentation preservation.
+- **The Solution**: Curated, pre-tested profiles in `prompts.json` mapped by model ID pattern, with automated tokenizer-aware prompt compaction rules tuned per architecture.
+
+---
+
+### Blueprint 13: Live Telemetry Dashboard & Invariant Regression Gates
+
+> 🔮 **PLANNED** — Captures deferred items from the Fox Standard Test Suite & Scoreboard ([`c2f54bac`](../../.gemini/antigravity-ide/brain/c2f54bac-5c73-4146-a537-f03b268044a1/walkthrough.md)) and Compression Hardening ([`3a6c6255`](../../.gemini/antigravity-ide/brain/3a6c6255-5938-4142-8218-72febfc90551/walkthrough.md)).
+
+#### 1. Interactive TUI Statusline & Compression Dashboard
+- **The Feature**: Surface live, real-time compression and autonomous defense telemetry directly in the interactive TUI footer and status dialog:
+  - Cumulative session tokens saved and percentage reduction (e.g. `LLTC: -62.4% (saved 28.4k tok)`).
+  - Active compression transforms applied on the previous turn (e.g. `[diff -U1] [lockfile collapsed] [test filter]`).
+  - Byte-stable prefix SHA-256 state indicator (`Prefix: 🔒 e3b0c442...`).
+  - Active autonomous defense status: repair budget remaining (`Repair: 2/3 turns`), oscillation warnings, and baseline test status.
+
+#### 2. Continuous Invariant & Compression CI Drift Gate
+- **The Feature**: Integrate the 52-fixture Fox Standard Test Suite into continuous integration:
+  - Gate PRs against the 6 core invariants: Lossless Preservation, Non-Expansion, Prefix Stability, Supersession Correctness, Escape Hatch Fidelity, Overhead ROI.
+  - Fail builds if overall token reduction drops below 50% on SWE-bench Mini tasks or if any golden snapshot drifts without an explicit snapshot update.
 
 ---
 
@@ -531,6 +662,30 @@ All future capabilities are strictly modular, optional, and governed by user con
   "security": {
     "sandbox_backend": "auto",           // "bubblewrap" (Linux) | "seatbelt" (macOS) | "off" | "auto"
     "browser_egress_allowlist": ["localhost", "127.0.0.1"]
+  },
+
+  // Local Model Context Auto-Discovery (NEW — Blueprint 4b)
+  "models": {
+    "auto_context_window": true,         // Query /v1/models on connect to auto-size buffers (default: true)
+    "fallback_context_window": 131072    // Fallback if endpoint does not report capacity
+  },
+
+  // Workflow Heuristic Classification (NEW — Blueprint 12)
+  "workflow": {
+    "default": "auto",                   // "auto" | "swe" | "data" | "research" | "shell" | "none"
+    "classifier": "heuristic"            // "heuristic" (sub-ms keyword/file inspection) | "static"
+  },
+
+  // UI & Live Telemetry Dashboard (NEW — Blueprint 13)
+  "telemetry": {
+    "tui_dashboard": true,               // Show live compression & defense status in TUI footer
+    "ci_regression_threshold": 0.50      // Fail CI if token savings on standard suite drop below 50%
+  },
+
+  // Semantic Confidence & Diagnostics (NEW — Blueprint 6a)
+  "confidence": {
+    "lsp_diagnostics": false,            // Enable semantic LSP diagnostics delta scoring in Phase 2
+    "typecheck_delta": false             // Check if mutation introduced new compiler errors
   }
 
   // Note: memory configuration already exists via @foxcode/memory.
@@ -541,74 +696,187 @@ All future capabilities are strictly modular, optional, and governed by user con
 
 ---
 
+## 📋 Master Deferred Items Traceability Ledger
+
+To ensure no partial implementation or deferred capability is lost between engineering sessions, this ledger establishes 1-to-1 traceability from past sprint walkthroughs to active blueprints, scheduled roadmap phases, and configuration schema targets.
+
+| # | Deferred Item | Originating Walkthrough & Session | Original Deferral Rationale | Assigned Blueprint | Target Phase | Configuration Target | Tracking Status |
+| :-: | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
+| **1** | **Auto-Detect Context Window (`/v1/models`)** | [Fox CLI Prompt Optimization (`3f85032c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/3f85032c-52a2-4e10-83fd-e82182859e3d/walkthrough.md) | Required async endpoint query in legacy synchronous provider initialization. | [**Blueprint 4b**](#blueprint-4b-dynamic-model-context-discovery-v1models) | **Phase 2 (Q1 2027)** | `models.auto_context_window` | 🔮 Planned |
+| **2** | **Static Tool Resolution Caching** | [Fox CLI Prompt Optimization (`3f85032c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/3f85032c-52a2-4e10-83fd-e82182859e3d/walkthrough.md) → [Blueprint 11.1 Implementation (`8d3ee5e0`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md) | Tool closures capture per-step processor handles; resolved by splitting `resolveDefinitions` (cached) + `bindExecutionContext` (per-step). | [**Blueprint 11.1**](#blueprint-11-high-velocity-turn-orchestration--tool-resolution-caching) | **Phase 1 (Q4 2026)** | Internal Runtime Engine | ✅ Completed |
+| **3** | **Incremental / Paginated Message Loading** | [Fox CLI Prompt Optimization (`3f85032c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/3f85032c-52a2-4e10-83fd-e82182859e3d/walkthrough.md) → [Blueprint 11.1 Scope Boundary (`8d3ee5e0`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md) | Requires `MessageV2` streaming / sliding window schema changes for long-turn sessions. Explicitly deferred as separate milestone from Blueprint 11.1. | [**Blueprint 11.2**](#blueprint-11-high-velocity-turn-orchestration--tool-resolution-caching) | **Phase 2 (Q1 2027)** | Internal Session Engine | 🔮 Planned |
+| **4** | **Redundant JSON Serialization Bypass** | [Fox CLI Prompt Optimization (`3f85032c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/3f85032c-52a2-4e10-83fd-e82182859e3d/walkthrough.md) → [Blueprint 11.1 Scope Boundary (`8d3ee5e0`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md) | Existing `JSON.stringify` acts as safety ceiling; replace with incremental streaming counters. Explicitly deferred as separate milestone from Blueprint 11.1. | [**Blueprint 11.3**](#blueprint-11-high-velocity-turn-orchestration--tool-resolution-caching) | **Phase 2 (Q1 2027)** | Internal Session Engine | 🔮 Planned |
+| **5** | **Auto-Verification Execution Pipeline** | [Autonomous Verification Layer (`1c9c41c5`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/1c9c41c5-dbdf-4170-9bb8-4e6c07104d24/walkthrough.md) | Detection infrastructure ready (`detectBestCommand`); live execution requires deeper bash tool integration. | [**Blueprint 3a**](#blueprint-3a-auto-verification-execution-pipeline) | **Phase 2 (Q1 2027)** | `autonomous.auto_verify` | 🔮 Planned |
+| **6** | **Multi-Model Routing / Escalation** | [Autonomous Verification Layer (`1c9c41c5`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/1c9c41c5-dbdf-4170-9bb8-4e6c07104d24/walkthrough.md) | On repair budget exhaustion, automatically switching models requires multi-provider routing layer. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q1 2027)** | `routing.*` | 🔮 Planned |
+| **7** | **Blast-Radius Regression Detection** | [Autonomous Verification Layer (`1c9c41c5`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/1c9c41c5-dbdf-4170-9bb8-4e6c07104d24/walkthrough.md) | Requires baseline test capture before edits to diff against post-edit test failures in unrelated modules. | [**Blueprint 3b**](#blueprint-3b-blast-radius-regression-detection) | **Phase 2 (Q1 2027)** | `autonomous.detect_regressions` | 🔮 Planned |
+| **8** | **Auto-Lint Execution Pipeline** | [Autonomous Verification Layer (`1c9c41c5`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/1c9c41c5-dbdf-4170-9bb8-4e6c07104d24/walkthrough.md) | Separate post-mutation verification step focused specifically on changed-file lint errors. | [**Blueprint 3c**](#blueprint-3c-auto-lint-execution) | **Phase 2 (Q1 2027)** | `autonomous.auto_lint` | 🔮 Planned |
+| **9** | **Snapshot.Service ↔ Oscillation Integration** | [Autonomous Verification Layer (`1c9c41c5`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/1c9c41c5-dbdf-4170-9bb8-4e6c07104d24/walkthrough.md) | Oscillation was kept pure & stateless (hashes only); integrating shadow git snapshots requires session layering. | [**Blueprint 3d**](#blueprint-3d-snapshotservice--oscillation-integration) | **Phase 2 (Q1 2027)** | Internal Session Engine | 🔮 Planned |
+| **10** | **ACP Multi-Root Workspace Support** | [Fox ACP Client (`b54439fa`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/b54439fa-058d-4b70-b231-09371dabdbef/walkthrough.md) | Requires multi-root `${workspaceFolder}` resolution in VSCode extension. | [**Blueprint 9**](#blueprint-9-editor-latency--debounced-acp-streaming) | **Phase 3 (Q2 2027)** | VSCode Extension | 🔮 Planned |
+| **11** | **In-Chat Webview Diff Review Cards** | [Fox ACP Client (`8ce19d09`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8ce19d09-ce8d-411e-9d27-74ba0471e56b/walkthrough.md) | Side-by-side diff review cards in chat UI as alternative to quickpick staging. | [**Blueprint 9**](#blueprint-9-editor-latency--debounced-acp-streaming) | **Phase 3 (Q2 2027)** | VSCode Extension | 🔮 Planned |
+| **12** | **Mini-TUI Package Decoupling (`@foxcode/mini-tui`)** | [Codebase Review & Cleanup (`bf001c70`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/bf001c70-5d32-431c-ad34-0c413df508fb/walkthrough.md) | 14,500-line `src/cli/cmd/run/` monolith requires dedicated decoupling milestone (WS2.2). | [**Blueprint 11**](#blueprint-11-high-velocity-turn-orchestration--tool-resolution-caching) | **Phase 3 (Q2 2027)** | Internal Package | 🔮 Planned |
+| **13** | **Semantic & LSP Diagnostic Confidence Scoring** | [Patch Engine Review (Rollback & Confidence Scoring)](file:///Untitled-1) | LSP diagnostics are noisy and premature before transactional core is proven; deferred to Phase 2 autonomous verification. | [**Blueprint 6a**](#blueprint-6a-semantic--lsp-diagnostic-confidence-scoring) | **Phase 2 (Q1 2027)** | `confidence.lsp_diagnostics` | 🔮 Planned |
+| **14** | **All-or-Nothing Patch Repair Prompt Templates** | [Patch Engine Review (Tool Contract Breaking Change)](file:///Untitled-1) → [Blueprint 6a Implementation (`8d3ee5e0`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md) | Updated `apply_patch.txt`, `edit.txt`, `default.txt` system prompt, and error messages to instruct models that failures are transactional (all-or-nothing) and recovery requires fresh re-read. | [**Blueprint 6a**](#blueprint-6a-semantic--lsp-diagnostic-confidence-scoring) | **Phase 1 (Q4 2026)** | Internal Prompts | ✅ Completed |
+| **15** | **MCP Tool Staleness Per-Step Check** | [Blueprint 11.1 Implementation (`8d3ee5e0`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md) | MCP servers can add/remove tools mid-session; inline `mcp.tools()` check caused Effect R-channel leak. Needs MCP.Service version counter or Effect type workaround. `checkMcpStaleness` utility already implemented but not wired into loop. | [**Blueprint 11.1**](#blueprint-11-high-velocity-turn-orchestration--tool-resolution-caching) | **Phase 2 (Q1 2027)** | Internal Runtime Engine | 🔮 Planned |
+
+---
+# USER COMMENT/REVIEW: Priorities for the above list
+My Overall Assessment
+Top Priority (Core Autonomous Engine)
+These directly affect reliability and correctness:
+
+5 — Auto-Verification Pipeline
+
+6 — Multi-Model Routing
+
+7 — Blast-Radius Regression Detection
+
+9 — Snapshot/Oscillation Integration
+
+14 — All-or-Nothing Patch Prompt Updates
+
+These are the backbone of a real autonomous SWE agent.
+
+Medium Priority (Performance / UX / Architecture)
+2 — Tool Resolution Caching
+
+3 — Paginated Message Loading
+
+4 — JSON Serialization Bypass
+
+8 — Auto-Lint Pipeline
+
+12 — Mini-TUI Decoupling
+
+13 — LSP Confidence Scoring
+
+These improve speed, stability, and developer experience.
+
+Lower Priority (UI / Extension / Convenience)
+10 — Multi-Root Workspace Support
+
+11 — Webview Diff Cards
+
+Nice-to-haves, not essential for autonomous capability.
+
+---
+
 ## 🗺️ Phased Implementation Roadmap
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        FOX CLI IMPLEMENTATION ROADMAP                                  │
 ├─────────────────────────┬─────────────────────────┬────────────────────────────────────┤
-│ ✅ COMPLETED             │ Phase 2: Autonomous SWE │ Phase 3: Advanced Sandboxing       │
-│ (Delivered)              │ Q1 2027                 │ Q2 2027                            │
+│ ✅ COMPLETED             │ Phase 2A: Autonomy Core │ Phase 2B: Refinement              │
+│ (Delivered)              │ Q1 2027                 │ Q1–Q2 2027                        │
 ├─────────────────────────┼─────────────────────────┼────────────────────────────────────┤
-│ ✅ Transactional Patch   │ • Auto-Verification     │ • OS-Level Lightweight Sandbox     │
-│   Engine (Blueprint 6)  │   Execution Pipeline    │   (Bubblewrap / Seatbelt)          │
-│ ✅ Oscillation Detection │   (Blueprint 3a)        │ • MCP Sidecar Security Sandbox     │
-│   (Blueprint 3)         │ • Blast-Radius          │   (Egress allowlist, quotas)       │
-│ ✅ Repair Budget Tracker │   Regression Detection  │ • Long-Horizon Project Memory      │
-│   (Blueprint 3)         │   (Blueprint 3b)        │   (`@foxcode/memory`)              │
-│ ✅ Auto-Verification     │ • Auto-Lint Execution   │ • Cross-Session Checklist State    │
-│   Infrastructure        │   (Blueprint 3c)        │   Machine                          │
-│                         │ • Multi-Model Routing   │                                    │
-│ Phase 1: Near-Term      │   (Blueprint 4)         │                                    │
-│ Q4 2026                 │ • Atomic Task-Completion│                                    │
-│─────────────────────────│   Commits               │                                    │
-│ • Incremental AST Index │ • Repo-Level Intent     │                                    │
-│   (SQLite + SHA256)     │   Detection             │                                    │
-│ • ACP Metadata          │ • Turn-Supersession     │                                    │
-│   Debounce & Batching   │   Context Pruning       │                                    │
-│ • Named Shadow          │                         │                                    │
-│   Checkpoints & /undo   │                         │                                    │
-│ • Tool-First AST Tools  │                         │                                    │
+│ ✅ Transactional Patch   │ • Auto-Verification     │ • Auto-Lint Execution (3c)        │
+│   Engine (Blueprint 6)  │   Execution (3a)        │ • Snapshot ↔ Oscillation (3d)     │
+│ ✅ Oscillation Detection │ • Multi-Model Routing   │ • Paginated Message Loading       │
+│   (Blueprint 3)         │   Policy Engine (4)     │   (Blueprint 11.2)                │
+│ ✅ Repair Budget Tracker │ • Turn-Supersession     │ • JSON Serialization Bypass       │
+│   (Blueprint 3)         │   Context Pruning       │   (Blueprint 11.3)                │
+│ ✅ Auto-Verification     │ • Atomic Task-Completion│ • Semantic & LSP Diagnostic       │
+│   Infrastructure        │   Commits               │   Confidence Scoring (6a)         │
+│ ✅ Incremental AST Index │ • Blast-Radius          │ • Repo-Level Intent Detection     │
+│   (Blueprint 1 Phase 1) │   Regression (3b)       │ • Heuristic Workload              │
+│ ✅ Static Tool Closure   │ • Dynamic Context       │   Classification (BP 12)          │
+│   Resolution (BP 11.1)  │   Window Discovery (4b) │ • TUI Live Telemetry              │
+│ ✅ All-or-Nothing Repair │                         │   Dashboard (BP 13)               │
+│   Prompts (BP 6a)       │─────────────────────────│                                    │
+│                         │ Phase 3: Architecture   │────────────────────────────────────│
+│ Phase 1: Remaining      │ Q2 2027                 │                                    │
+│ Q4 2026                 │─────────────────────────│                                    │
+│─────────────────────────│ • OS-Level Sandbox      │                                    │
+│ • ACP Metadata          │   (BP 10)               │                                    │
+│   Debounce & Batching   │ • MCP Sidecar Security  │                                    │
+│ • Named Shadow          │   (BP 8)                │                                    │
+│   Checkpoints & /undo   │ • Long-Horizon Project  │                                    │
+│ • Local Model Profiles  │   Memory (BP 7)         │                                    │
+│   & Prompts Matrix      │ • Mini-TUI Decoupling   │                                    │
+│ • CI Invariant &        │ • ACP Multi-Root &      │                                    │
+│   Compression Gate      │   Diff Cards            │                                    │
+│                         │ • Cross-Session          │                                    │
+│                         │   Checklist State        │                                    │
 └─────────────────────────┴─────────────────────────┴────────────────────────────────────┘
 ```
 
+> 📋 **Canonical autonomous workflow reference**: See [`docs/future/autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md) for the gold-standard 10-step autonomous SWE loop that Fox is targeting.
+> Phase 2A maps directly to Steps 4–8 of that workflow, completing the autonomous closed loop.
+
 ### Phase 1: Near-Term (Q4 2026 — Core Foundations & Precision)
 1. ~~**Patch Confidence Scoring & Conflict Detection**~~ → ✅ **COMPLETED** (Blueprint 6: Transactional Patch Engine with in-memory journal, 4-tier confidence scoring, 28 tests)
-2. **Incremental AST Caching in `@foxcode/indexing`**:
-   - Persist symbol index in SQLite keyed by file-level SHA256.
-   - Bundle `web-tree-sitter` WASM grammars for TypeScript, Python, Go, Rust, C++.
-   - Expose `lookup_symbols` and `fetch_repo_map` as on-demand tools with 0 prefix bloat.
+2. ~~**Incremental AST Caching in `@foxcode/indexing`**~~ → ✅ **COMPLETED** (Blueprint 1 Phase 1: SQLite-backed SHA1 file-keyed Tree-sitter indexing, `lookup_symbols` + `fetch_repo_map` tools, 36 WASM grammars, enabled by default)
 3. **Editor Latency Optimization**:
    - Add 150ms debounce and priority channels to [`fox-acp-client`](file:///home/k82l0804/workarea/fox/fox-acp-client/).
 4. **Enhanced Shadow Snapshots & Named Revert**:
    - Surface `/undo` and `/diff` commands in TUI referencing internal shadow git states.
+5. ~~**Static Tool Closure Resolution Caching**~~ → ✅ **COMPLETED** (Blueprint 11.1: Decoupled `resolveDefinitions` from `bindExecutionContext` in `tools.ts`, enabling static definition caching across turns)
+6. **Local Open-Weights Model Family Profiles & Prompts Matrix** (Blueprint 12):
+   - Curate and test profiles in `prompts.json` for Qwen 2.5, DeepSeek R1/V3, Llama 3, Codestral.
+7. **Continuous Invariant & Compression CI Drift Gate** (Blueprint 13):
+   - Gate CI on `bun run test:standard-suite` with strict non-expansion and prefix stability checks.
 
-### Phase 2: Autonomous SWE Execution (Q1 2027 — Self-Healing & Routing)
+### Phase 2A: Autonomous Core (Q1 2027 — Closing the Autonomous Loop)
+
+> Maps to Steps 4–8 of [`autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/autonomous-agent-workflow.md). Completing these 6 items enables the full `edit → verify → detect → route → prune → commit` closed loop.
+
 1. ~~**Autonomous Verification & Loop Defense**~~ → ✅ **PARTIALLY COMPLETED** (Blueprint 3: Oscillation detection, repair budget, verification infrastructure)
-2. **Auto-Verification Execution Pipeline** (Blueprint 3a):
+2. **Auto-Verification Execution Pipeline** (Blueprint 3a) — *Workflow Step 4*:
    - Execute detected test commands automatically after mutations in autonomous mode.
    - Compress output through LLTC `filterTestOutput` pipeline.
-3. **Blast-Radius Regression Detection** (Blueprint 3b):
+   - This is the **single highest-priority item** — everything downstream depends on it.
+3. **Multi-Model Routing Policy Engine** (Blueprint 4) — *Workflow Step 6*:
+   - Implement fast coder default with automated escalation to high-reasoning models after 2 consecutive failed turns.
+   - > ⚠️ **Risk**: Ping-pong escalation, over-escalation on noisy failures, misclassification of architectural tasks. Bound cost to max 2 wasted turns.
+4. **Turn-Supersession Context Pruning** — *Workflow Step 7*:
+   - Productionize `FOX_EXPERIMENTAL_COMPRESS_SUPERSEDE` for render-time turn-supersession.
+   - Prune stale file reads and obsolete git status from earlier turns in LLM context.
+   - Critical for multi-turn autonomous sessions (10+ turns fill context without this).
+5. **Atomic Task-Completion Commits** — *Workflow Step 8*:
+   - On verified test pass, present interactive commit dialog with conventional commit draft.
+   - Closes the autonomous loop: `verify → present → commit`.
+6. **Blast-Radius Regression Detection** (Blueprint 3b) — *Workflow Step 5 refinement*:
    - Capture test baseline snapshots; diff against post-mutation results.
    - Inject regression alerts for unrelated module breakage.
-4. **Auto-Lint Execution** (Blueprint 3c):
-   - Optionally run project linters after mutations; filter to changed-file errors only.
-5. **Multi-Model Routing Policy Engine** (Blueprint 4):
-   - Implement fast coder default with automated escalation to high-reasoning models after 2 consecutive failed turns.
-6. **Atomic Task-Completion Commits**:
-   - On verified test pass, present interactive commit dialog with conventional commit draft.
-7. **Repo-Level Intent Detection**:
-   - Track `last_edited_file`, `last_touched_symbol`, and `last_failing_command` at the user turn tail.
-8. **Turn-Supersession Context Pruning**:
-   - Apply render-time turn-supersession to prune stale file reads and obsolete git status from earlier turns in LLM context.
+   - > ⚠️ **Risk**: Baseline invalidation rules, flaky test handling, nondeterministic output. Requires explicit refresh policies.
+7. **Dynamic Model Context Window Discovery** (Blueprint 4b) — *Dependency of #3*:
+   - Query `/v1/models` asynchronously on provider connect to auto-size compaction thresholds and repair budgets.
 
-### Phase 3: Advanced Sandboxing & Memory (Q2 2027 — Isolation & Longevity)
-1. **Zero-Overhead OS Sandboxing**:
+### Phase 2B: Refinement & Performance (Q1–Q2 2027 — Making Autonomy Better)
+
+> These items improve speed, quality, and UX but do not block the autonomous loop.
+
+1. **Auto-Lint Execution** (Blueprint 3c):
+   - Optionally run project linters after mutations; filter to changed-file errors only.
+2. **Snapshot.Service ↔ Oscillation Integration** (Blueprint 3d):
+   - Integrate shadow git snapshots with oscillation detection for snapshot-aware rollback on deadlock and auto-checkpoint on budget exhaustion.
+   - > ⚠️ **Risk**: Must avoid coupling snapshot logic into the core loop. Oscillation detector is intentionally pure and stateless.
+3. **Incremental / Paginated Message Loading** (Blueprint 11.2):
+   - Load only recent sliding turn window into active memory; stream historical turns on-demand during compaction.
+4. **JSON Serialization Bypass** (Blueprint 11.3):
+   - Eliminate redundant JSON serialization roundtrips in the message pipeline for large contexts.
+5. **Semantic & LSP Diagnostic Confidence Scoring** (Blueprint 6a):
+   - Pre/post diagnostics delta scoring, type-checking confidence, and error-introduction gating.
+6. **Repo-Level Intent Detection**:
+   - Track `last_edited_file`, `last_touched_symbol`, and `last_failing_command` at the user turn tail.
+7. **Deterministic Heuristic Workload Classification** (Blueprint 12):
+   - Upgrade `auto` workflow to dynamically detect `swe`, `data`, `research`, or `shell` workloads based on file extensions and prompt signals.
+8. **Interactive TUI Statusline & Compression Dashboard** (Blueprint 13):
+   - Render real-time token savings %, active compression transforms, prefix SHA256, and repair budget turns remaining.
+
+### Phase 3: Advanced Sandboxing & Architecture (Q2 2027 — Isolation & Longevity)
+1. **Zero-Overhead OS Sandboxing** (Blueprint 10):
    - Implement Bubblewrap and Seatbelt containment in [`packages/sandbox`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/sandbox/) to run untrusted code without Docker.
-2. **MCP Sidecar Security Sandbox**:
+2. **MCP Sidecar Security Sandbox** (Blueprint 8):
    - Add network egress allowlists and ephemeral profiles for headless browser automation.
-3. **Long-Horizon Project Memory**:
+3. **Long-Horizon Project Memory** (Blueprint 7):
    - Integrate [`packages/fox-memory`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/fox-memory/) for persistent architectural decisions and style guidelines.
+4. **Mini-TUI Package Decoupling (`@foxcode/mini-tui`)**:
+   - Decouple `src/cli/cmd/run/` (14,500 lines) into a standalone internal package with cleanly isolated state, transport, and UI footer components (WS2.2).
+5. **Fox ACP Client Multi-Root Workspaces & In-Chat Webview Diff Cards**:
+   - Multi-root workspace support for VSCode extension (`${workspaceFolder}` resolution) and rich side-by-side diff review cards.
+6. **Cross-Session Checklist State Machine**:
+   - Persist todowrite checklist state across sessions for long-running multi-session projects.
 
 ---
 

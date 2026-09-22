@@ -88,6 +88,14 @@ export const Flag = {
   get FOX_EXPERIMENTAL_COMPRESS_DIFF_CONTEXT() {
     return number("FOX_EXPERIMENTAL_COMPRESS_DIFF_CONTEXT") ?? 1
   },
+  // -- Adaptive Compression (Phase 2.0) --
+  get FOX_EXPERIMENTAL_COMPRESS_ADAPTIVE() {
+    return enabledByExperimental("FOX_EXPERIMENTAL_COMPRESS_ADAPTIVE", "FOX_EXPERIMENTAL_COMPRESS")
+  },
+  get FOX_ADAPTIVE_MAX_LEVEL(): 0 | 1 | 2 | 3 {
+    const v = number("FOX_ADAPTIVE_MAX_LEVEL")
+    return (v != null && v >= 0 && v <= 3 ? v : 3) as 0 | 1 | 2 | 3
+  },
   get FOX_GIT_NO_REWRITE() {
     return truthy("FOX_GIT_NO_REWRITE")
   },

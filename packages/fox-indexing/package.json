@@ -7,7 +7,11 @@
     "./config": "./src/config.ts",
     "./detect": "./src/detect.ts",
     "./status": "./src/status.ts",
-    "./engine": "./src/engine.ts"
+    "./engine": "./src/engine.ts",
+    "./ast/indexer": "./src/ast/indexer.ts",
+    "./ast/schema": "./src/ast/schema.ts",
+    "./ast/grammars": "./src/ast/grammars.ts",
+    "./ast/extractor": "./src/ast/extractor.ts"
   },
   "dependencies": {
     "effect": "catalog:",

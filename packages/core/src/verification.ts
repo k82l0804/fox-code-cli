@@ -1,14 +1,13 @@
 /**
- * Auto-Verification Runner — detects project test commands and formats
- * compressed verification feedback for the Autonomous Verification Layer.
+ * Auto-Verification Runner — detects project test commands, executes them,
+ * and formats compressed verification feedback for the Autonomous Verification
+ * Layer.
  *
  * This module provides:
  * 1. Auto-detection of test/typecheck/lint commands from package.json
- * 2. Verification result formatting with LLTC-compressed output
- *
- * The actual command execution is done by the session processor using the
- * existing bash tool infrastructure. This module handles detection and
- * formatting only.
+ * 2. Safe reading of package.json scripts via `readPackageScripts`
+ * 3. Child process execution with timeout enforcement via `executeVerification`
+ * 4. LLTC-compressed output formatting via `formatVerificationFeedback`
  */
 export * as Verification from "./verification"
 
@@ -191,4 +190,157 @@ export function truncateOutput(
   const truncated = output.slice(lo)
   const header = `[...${bytes - Buffer.byteLength(truncated, "utf8")} bytes truncated...]\n`
   return { output: header + truncated, truncated: true }
+}
+
+// ---------------------------------------------------------------------------
+// Package Scripts Reader
+// ---------------------------------------------------------------------------
+
+/**
+ * Safely read the `scripts` field from a project's `package.json`.
+ *
+ * Returns `undefined` when the file is missing, unreadable, or invalid JSON.
+ * Never throws — all I/O errors are swallowed and logged to the console
+ * at debug level.
+ *
+ * @param dir Absolute path to the project root (directory containing package.json).
+ * @returns The `scripts` object from package.json, or undefined.
+ */
+export async function readPackageScripts(
+  dir: string,
+): Promise<Record<string, string> | undefined> {
+  const { readFile } = await import("fs/promises")
+  const { join } = await import("path")
+  try {
+    const raw = await readFile(join(dir, "package.json"), "utf8")
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === "object" && parsed.scripts && typeof parsed.scripts === "object") {
+      return parsed.scripts as Record<string, string>
+    }
+    return undefined
+  } catch {
+    // Missing file, permission denied, invalid JSON — all non-fatal
+    return undefined
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Verification Execution
+// ---------------------------------------------------------------------------
+
+/** Options for executeVerification. */
+export interface VerificationExecutionOptions {
+  /** Working directory for the command. */
+  readonly cwd: string
+  /** Timeout in milliseconds. Defaults to DEFAULT_VERIFICATION_TIMEOUT_MS. */
+  readonly timeoutMs?: number
+  /** Additional environment variables to merge into the child process env. */
+  readonly env?: Record<string, string | undefined>
+}
+
+/**
+ * Execute a verification command as a child process and return a
+ * structured `VerificationResult`.
+ *
+ * This function:
+ * 1. Spawns the command with `shell: true` and `detached: true` (non-win32)
+ *    so the entire process group can be killed on timeout.
+ * 2. Injects `CI=true`, `GIT_TERMINAL_PROMPT=0`, `PAGER=cat` into the
+ *    child environment to prevent interactive prompts.
+ * 3. Enforces `timeoutMs` (default 30 s) using `killTree` from `./shell`.
+ * 4. Compresses output through `filterTestOutput` (LLTC pipeline).
+ * 5. Truncates to `MAX_VERIFICATION_OUTPUT_BYTES` keeping the tail.
+ *
+ * @param command The shell command to execute (e.g. `npm run test`).
+ * @param options Execution options (cwd, timeout, env).
+ * @returns A VerificationResult with compressed, truncated output.
+ */
+export async function executeVerification(
+  command: string,
+  options: VerificationExecutionOptions,
+): Promise<VerificationResult> {
+  const { spawn } = await import("child_process")
+  const { killTree } = await import("./shell")
+  const { filterTestOutput } = await import("./tool/compress")
+
+  const timeoutMs = options.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS
+  const isWin = process.platform === "win32"
+
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    CI: "true",
+    GIT_TERMINAL_PROMPT: "0",
+    PAGER: "cat",
+    ...options.env,
+  }
+
+  const child = spawn(command, [], {
+    cwd: options.cwd,
+    shell: true,
+    detached: !isWin,
+    stdio: ["ignore", "pipe", "pipe"],
+    env,
+  })
+
+  const startTime = performance.now()
+
+  // Collect combined stdout + stderr
+  const chunks: Buffer[] = []
+  child.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk))
+  child.stderr?.on("data", (chunk: Buffer) => chunks.push(chunk))
+
+  let timedOut = false
+  let exited = false
+
+  const result = await new Promise<{ exitCode: number }>((resolve) => {
+    let resolved = false
+    const settle = (exitCode: number) => {
+      if (resolved) return
+      resolved = true
+      resolve({ exitCode })
+    }
+
+    // Timeout handler
+    const timer = setTimeout(async () => {
+      if (exited) return
+      timedOut = true
+      await killTree(child, { exited: () => exited })
+      settle(124) // 124 = GNU timeout convention
+    }, timeoutMs)
+
+    child.on("exit", (code) => {
+      exited = true
+      clearTimeout(timer)
+      // If killTree triggered this exit, report as timeout (124)
+      settle(timedOut ? 124 : (code ?? 1))
+    })
+
+    child.on("error", () => {
+      exited = true
+      clearTimeout(timer)
+      settle(127) // 127 = command not found convention
+    })
+  })
+
+  const elapsedMs = Math.round(performance.now() - startTime)
+  let rawOutput = Buffer.concat(chunks).toString("utf8")
+
+  if (timedOut) {
+    rawOutput += `\n\n[Verification timed out after ${(timeoutMs / 1000).toFixed(0)}s]`
+  }
+
+  // LLTC compression: collapse consecutive passing test lines
+  const compressed = filterTestOutput(rawOutput)
+
+  // Byte-limit truncation: keep the tail (error summaries)
+  const { output: finalOutput, truncated } = truncateOutput(compressed)
+
+  return {
+    passed: result.exitCode === 0,
+    exitCode: result.exitCode,
+    command,
+    compressedOutput: finalOutput,
+    truncated,
+    elapsedMs,
+  }
 }

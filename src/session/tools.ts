@@ -48,7 +48,197 @@ const SUPPORTED_MCP_RESOURCE_ATTACHMENT_MIMES = new Set([
   "image/webp",
 ])
 
-export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
+// ---------------------------------------------------------------------------
+// Tool Definition Cache — separates static schema/definition construction
+// from per-step execution context binding (Blueprint 11.1)
+// ---------------------------------------------------------------------------
+
+/** Cached static data for a built-in tool */
+interface CachedBuiltinTool {
+  readonly kind: "builtin"
+  readonly id: string
+  readonly description: string
+  readonly inputSchema: ReturnType<typeof jsonSchema>
+  /** Original Tool.Def — needed to dispatch execute */
+  readonly toolDef: Tool.Def
+}
+
+/** Cached static data for an MCP tool */
+interface CachedMcpTool {
+  readonly kind: "mcp"
+  readonly key: string
+  readonly description: string
+  readonly inputSchema: ReturnType<typeof jsonSchema>
+  /** Original MCP entry — needed for sandbox/permission dispatch and metadata */
+  readonly entry: MCP.McpTool
+  /** Original execute function from McpCatalog.convertTool */
+  readonly execute: NonNullable<AITool["execute"]>
+}
+
+/** Cached static data for MCP resource tools (list, listTemplates, read) */
+interface CachedResourceTools {
+  readonly hasMcpResourceServer: boolean
+  readonly listSchema: ReturnType<typeof jsonSchema>
+  readonly listTemplatesSchema: ReturnType<typeof jsonSchema>
+  readonly readSchema: ReturnType<typeof jsonSchema>
+}
+
+/** The full cached set of tool definitions for a given agent+model+provider */
+export interface ToolDefinitionCache {
+  readonly key: string
+  readonly builtins: CachedBuiltinTool[]
+  readonly mcpTools: CachedMcpTool[]
+  readonly resourceTools: CachedResourceTools | undefined
+  /** Sorted MCP tool key set for staleness detection */
+  readonly mcpKeySet: string
+  /** Whether FoxCodeMode is active (skips MCP tools) */
+  readonly codeMode: boolean
+  readonly createdAt: number
+}
+
+// ---------------------------------------------------------------------------
+// resolveDefinitions — expensive, called only on cache miss
+// ---------------------------------------------------------------------------
+
+/** Input subset needed for static definition resolution (no processor handle) */
+interface DefinitionInput {
+  agent: Agent.Info
+  model: Provider.Model
+  session: Session.Info
+  bypassAgentCheck: boolean
+}
+
+export const resolveDefinitions = Effect.fn("SessionTools.resolveDefinitions")(function* (input: DefinitionInput) {
+  const registry = yield* ToolRegistry.Service
+  const mcp = yield* MCP.Service
+  const config = yield* Config.Service
+  const flags = yield* RuntimeFlags.Service
+  const cfg = yield* config.get()
+  const restricted = yield* SandboxPolicy.networkRestricted(input.session.id)
+
+  // --- Built-in tools ---
+  const builtins: CachedBuiltinTool[] = []
+  for (const item of yield* registry.tools({
+    modelID: ModelV2.ID.make(input.model.api.id),
+    providerID: input.model.providerID,
+    family: input.model.family,
+    agent: input.agent,
+    permission: input.session.permission,
+    networkRestricted: restricted,
+  })) {
+    if (!GoalPolicy.available(input.session.id, item.id)) continue
+    const base = ToolJsonSchema.fromTool(item)
+    const schema = ProviderTransform.schema(input.model, base)
+    builtins.push({
+      kind: "builtin",
+      id: item.id,
+      description: item.description,
+      inputSchema: jsonSchema(schema),
+      toolDef: item,
+    })
+  }
+
+  // --- MCP resource tools ---
+  let resourceTools: CachedResourceTools | undefined
+  const hasMcpResourceServer = Object.values(yield* mcp.clients()).some(
+    (client) => !!client.getServerCapabilities()?.resources,
+  )
+  if (!restricted && hasMcpResourceServer) {
+    resourceTools = {
+      hasMcpResourceServer: true,
+      listSchema: jsonSchema(
+        ProviderTransform.schema(input.model, {
+          type: "object",
+          properties: {
+            server: {
+              type: "string",
+              description: "Optional MCP server name. When omitted, lists resources from every connected server.",
+            },
+          },
+          additionalProperties: false,
+        }),
+      ),
+      listTemplatesSchema: jsonSchema(
+        ProviderTransform.schema(input.model, {
+          type: "object",
+          properties: {
+            server: {
+              type: "string",
+              description:
+                "Optional MCP server name. When omitted, lists resource templates from every connected server.",
+            },
+          },
+          additionalProperties: false,
+        }),
+      ),
+      readSchema: jsonSchema(
+        ProviderTransform.schema(input.model, {
+          type: "object",
+          properties: {
+            server: {
+              type: "string",
+              description: "MCP server name exactly as returned by list_mcp_resources.",
+            },
+            uri: {
+              type: "string",
+              description: "Resource URI to read. Use the exact URI string returned by list_mcp_resources.",
+            },
+          },
+          required: ["server", "uri"],
+          additionalProperties: false,
+        }),
+      ),
+    }
+  }
+
+  // --- MCP tools ---
+  const codeMode = FoxCodeMode.wanted(flags, cfg)
+  const mcpTools: CachedMcpTool[] = []
+  let mcpKeySet = ""
+
+  if (!codeMode) {
+    const rawMcpTools = restricted ? {} : yield* mcp.tools()
+    const sortedKeys = Object.keys(rawMcpTools).sort()
+    mcpKeySet = sortedKeys.join("\0")
+
+    for (const [key, entry] of Object.entries(rawMcpTools)) {
+      const item = McpCatalog.convertTool(entry.def, entry.client, entry.timeout)
+      const execute = item.execute
+      if (!execute) continue
+
+      const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
+      const transformed = ProviderTransform.schema(input.model, { ...schema, properties: schema.properties ?? {} })
+
+      mcpTools.push({
+        kind: "mcp",
+        key,
+        description: item.description ?? "",
+        inputSchema: jsonSchema(transformed),
+        entry,
+        execute,
+      })
+    }
+  }
+
+  const cacheKey = `${input.agent.name}:${input.model.id}:${input.model.providerID}`
+
+  return {
+    key: cacheKey,
+    builtins,
+    mcpTools,
+    resourceTools,
+    mcpKeySet,
+    codeMode,
+    createdAt: Date.now(),
+  } satisfies ToolDefinitionCache
+})
+
+// ---------------------------------------------------------------------------
+// bindExecutionContext — cheap, called every step
+// ---------------------------------------------------------------------------
+
+/** Full input needed for per-step execution binding */
+interface BindInput {
   agent: Agent.Info
   model: Provider.Model
   session: Session.Info
@@ -58,14 +248,18 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   promptOps: TaskPromptOps
   memoryCache: MemoryMarker.Cache
   notify?: <T extends Tool.ExecuteResult>(tool: string, output: T, signal?: AbortSignal) => Effect.Effect<T>
-}) {
+}
+
+export const bindExecutionContext = Effect.fn("SessionTools.bindExecutionContext")(function* (
+  cache: ToolDefinitionCache,
+  input: BindInput,
+) {
   const tools: Record<string, AITool> = {}
   const run = yield* EffectBridge.make()
   const plugin = yield* Plugin.Service
   const permission = yield* Permission.Service
   const agents = yield* Agent.Service
   const sessions = yield* Session.Service
-  const registry = yield* ToolRegistry.Service
   const mcp = yield* MCP.Service
   const truncate = yield* Truncate.Service
   const config = yield* Config.Service
@@ -78,6 +272,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   })
     ? input.notify
     : undefined
+
   type Output = Parameters<SessionProcessor.Handle["completeToolCall"]>[1]
   const finish = <T extends Output>(name: string, output: T, opts: ToolExecutionOptions) =>
     Effect.gen(function* () {
@@ -91,6 +286,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
       if (opts.abortSignal?.aborted) yield* input.processor.completeToolCall(opts.toolCallId, result)
       return result
     })
+
   const restricted = yield* SandboxPolicy.networkRestricted(input.session.id)
   const sandboxed = (yield* SandboxPolicy.status(input.session.id)).enabled
   const context = (args: Record<string, unknown>, options: ToolExecutionOptions): Tool.Context => {
@@ -164,24 +360,17 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
         ),
     }
   }
-  for (const item of yield* registry.tools({
-    modelID: ModelV2.ID.make(input.model.api.id),
-    providerID: input.model.providerID,
-    family: input.model.family,
-    agent: input.agent,
-    permission: input.session.permission,
-    networkRestricted: restricted,
-  })) {
-    if (!GoalPolicy.available(input.session.id, item.id)) continue
-    const base = ToolJsonSchema.fromTool(item)
-    const schema = ProviderTransform.schema(input.model, base)
-    tools[item.id] = tool({
-      description: item.description,
-      inputSchema: jsonSchema(schema),
+
+  // --- Bind built-in tools ---
+  for (const cached of cache.builtins) {
+    const item = cached.toolDef
+    tools[cached.id] = tool({
+      description: cached.description,
+      inputSchema: cached.inputSchema,
       execute(args, options) {
         return run.promise(
           Effect.gen(function* () {
-            const ctx = context(args, options)
+            const ctx = context(args as Record<string, unknown>, options)
             yield* plugin.trigger(
               "tool.execute.before",
               { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID },
@@ -212,25 +401,12 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     })
   }
 
-  const hasMcpResourceServer = Object.values(yield* mcp.clients()).some(
-    (client) => !!client.getServerCapabilities()?.resources,
-  )
-  if (!restricted && hasMcpResourceServer) {
+  // --- Bind MCP resource tools (if cached) ---
+  if (cache.resourceTools) {
     tools[MCP_RESOURCE_TOOLS.list] = tool({
       description:
         "Lists resources provided by connected MCP servers. Resources provide context such as files, database schemas, or application-specific information.",
-      inputSchema: jsonSchema(
-        ProviderTransform.schema(input.model, {
-          type: "object",
-          properties: {
-            server: {
-              type: "string",
-              description: "Optional MCP server name. When omitted, lists resources from every connected server.",
-            },
-          },
-          additionalProperties: false,
-        }),
-      ),
+      inputSchema: cache.resourceTools.listSchema,
       execute(args, opts) {
         return run.promise(
           Effect.gen(function* () {
@@ -298,19 +474,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     tools[MCP_RESOURCE_TOOLS.listTemplates] = tool({
       description:
         "Lists resource templates provided by connected MCP servers. Resource templates are parameterized resources that can be read after filling in their URI template.",
-      inputSchema: jsonSchema(
-        ProviderTransform.schema(input.model, {
-          type: "object",
-          properties: {
-            server: {
-              type: "string",
-              description:
-                "Optional MCP server name. When omitted, lists resource templates from every connected server.",
-            },
-          },
-          additionalProperties: false,
-        }),
-      ),
+      inputSchema: cache.resourceTools.listTemplatesSchema,
       execute(args, opts) {
         return run.promise(
           Effect.gen(function* () {
@@ -378,23 +542,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     tools[MCP_RESOURCE_TOOLS.read] = tool({
       description:
         "Read a specific resource from an MCP server using the server name and resource URI. The URI is an MCP identifier and does not need to be a file URL.",
-      inputSchema: jsonSchema(
-        ProviderTransform.schema(input.model, {
-          type: "object",
-          properties: {
-            server: {
-              type: "string",
-              description: "MCP server name exactly as returned by list_mcp_resources.",
-            },
-            uri: {
-              type: "string",
-              description: "Resource URI to read. Use the exact URI string returned by list_mcp_resources.",
-            },
-          },
-          required: ["server", "uri"],
-          additionalProperties: false,
-        }),
-      ),
+      inputSchema: cache.resourceTools.readSchema,
       execute(args, opts) {
         return run.promise(
           Effect.gen(function* () {
@@ -455,118 +603,154 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     })
   }
 
-  if (FoxCodeMode.wanted(flags, cfg)) return tools
-  const mcpTools = restricted ? {} : yield* mcp.tools()
-  for (const [key, entry] of Object.entries(mcpTools)) {
-    const item = McpCatalog.convertTool(entry.def, entry.client, entry.timeout)
-    const execute = item.execute
-    if (!execute) continue
+  // --- Bind MCP tools ---
+  for (const cached of cache.mcpTools) {
+    const mcpExecute = cached.execute
+    const entry = cached.entry
+    const key = cached.key
+    const item: AITool = {
+      description: cached.description,
+      inputSchema: cached.inputSchema,
+      execute: (args: any, opts: ToolExecutionOptions) =>
+        run.promise(
+          Effect.gen(function* () {
+            const ctx = context(args, opts)
+            const mcpAppMeta = McpApps.toolMetadata(entry, flags)
+            if (mcpAppMeta) {
+              yield* input.processor.metadata(opts.toolCallId, { metadata: mcpAppMeta })
+            }
+            yield* plugin.trigger(
+              "tool.execute.before",
+              { tool: key, sessionID: ctx.sessionID, callID: opts.toolCallId },
+              { args },
+            )
+            const result: Awaited<ReturnType<NonNullable<typeof mcpExecute>>> = yield* SandboxPolicy.executeMcp(
+              ctx.sessionID,
+              entry,
+              Effect.gen(function* () {
+                yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })
+                return yield* Effect.promise(() => mcpExecute(args, opts))
+              }),
+            ).pipe(
+              Effect.withSpan("Tool.execute", {
+                attributes: {
+                  "tool.name": key,
+                  "tool.call_id": opts.toolCallId,
+                  "session.id": ctx.sessionID,
+                  "message.id": input.processor.message.id,
+                },
+              }),
+            )
+            yield* plugin.trigger(
+              "tool.execute.after",
+              { tool: key, sessionID: ctx.sessionID, callID: opts.toolCallId, args },
+              result,
+            )
 
-    const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
-    const transformed = ProviderTransform.schema(input.model, { ...schema, properties: schema.properties ?? {} })
-    item.inputSchema = jsonSchema(transformed)
-    item.execute = (args, opts) =>
-      run.promise(
-        Effect.gen(function* () {
-          const ctx = context(args, opts)
-          const mcpAppMeta = McpApps.toolMetadata(entry, flags)
-          if (mcpAppMeta) {
-            yield* input.processor.metadata(opts.toolCallId, { metadata: mcpAppMeta })
-          }
-          yield* plugin.trigger(
-            "tool.execute.before",
-            { tool: key, sessionID: ctx.sessionID, callID: opts.toolCallId },
-            { args },
-          )
-          const result: Awaited<ReturnType<NonNullable<typeof execute>>> = yield* SandboxPolicy.executeMcp(
-            ctx.sessionID,
-            entry,
-            Effect.gen(function* () {
-              yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })
-              return yield* Effect.promise(() => execute(args, opts))
-            }),
-          ).pipe(
-            Effect.withSpan("Tool.execute", {
-              attributes: {
-                "tool.name": key,
-                "tool.call_id": opts.toolCallId,
-                "session.id": ctx.sessionID,
-                "message.id": input.processor.message.id,
-              },
-            }),
-          )
-          yield* plugin.trigger(
-            "tool.execute.after",
-            { tool: key, sessionID: ctx.sessionID, callID: opts.toolCallId, args },
-            result,
-          )
-
-          const textParts: string[] = []
-          const attachments: Omit<SessionV1.FilePart, "id" | "sessionID" | "messageID">[] = []
-          for (const contentItem of result.content) {
-            if (contentItem.type === "text") textParts.push(contentItem.text)
-            else if (contentItem.type === "image") {
-              attachments.push({
-                type: "file",
-                mime: contentItem.mimeType,
-                url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
-              })
-            } else if (contentItem.type === "resource") {
-              const { resource } = contentItem
-              if (resource.text) textParts.push(resource.text)
-              if (resource.blob) {
-                const mime = resource.mimeType ?? "application/octet-stream"
-                const size = base64Size(resource.blob)
-                if (!SUPPORTED_MCP_RESOURCE_ATTACHMENT_MIMES.has(mime)) {
-                  textParts.push(
-                    `[Binary MCP resource omitted: ${resource.uri} (${mime}, ${formatBytes(size)}) is not a supported attachment type]`,
-                  )
-                  continue
-                }
-                if (size > MAX_MCP_RESOURCE_BLOB_BYTES) {
-                  textParts.push(
-                    `[Binary MCP resource omitted: ${resource.uri} (${mime}, ${formatBytes(size)}) exceeds ${formatBytes(MAX_MCP_RESOURCE_BLOB_BYTES)}]`,
-                  )
-                  continue
-                }
+            const textParts: string[] = []
+            const attachments: Omit<SessionV1.FilePart, "id" | "sessionID" | "messageID">[] = []
+            for (const contentItem of result.content) {
+              if (contentItem.type === "text") textParts.push(contentItem.text)
+              else if (contentItem.type === "image") {
                 attachments.push({
                   type: "file",
-                  mime,
-                  url: `data:${mime};base64,${resource.blob}`,
-                  filename: resource.uri,
+                  mime: contentItem.mimeType,
+                  url: `data:${contentItem.mimeType};base64,${contentItem.data}`,
                 })
+              } else if (contentItem.type === "resource") {
+                const { resource } = contentItem
+                if (resource.text) textParts.push(resource.text)
+                if (resource.blob) {
+                  const mime = resource.mimeType ?? "application/octet-stream"
+                  const size = base64Size(resource.blob)
+                  if (!SUPPORTED_MCP_RESOURCE_ATTACHMENT_MIMES.has(mime)) {
+                    textParts.push(
+                      `[Binary MCP resource omitted: ${resource.uri} (${mime}, ${formatBytes(size)}) is not a supported attachment type]`,
+                    )
+                    continue
+                  }
+                  if (size > MAX_MCP_RESOURCE_BLOB_BYTES) {
+                    textParts.push(
+                      `[Binary MCP resource omitted: ${resource.uri} (${mime}, ${formatBytes(size)}) exceeds ${formatBytes(MAX_MCP_RESOURCE_BLOB_BYTES)}]`,
+                    )
+                    continue
+                  }
+                  attachments.push({
+                    type: "file",
+                    mime,
+                    url: `data:${mime};base64,${resource.blob}`,
+                    filename: resource.uri,
+                  })
+                }
               }
             }
-          }
 
-          const truncated = yield* truncate.output(textParts.join("\n\n"), {}, input.agent)
-          const metadata = {
-            ...result.metadata,
-            truncated: truncated.truncated,
-            ...(truncated.truncated && { outputPath: truncated.outputPath }),
-            ...mcpAppMeta,
-          }
+            const truncated = yield* truncate.output(textParts.join("\n\n"), {}, input.agent)
+            const metadata = {
+              ...result.metadata,
+              truncated: truncated.truncated,
+              ...(truncated.truncated && { outputPath: truncated.outputPath }),
+              ...mcpAppMeta,
+            }
 
-          const output = {
-            title: "",
-            metadata,
-            output: truncated.content,
-            attachments: attachments.map((attachment) => ({
-              ...attachment,
-              id: PartID.ascending(),
-              sessionID: ctx.sessionID,
-              messageID: input.processor.message.id,
-            })),
-            content: result.content,
-          }
-          return yield* finish(key, output, opts)
-        }),
-      )
+            const output = {
+              title: "",
+              metadata,
+              output: truncated.content,
+              attachments: attachments.map((attachment) => ({
+                ...attachment,
+                id: PartID.ascending(),
+                sessionID: ctx.sessionID,
+                messageID: input.processor.message.id,
+              })),
+              content: result.content,
+            }
+            return yield* finish(key, output, opts)
+          }),
+        ),
+    }
     tools[key] = item
   }
 
   return tools
 })
+
+// ---------------------------------------------------------------------------
+// resolve — backward-compatible wrapper (calls both phases, no caching)
+// ---------------------------------------------------------------------------
+
+export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
+  agent: Agent.Info
+  model: Provider.Model
+  session: Session.Info
+  processor: Pick<SessionProcessor.Handle, "message" | "metadata" | "completeToolCall">
+  bypassAgentCheck: boolean
+  messages: SessionV1.WithParts[]
+  promptOps: TaskPromptOps
+  memoryCache: MemoryMarker.Cache
+  notify?: <T extends Tool.ExecuteResult>(tool: string, output: T, signal?: AbortSignal) => Effect.Effect<T>
+}) {
+  const cache = yield* resolveDefinitions(input)
+  return yield* bindExecutionContext(cache, input)
+})
+
+// ---------------------------------------------------------------------------
+// MCP staleness check — compares current MCP key set against cached
+// ---------------------------------------------------------------------------
+
+export const checkMcpStaleness = Effect.fn("SessionTools.checkMcpStaleness")(function* (
+  cached: ToolDefinitionCache,
+) {
+  if (cached.codeMode) return false // no MCP tools in code mode
+  const mcp = yield* MCP.Service
+  const rawMcpTools = yield* mcp.tools()
+  const currentKeySet = Object.keys(rawMcpTools).sort().join("\0")
+  return currentKeySet !== cached.mcpKeySet
+})
+
+// ---------------------------------------------------------------------------
+// Utility functions (unchanged)
+// ---------------------------------------------------------------------------
 
 function toRecord(value: unknown) {
   if (isRecord(value)) return value
