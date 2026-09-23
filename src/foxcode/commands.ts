@@ -17,6 +17,7 @@ import { ImportCommand } from "../cli/cmd/import"
 import { PrCommand } from "../cli/cmd/pr"
 import { SessionCommand } from "../cli/cmd/session"
 import { DbCommand } from "../cli/cmd/db"
+import { CheckpointCommand } from "../cli/cmd/checkpoint"
 import { ConfigCommand as ConfigCLICommand } from "../cli/cmd/config"
 import { PluginCommand } from "../cli/cmd/plug"
 import { RollCallCommand } from "./cli/cmd/roll-call"
@@ -53,6 +54,7 @@ export const commands = [
   DaemonCommand,
   WorktreeCommand,
   DbCommand,
+  CheckpointCommand,
   ConfigCLICommand,
   PluginCommand,
   HelpCommand,

@@ -32,13 +32,26 @@ const PROMPT_FILES_COMPACT: Record<string, string> = {
   "local.txt": PROMPT_LOCAL, // local.txt is already compact
 }
 
+import { resolveProfile } from "./prompt/model-profile"
+
 export function soul() {
   return (Flag.FOX_EXPERIMENTAL_COMPRESS ? SOUL_COMPACT : SOUL).trim()
 }
 
-export function provider(model: Provider.Model) {
+export function provider(model: Provider.Model, overrideProfile?: string) {
   const files = Flag.FOX_EXPERIMENTAL_COMPRESS ? PROMPT_FILES_COMPACT : PROMPT_FILES
   const fallback = Flag.FOX_EXPERIMENTAL_COMPRESS ? PROMPT_DEFAULT_COMPACT : PROMPT_DEFAULT
+
+  const profile = resolveProfile({
+    modelId: model.api.id,
+    providerId: model.providerID,
+    overrideProfile,
+  })
+
+  if (profile.promptFile && files[profile.promptFile]) {
+    return [files[profile.promptFile]]
+  }
+
   const key = `${model.providerID}/${model.api.id}`.toLowerCase()
   for (const entry of PROMPTS_MAP.prompts) {
     if (entry.match.some((pattern: string) => key.includes(pattern.toLowerCase()))) {

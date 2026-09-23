@@ -23,6 +23,7 @@ import { Tool } from "./tool"
 import { Tools } from "./tools"
 import { ToolOutputCompressor } from "./compress"
 import { Flag } from "../flag/flag"
+import { Checkpoint } from "../checkpoint"
 
 export const name = "edit"
 
@@ -111,6 +112,7 @@ const layer = Layer.effectDiscard(
     const files = yield* FileMutation.Service
     const fs = yield* FSUtil.Service
     const permission = yield* PermissionV2.Service
+    const checkpoint = yield* Checkpoint.Service
 
     yield* tools
       .register({
@@ -210,6 +212,7 @@ const layer = Layer.effectDiscard(
                   { additions: 0, deletions: 0 },
                 )
                 const next = splitBom(replaced)
+                yield* checkpoint.ensureBaseline("Workspace state before edit").pipe(Effect.catch(() => Effect.void))
                 const tx = files.createTransaction()
                 const result = yield* unableToEdit(
                   files.writeIfUnchangedTransactional(tx, {
@@ -223,6 +226,13 @@ const layer = Layer.effectDiscard(
                   ),
                 )
                 tx.commit()
+                yield* checkpoint
+                  .record({
+                    files: [result.resource],
+                    source: "edit",
+                    description: `edit ${result.resource}`,
+                  })
+                  .pipe(Effect.catch(() => Effect.void))
                 return {
                   files: [
                     {
@@ -252,5 +262,13 @@ const layer = Layer.effectDiscard(
 export const node = makeLocationNode({
   name: "tool/edit",
   layer,
-  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, FSUtil.node, PermissionV2.node, Location.node],
+  deps: [
+    ToolRegistry.node,
+    LocationMutation.node,
+    FileMutation.node,
+    FSUtil.node,
+    PermissionV2.node,
+    Location.node,
+    Checkpoint.node,
+  ],
 })

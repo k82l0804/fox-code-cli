@@ -5,10 +5,17 @@ import type { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
 import type { MessageV2 } from "./message-v2"
 import { FoxSessionOverflow } from "@/foxcode/session/overflow"
+import { resolveProfile } from "./prompt/model-profile"
+
 const COMPACTION_BUFFER = 20_000
 
 export function usable(input: { cfg: ConfigV1.Info; model: Provider.Model; outputTokenMax?: number }) {
-  const context = input.model.limit.context
+  const profile = resolveProfile({
+    modelId: input.model.id,
+    providerId: input.model.providerID,
+    overrideProfile: input.cfg.model_profile,
+  })
+  const context = input.model.limit.context || profile.contextWindow || 0
   if (context === 0) return 0
 
   const reserved =
@@ -26,7 +33,13 @@ export function isOverflow(input: {
   outputTokenMax?: number
 }) {
   if (input.cfg.compaction?.auto === false) return false
-  if (input.model.limit.context === 0) return false
+  const profile = resolveProfile({
+    modelId: input.model.id,
+    providerId: input.model.providerID,
+    overrideProfile: input.cfg.model_profile,
+  })
+  const context = input.model.limit.context || profile.contextWindow || 0
+  if (context === 0) return false
 
   const count = FoxSessionOverflow.count(input.tokens)
   return count >= usable(input)

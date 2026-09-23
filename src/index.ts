@@ -14,6 +14,7 @@ import {
   AcpCommand,
   AgentCommand,
   AttachCommand,
+  CheckpointCommand,
   DbCommand,
   DebugCommand,
   ExportCommand,
@@ -112,6 +113,7 @@ let cli = yargs(args)
   .command(SessionCommand)
   .command(PluginCommand)
   .command(DbCommand)
+  .command(CheckpointCommand)
 cli = FoxCli.register(cli)
 await waitForLazyCommands()
 cli = cli

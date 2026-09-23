@@ -58,6 +58,9 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   username: Schema.String.pipe(Schema.optional).annotate({
     description: "Username displayed in conversations and used for telemetry identity",
   }),
+  model_profile: Schema.String.pipe(Schema.optional).annotate({
+    description: "Model family profile override for context window, prompts, and tool conventions",
+  }),
   permissions: Permission.Ruleset.pipe(Schema.optional).annotate({
     description: "Ordered tool permission rules applied to agent tool use",
   }),
@@ -67,6 +70,13 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   snapshots: Schema.Boolean.pipe(Schema.optional).annotate({
     description: "Enable snapshots used for undo and revert behavior",
   }),
+  checkpoints: Schema.Struct({
+    max: Schema.Number.pipe(Schema.optional),
+  })
+    .pipe(Schema.optional)
+    .annotate({
+      description: "Named shadow checkpoints configuration",
+    }),
   watcher: ConfigWatcher.Info.pipe(Schema.optional).annotate({
     description: "Filesystem watcher configuration",
   }),

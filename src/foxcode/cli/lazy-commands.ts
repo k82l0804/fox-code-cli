@@ -163,3 +163,9 @@ export const DbCommand = lazy({
   describe: "database tools",
   load: async () => (await import("@/cli/cmd/db")).DbCommand,
 })
+
+export const CheckpointCommand = lazy({
+  command: "checkpoint",
+  describe: "manage named shadow checkpoints and undo",
+  load: async () => (await import("@/cli/cmd/checkpoint")).CheckpointCommand,
+})

@@ -1,0 +1,122 @@
+{
+  "$comment": "Curated model family profiles for open-weights models. Defines context windows for compaction, prompt files, temperature/topP, and quirks.",
+  "profiles": [
+    {
+      "id": "llama-3.3",
+      "name": "Meta Llama 3.3 70B",
+      "patterns": ["llama-3.3", "llama3.3", "meta-llama/llama-3.3"],
+      "contextWindow": 131072,
+      "toolCalling": "native",
+      "systemPromptBudget": 2048,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Native OpenAI tool calling support",
+        "High instruction-following fidelity for coding tasks"
+      ]
+    },
+    {
+      "id": "llama-3.1",
+      "name": "Meta Llama 3.1",
+      "patterns": ["llama-3.1", "llama3.1", "meta-llama/llama-3.1", "llama-3", "llama3"],
+      "contextWindow": 131072,
+      "toolCalling": "native",
+      "systemPromptBudget": 2048,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Native OpenAI tool calling support",
+        "Recommended temperature 0.2 for deterministic code edits"
+      ]
+    },
+    {
+      "id": "codestral",
+      "name": "Mistral Codestral",
+      "patterns": ["codestral", "codestral-2508", "mistralai/codestral"],
+      "contextWindow": 32768,
+      "toolCalling": "native",
+      "systemPromptBudget": 1500,
+      "temperature": 0.15,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Optimized for code generation and editing tasks",
+        "Requires compact system prompt (<1500 tokens) to preserve context budget"
+      ]
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral Large/Medium",
+      "patterns": ["mistral-large", "mistral-medium", "mistralai/mistral"],
+      "contextWindow": 131072,
+      "toolCalling": "native",
+      "systemPromptBudget": 2048,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Native OpenAI tool calling format",
+        "Low temperature recommended for repo refactoring"
+      ]
+    },
+    {
+      "id": "gemma",
+      "name": "Google Gemma 2 / 4",
+      "patterns": ["gemma", "gemma-4", "gemma-2", "google/gemma"],
+      "contextWindow": 32768,
+      "toolCalling": "native",
+      "systemPromptBudget": 1500,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Concise responses preferred",
+        "Avoid multi-level markdown nesting in tool arguments"
+      ]
+    },
+    {
+      "id": "nemotron",
+      "name": "Nvidia Nemotron 3 / 4",
+      "patterns": ["nemotron", "nemotron-3", "nvidia/nemotron"],
+      "contextWindow": 131072,
+      "toolCalling": "native",
+      "systemPromptBudget": 2048,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Strong reasoning capabilities",
+        "Reasoning blocks captured in provider-specific fields"
+      ]
+    },
+    {
+      "id": "gpt-oss",
+      "name": "OpenAI GPT-OSS 120B",
+      "patterns": ["gpt-oss", "gpt-oss-120b", "openai/gpt-oss"],
+      "contextWindow": 131072,
+      "toolCalling": "native",
+      "systemPromptBudget": 2048,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Native OpenAI tool calling format",
+        "Reasoning tokens emitted in separate completion stream channels"
+      ]
+    }
+  ],
+  "default": {
+    "id": "default",
+    "name": "Default Model Profile",
+    "patterns": ["*"],
+    "contextWindow": 128000,
+    "toolCalling": "native",
+    "systemPromptBudget": 2048,
+    "temperature": 0.2,
+    "topP": 1.0,
+    "promptFile": "default.txt",
+    "quirks": []
+  }
+}

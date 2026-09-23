@@ -77,6 +77,8 @@ Compressed output (~81% of original)
   - [Two-Phase Atomic Commit & In-Memory Journal](#two-phase-atomic-commit)
   - [4-Tier Match Confidence Scoring](#confidence-scoring)
   - [Unified Tooling Architecture](#unified-tooling)
+- [Named Shadow Checkpoints & /undo](#checkpoints)
+- [Open-Weights Model Profiles & Prompts Matrix](#model-profiles)
 - [Autonomous Verification Layer](#autonomous-verification)
   - [Oscillation Detection](#oscillation-detection)
   - [Auto-Verification Runner](#auto-verification-runner)
@@ -202,6 +204,12 @@ fox standard-suite scoreboard   # Render the live 52-fixture Baseline Scoreboard
 fox mcp list                    # List configured Model Context Protocol servers
 fox mcp add <name>              # Register a new MCP server
 fox db path                     # Print local SQLite database path
+
+# --- Shadow Checkpoints & Undo ---
+fox checkpoint list             # List recorded shadow checkpoints
+fox checkpoint create <name>    # Create a named checkpoint before refactoring
+fox checkpoint diff [name]      # Inspect diff against a checkpoint
+fox checkpoint undo [name]      # Revert workspace to previous or named checkpoint
 ```
 
 ---
@@ -388,6 +396,62 @@ Every hunk match is evaluated across four decreasing tiers of certainty (`packag
 <a id="unified-tooling"></a>
 ### Unified Tooling Architecture
 Both the multi-file `apply_patch` tool (`packages/core/src/tool/apply-patch.ts`) and the surgical `edit` tool (`packages/core/src/tool/edit.ts`) execute through the same `FileMutation` transactional journal API (`packages/core/src/file-mutation.ts`). This guarantees unified error handling, logging, and rollback across both multi-hunk diffs and targeted string replacements.
+
+---
+
+<a id="checkpoints"></a>
+## 🛡️ Named Shadow Checkpoints & /undo
+
+Fox implements isolated, non-polluting shadow checkpoints via content-addressed Git trees:
+- **Shadow Git Store**: Checkpoints are stored in internal shadow trees (`~/.local/share/fox/snapshot/`), completely isolated from the user's working branch. Your `git log` and `git status` remain 100% clean.
+- **Pre-Mutation Baselines**: Every edit or patch automatically captures an initial baseline, guaranteeing that even the first mutation can be reverted.
+- **Selective Restoration**: Reverting to a checkpoint inspects only the paths that diverged between the target and current tree, restoring those specific files without clobbering unrelated uncommitted work.
+- **Bounded FIFO Ring Buffer**: Maintains up to $N$ checkpoints (default 10, configurable via `"checkpoints": { "max": 15 }` in `fox.jsonc`), evicting the oldest entries once full.
+- **TUI & CLI Access**: Accessible via `fox checkpoint list/create/diff/undo` or interactive slash commands `/undo` and `/diff`.
+
+---
+
+<a id="model-profiles"></a>
+## 🧠 Open-Weights Model Profiles & Prompts Matrix
+
+Fox provides curated model family profiles specifically tuned for local and open-weights models (Ollama, vLLM, LiteLLM proxy, OpenRouter).
+
+### Profiled Model Families
+
+| Profile ID | Family / Target | Context Window | Tool Calling | Temp / Top-P | Prompt Budget | Recommended Use |
+|---|---|---|---|---|---|---|
+| `llama-3.3` | Meta Llama 3.3 70B Instruct | 131,072 | Native | 0.2 / 0.95 | 2048 | Complex reasoning, architecture refactoring |
+| `llama-3.1` | Meta Llama 3.1 8B / 70B | 131,072 | Native | 0.2 / 0.95 | 2048 | General coding, fast edits, local GPU setups |
+| `codestral` | Mistral Codestral (22B / 2508) | 32,768 | Native | 0.15 / 0.95 | 1500 | Code generation, fill-in-the-middle, precise edits |
+| `mistral` | Mistral Large / Medium | 131,072 | Native | 0.2 / 0.95 | 2048 | Multi-file changes, broad software engineering |
+| `gemma` | Google Gemma 2 / 4 (9B, 27B, 31B) | 32,768 | Native | 0.2 / 0.95 | 1500 | Concise responses, local memory constraints |
+| `nemotron` | Nvidia Nemotron 3 Ultra / 4 | 131,072 | Native | 0.2 / 0.95 | 2048 | Enterprise SWE reasoning, agentic planning |
+| `gpt-oss` | OpenAI GPT-OSS 120B | 131,072 | Native | 0.2 / 0.95 | 2048 | High-throughput open-weights execution |
+
+### Auto-Detection & Compaction Alignment
+- **Zero-Config Detection**: Model identifiers are matched case-insensitively against known patterns (e.g. `llama3.1:8b`, `meta-llama/llama-3.3-70b-instruct`, `codestral:22b`).
+- **Context Window Alignment**: When connecting to local endpoints that report 0 or unknown context limits, Fox uses the profile's verified context window (e.g. 131,072 or 32,768) to dynamically calculate compaction thresholds, preventing silent context overflow.
+- **Tailored System Prompts**: Profiles automatically switch to `local.txt`—a stripped-down, concise instruction prompt that eliminates boilerplate and preserves context budget for code and tool outputs.
+
+### Manual Override
+Override auto-detection from the CLI or configuration:
+```bash
+# Via CLI flag
+fox run "Refactor auth handler" --model local/default --profile codestral
+
+# Via environment variable
+export FOX_MODEL_PROFILE=llama-3.3
+```
+
+Or in `fox.jsonc`:
+```jsonc
+{
+  "model_profile": "llama-3.3",
+  "checkpoints": {
+    "max": 10
+  }
+}
+```
 
 ---
 

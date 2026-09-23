@@ -10,6 +10,7 @@ import type { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
 import { SystemPrompt } from "../system"
 import { USER_AGENT } from "@/installation"
+import { resolveProfile } from "../prompt/model-profile"
 import { Effect, Record } from "effect"
 import { jsonSchema, tool as aiTool, type ModelMessage, type Tool } from "ai"
 import type { Plugin } from "@/plugin"
@@ -119,6 +120,11 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
           ...input.messages,
         ]
 
+  const profile = resolveProfile({
+    modelId: input.model.api.id,
+    providerId: input.model.providerID,
+  })
+
   const params = yield* input.plugin.trigger(
     "chat.params",
     {
@@ -130,9 +136,9 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     },
     {
       temperature: input.model.capabilities.temperature
-        ? (input.agent.temperature ?? ProviderTransform.temperature(input.model))
+        ? (input.agent.temperature ?? ProviderTransform.temperature(input.model) ?? profile.temperature)
         : undefined,
-      topP: input.agent.topP ?? ProviderTransform.topP(input.model),
+      topP: input.agent.topP ?? ProviderTransform.topP(input.model) ?? profile.topP,
       topK: ProviderTransform.topK(input.model),
       // rejects `max_tokens`; OpenAI requires `max_completion_tokens` and the compatible
       // SDK cannot rename the field, so drop the cap and let the upstream default apply.

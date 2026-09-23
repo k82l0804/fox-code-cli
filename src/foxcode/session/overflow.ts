@@ -3,6 +3,7 @@ import type { Provider } from "@/provider/provider"
 import type { MessageV2 } from "@/session/message-v2"
 import { Token } from "@/util/token"
 import type { ModelMessage } from "ai"
+import { resolveProfile } from "@/session/prompt/model-profile"
 
 // Token.estimate undercounts provider tokenizers, especially for code and JSON payloads.
 const FACTOR = 1.3
@@ -38,7 +39,12 @@ export namespace FoxSessionOverflow {
     const percent = input.cfg.compaction?.threshold_percent
     if (typeof percent !== "number") return input.usable
 
-    const context = input.model.limit.input || input.model.limit.context
+    const profile = resolveProfile({
+      modelId: input.model.id,
+      providerId: input.model.providerID,
+      overrideProfile: input.cfg.model_profile,
+    })
+    const context = input.model.limit.input || input.model.limit.context || profile.contextWindow || 0
     if (context === 0) return input.usable
 
     const cap = Math.floor(context * (percent / 100))

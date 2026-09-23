@@ -31,6 +31,7 @@ import { SessionTodo } from "./session/todo"
 import { SkillV2 } from "./skill"
 import { SkillGuidance } from "./skill/guidance"
 import { Snapshot } from "./snapshot"
+import { Checkpoint } from "./checkpoint"
 import { SystemContextBuiltIns } from "./system-context/builtins"
 import { SystemContextRegistry } from "./system-context/registry"
 import { BuiltInTools } from "./tool/builtins"
@@ -77,6 +78,7 @@ export const locationServices = LayerNode.group([
   BuiltInTools.node,
   SessionRunnerModel.node,
   Snapshot.node,
+  Checkpoint.node,
   SessionRunnerLLM.node,
 ])
 

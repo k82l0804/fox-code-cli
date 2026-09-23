@@ -18,6 +18,7 @@ import { Tools } from "./tools"
 import { ToolOutputCompressor } from "./compress"
 import { Flag } from "../flag/flag"
 import { TransactionConfidence } from "../transaction-confidence"
+import { Checkpoint } from "../checkpoint"
 
 export const name = "apply_patch"
 
@@ -90,6 +91,7 @@ const layer = Layer.effectDiscard(
     const files = yield* FileMutation.Service
     const fs = yield* FSUtil.Service
     const permission = yield* PermissionV2.Service
+    const checkpoint = yield* Checkpoint.Service
 
     yield* tools
       .register({
@@ -217,6 +219,8 @@ const layer = Layer.effectDiscard(
                 const applied: Array<typeof Applied.Type> = []
                 const patchFiles = prepared.map(patchFile)
 
+                yield* checkpoint.ensureBaseline("Workspace state before apply_patch").pipe(Effect.catch(() => Effect.void))
+
                 const applyAll = Effect.gen(function* () {
                   for (const change of prepared) {
                     if (change.type === "add") {
@@ -257,6 +261,15 @@ const layer = Layer.effectDiscard(
                 // Commit the transaction (clears journal)
                 tx.commit()
 
+                // Record shadow checkpoint
+                yield* checkpoint
+                  .record({
+                    files: applied.map((a) => a.resource),
+                    source: "apply-patch",
+                    description: `apply_patch: ${applied.length} file(s) modified`,
+                  })
+                  .pipe(Effect.catch(() => Effect.void))
+
                 return {
                   applied,
                   files: patchFiles,
@@ -278,7 +291,15 @@ const layer = Layer.effectDiscard(
 export const node = makeLocationNode({
   name: "tool/apply-patch",
   layer,
-  deps: [ToolRegistry.node, LocationMutation.node, FileMutation.node, FSUtil.node, PermissionV2.node, Location.node],
+  deps: [
+    ToolRegistry.node,
+    LocationMutation.node,
+    FileMutation.node,
+    FSUtil.node,
+    PermissionV2.node,
+    Location.node,
+    Checkpoint.node,
+  ],
 })
 
 function patchFile(change: Prepared): typeof FileDiff.Info.Type {

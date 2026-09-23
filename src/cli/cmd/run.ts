@@ -170,6 +170,10 @@ export const RunCommand = effectCmd({
         alias: ["m"],
         describe: "model to use in the format of provider/model",
       })
+      .option("profile", {
+        type: "string",
+        describe: "model family profile override (e.g. llama-3.3, codestral, gemma, nemotron, gpt-oss)",
+      })
       .option("agent", {
         type: "string",
         describe: "agent to use",
@@ -271,6 +275,9 @@ export const RunCommand = effectCmd({
     const flags = yield* RuntimeFlags.Service
     const localInstance = yield* InstanceRef
     yield* Effect.promise(async () => {
+      if (args.profile) {
+        process.env.FOX_MODEL_PROFILE = args.profile
+      }
       const rawMessage = [...args.message, ...(args["--"] || [])].join(" ")
       const interactive = args.mini || args.interactive
       const skipPermissions = args.yolo || args["dangerously-skip-permissions"]
@@ -1093,6 +1100,7 @@ type MiniCommandInput = {
   session?: string
   fork?: boolean
   model?: string
+  profile?: string
   agent?: string
   prompt?: string
   replay?: boolean
@@ -1111,6 +1119,7 @@ export async function runMini(input: MiniCommandInput) {
     fork: input.fork,
     share: undefined,
     model: input.model,
+    profile: input.profile,
     agent: input.agent,
     format: "default",
     file: undefined,
