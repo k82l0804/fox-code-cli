@@ -1,7 +1,7 @@
 # 🦊 Fox Code CLI — Competitive SWE Agent Audit & Architectural Feature Roadmap
 
-> **Document Version:** 1.6.0  
-> **Status:** Strategic Architectural Plan — Updated 2026-09-23 (Phase 1B + Phase 2.0 Complete, Phase 2.5 Planned)  
+> **Document Version:** 1.7.0  
+> **Status:** Strategic Architectural Plan — Updated 2026-09-23 (Phase 1B + Phase 2 Complete, Phase 2.5 Planned)  
 > **Target Package:** `fox-code-cli` (`@fox/cli`)  
 > **Target Audience:** Core Contributors, Systems Engineers, SWE Agent Researchers  
 > **Reference Specification:** [`../../docs/competitive-analysis.md`](../../docs/competitive-analysis.md)
@@ -68,6 +68,28 @@ This causes two severe performance failures:
 - **No passive architectural summaries in the system prefix.**
 
 Instead, capabilities are exposed as **high-precision, on-demand tools** (`lookup_symbols`, `fetch_repo_map`, `search_index`). The agent pays tokens **only when its reasoning step explicitly requires them**. The prompt prefix remains byte-identical, deterministic, and cache-stable.
+
+---
+
+### 🏆 Competitive Position (Post-Phase 2)
+
+> Full analysis: [Fox vs. Aider vs. Goose — Capability-Proportional Execution](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/competitive_analysis.md)
+
+**Design Principle**: *Use the minimum viable capability that can complete a task correctly. Don't overallocate (wasteful). Don't underallocate (fails). Degrade gracefully when resources are limited.*
+
+| Capability | Aider | Goose | Fox (Post-Phase 2) | Fox Ideal |
+|-----------|-------|-------|-------|------|
+| **Tier-aware tool filtering** | ❌ | ❌ | ✅ **Unique** | ✅ |
+| **Small model safety** | ✅ Whole-file mode | ❌ | ✅ `rewrite_file` + filtering | ✅ |
+| **Runtime reclassification** | ❌ | ❌ | ✅ **Unique** | ✅ |
+| **Token compression** | ❌ | ❌ | ✅ **Unique** | ✅ |
+| **Multi-model routing** | ✅ 2-model | ⚠️ Manual | ⚠️ Tier metadata | ✅ System-driven |
+| **Parallel execution** | ❌ Sequential | ✅ Native | ⚠️ Background tasks | ✅ Phase-based |
+| **Specialized subagents** | ❌ | ⚠️ Generic | 🔮 Phase 2.5 | ✅ scout/runner/scribe |
+| **Cost efficiency** | ⚠️ 2-tier | ❌ All Tier S | ⚠️ Single model | ✅ Mixed tiers |
+
+**Where Fox wins today**: Tier classification (unique), token compression (unique), runtime reclassification (unique), permission system.
+**Where Fox must improve**: Parallelism in practice, specialized subagents, system-driven model routing.
 
 ---
 
@@ -408,6 +430,66 @@ Fox implements a deterministic model router to balance cost, latency, and reason
 2. **Escalate on Deadlock**: If the fast model fails tests twice consecutively, automatically escalate the failing context and trace to the high-reasoning architect model.
 3. **Structured Handoff**: The architect produces a strict JSON change-spec; the coder executes unified diffs.
 
+#### Phase 2.5: Specialized Tier-Aware Subagents
+
+> Source: [Capability-Proportional Execution Analysis](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/competitive_analysis.md) — Fox vs. Aider vs. Goose competitive breakdown.
+
+Replace the generic `general` subagent (which fails on small models because it gets the full tool surface) with purpose-built subagents designed for narrow task profiles:
+
+| Subagent | Tools | Min Tier | Purpose | Why It Can't Fail |
+|----------|-------|----------|---------|-------------------|
+| **scout** | `read`, `grep`, `glob` | C+ | Codebase research, pattern scanning | Read-only — no filesystem mutations |
+| **runner** | `bash` (read-only commands) | C+ | Execute tests, builds, linters, typecheck | No file writes — only command execution |
+| **scribe** | `rewrite_file`, `write` | B+ | Write/overwrite single files from a plan | Whole-file replacement — no diff parsing |
+
+The existing `code`, `debug`, `explore`, `ask` agents remain for primary Tier S model use. The key insight: small models don't fail because they're "dumb" — they fail because they're given tools that require multi-step reasoning (diffs, patches, subagent orchestration). Narrow tool surfaces eliminate the failure mode entirely.
+
+```
+Ideal System — Phase 2.5+ Architecture:
+
+User → Orchestrator (Tier S model)
+         │
+         ├── Phase 1: Research [parallel, Tier C]
+         │   ├── scout: grep auth patterns
+         │   ├── scout: scan route structure
+         │   └── scout: read test patterns
+         │         ↓ (results aggregated)
+         │
+         ├── Phase 2: Plan [sequential, Tier S]
+         │   └── orchestrator: synthesize research → implementation plan
+         │         ↓
+         │
+         ├── Phase 3: Implement [parallel, mixed tiers]
+         │   ├── code: auth service (Tier S, complex logic)
+         │   ├── code: route handlers (Tier A, pattern-based)
+         │   ├── scribe: config updates (Tier C, whole-file)
+         │   └── scribe: test scaffolding (Tier B, whole-file)
+         │         ↓ (conflict detection + merge)
+         │
+         ├── Phase 4: Verify [parallel, Tier C]
+         │   ├── runner: run unit tests
+         │   ├── runner: run typecheck
+         │   └── runner: run lint
+         │         ↓
+         │
+         └── Phase 5: Fix [sequential, Tier S]
+             └── code: fix failures based on test output
+```
+
+#### Phase 3: System-Driven Model Routing + Task Pipeline
+
+1. **`recommendModelForTask(agentMode, availableModels[])`** — System picks cheapest model meeting the subagent's minimum tier
+2. **Phase pipeline** — Research → Plan → Implement → Verify → Fix with per-phase tier policy
+3. **Parallel dispatch** — Independent subtasks within a phase run concurrently
+4. **Result aggregation** — Conflict detection when parallel subagents touch the same file
+5. **Automatic retry with tier promotion** — Failed Tier C → retry Tier B → retry Tier A
+
+#### Phase 4: Cost-Budget Execution
+
+- User sets a cost budget ($), system optimizes model mix across phases
+- Adversarial cross-review (Tier B reviews Tier S output for correctness)
+- Learning from past tasks (which tier succeeded for which task type)
+
 ---
 
 ### Blueprint 4b: Dynamic Model Context Discovery (`/v1/models`)
@@ -717,10 +799,10 @@ To ensure no partial implementation or deferred capability is lost between engin
 | **13** | **Semantic & LSP Diagnostic Confidence Scoring** | [Patch Engine Review (Rollback & Confidence Scoring)](file:///Untitled-1) | LSP diagnostics are noisy and premature before transactional core is proven; deferred to Phase 2 autonomous verification. | [**Blueprint 6a**](#blueprint-6a-semantic--lsp-diagnostic-confidence-scoring) | **Phase 2 (Q1 2027)** | `confidence.lsp_diagnostics` | 🔮 Planned |
 | **14** | **All-or-Nothing Patch Repair Prompt Templates** | [Patch Engine Review (Tool Contract Breaking Change)](file:///Untitled-1) → [Blueprint 6a Implementation (`8d3ee5e0`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md) | Updated `apply_patch.txt`, `edit.txt`, `default.txt` system prompt, and error messages to instruct models that failures are transactional (all-or-nothing) and recovery requires fresh re-read. | [**Blueprint 6a**](#blueprint-6a-semantic--lsp-diagnostic-confidence-scoring) | **Phase 1 (Q4 2026)** | Internal Prompts | ✅ Completed |
 | **15** | **MCP Tool Staleness Per-Step Check** | [Blueprint 11.1 Implementation (`8d3ee5e0`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/8d3ee5e0-5c40-4c1c-80d0-660c7ace72b1/walkthrough.md) | MCP servers can add/remove tools mid-session; inline `mcp.tools()` check caused Effect R-channel leak. Needs MCP.Service version counter or Effect type workaround. `checkMcpStaleness` utility already implemented but not wired into loop. | [**Blueprint 11.1**](#blueprint-11-high-velocity-turn-orchestration--tool-resolution-caching) | **Phase 2 (Q1 2027)** | Internal Runtime Engine | 🔮 Planned |
-| **16** | **Whole-File Rewrite Mode for Tier D Models** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) | Tier D models (<7B) fail multi-turn diff/edit schemas. Full bypass requires dedicated single-turn rewrite execution path. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q1 2027)** | `model.rewrite_mode` | 🔮 Planned |
-| **17** | **Autonomous Subagent Model Routing by Tier** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) | Orchestrator/plan agent selects subagent models using `tier` surfaced in `agent_manager_models` (Tier C for summary, Tier A/S for code). | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q1 2027)** | `subagents.model_routing` | 🔮 Planned |
-| **18** | **Tier-Based Tool Surface Filtering** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) | Hide complex multi-step tools (`write`, `multi_edit`, `task`) from Tier C/D models, restricting them to `read`, `grep`, `bash`. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q1 2027)** | `tools.filter_by_tier` | 🔮 Planned |
-| **19** | **Dynamic Runtime Tier Reclassification** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) | Evaluate first turn tool execution validity; conditionally promote/demote model tier dynamically based on actual response structure. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q1 2027)** | Internal Session Engine | 🔮 Planned |
+| **16** | **Whole-File Rewrite Mode for Tier D Models** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) → [Phase 2 Implementation (`fed08079`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/walkthrough.md) | `rewrite_file` tool: simple `file_path` + `content` interface. BOM-aware, permission-checked, diff stats output. Registered in tool registry, exposed to Tier C/D via `filterToolsByTier`. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q4 2026)** | `model.rewrite_mode` | ✅ Completed |
+| **17** | **Autonomous Subagent Model Routing by Tier** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) | Orchestrator/plan agent selects subagent models using `tier` surfaced in `agent_manager_models` (Tier C for summary, Tier A/S for code). | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2.5 (Q1 2027)** | `subagents.model_routing` | 🔮 Planned |
+| **18** | **Tier-Based Tool Surface Filtering** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) → [Phase 2 Implementation (`fed08079`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/walkthrough.md) | `filterToolsByTier()` in `model-tier.ts`. S/A/B: all tools. C: `TIER_COMPLEX_TOOLS` hidden (task, skill, edit, write, etc.). D: additionally hides edit/write/apply_patch. Config: `tools_filter_by_tier`. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q4 2026)** | `tools.filter_by_tier` | ✅ Completed |
+| **19** | **Dynamic Runtime Tier Reclassification** | [Model Capability Tier System (`c490299c`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/c490299c-45df-4ab2-9296-a44bf5685fc5/walkthrough.md) → [Phase 2 Implementation (`fed08079`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/walkthrough.md) | `TierReclassState` machine: C→B on first success, B→C on 2 consecutive failures. S/A/D immutable. Tool cache key includes tier for invalidation. Config: `dynamic_tier_reclassification`. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2 (Q4 2026)** | Internal Session Engine | ✅ Completed |
 | **20** | **Specialized Tier-Aware Subagents (`scout`/`runner`/`scribe`)** | [Capability-Proportional Execution Analysis (`fed08079`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/competitive_analysis.md) | Replace the generic `general` subagent with purpose-built subagents designed for small models: `scout` (read-only, Tier C+), `runner` (bash-only, Tier C+), `scribe` (whole-file write, Tier B+). Narrow tool surfaces ensure small models cannot fail catastrophically. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 2.5 (Q1 2027)** | `subagents.*` | 🔮 Planned |
 | **21** | **System-Driven Subagent Model Routing (`recommendModelForTask`)** | [Capability-Proportional Execution Analysis (`fed08079`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/competitive_analysis.md) | When the `task` tool spawns a subagent and no explicit model is specified, the system automatically selects the cheapest available model that meets the subagent's minimum tier requirement (`scout` → Tier C, `code` → Tier A/S). Eliminates LLM-driven model selection for subagents. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 3 (Q2 2027)** | `routing.subagent_model` | 🔮 Planned |
 | **22** | **Phase-Based Task Decomposition Pipeline** | [Capability-Proportional Execution Analysis (`fed08079`)](file:///home/k82l0804/.gemini/antigravity-ide/brain/fed08079-5ecf-4e39-91ee-6efe4d4f00c0/competitive_analysis.md) | System-level task pipeline: Research (parallel, Tier C) → Plan (sequential, Tier S) → Implement (parallel, mixed) → Verify (parallel, Tier C) → Fix (sequential, Tier S). Independent subtasks within each phase run concurrently. Includes result aggregation and conflict detection for parallel subagents touching the same file. | [**Blueprint 4**](#blueprint-4-multi-model-routing-policy-engine) | **Phase 3 (Q2 2027)** | `pipeline.*` | 🔮 Planned |
