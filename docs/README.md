@@ -19,7 +19,7 @@ docs/
 │   └── 2026-09-22.json                      # Latest baseline run (334/334, 19.1% compression)
 ├── future/                                  # Strategic roadmaps & autonomous SWE architecture
 │   ├── 2026-09-21T06-12_plan-competitive-features-roadmap.md # Master roadmap (v1.5.0) with phased milestones
-│   ├── 2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md # Reconciled priorities & risk matrix
+│   ├── 2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md # Reconciled priorities & risk matrix
 │   ├── 2026-09-22T15-16_autonomous-dual-agent-design.md     # Fox Guardian dual-agent architecture & design
 │   ├── 2026-09-22T15-16_autonomous-agent-workflow.md         # Reference architecture (10-step closed loop)
 │   ├── 2026-09-22T15-16_autonomous-agent-std-tests.md        # Benchmark strategy (SWE-bench, RepoQA, etc.)
@@ -66,7 +66,7 @@ docs/
 ### 3. Roadmaps & Strategy
 - **[`future/2026-09-21T06-12_plan-competitive-features-roadmap.md`](./future/2026-09-21T06-12_plan-competitive-features-roadmap.md)**  
   *Master Architectural Roadmap (v1.5.0)*. Contains competitive audits against Claude Code, Aider, Codex, OpenCode, and Cursor, plus the Master Deferred Items Traceability Ledger and phased delivery schedule (Phase 1, 2A, 2B, 3).
-- **[`future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md`](./future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md)**  
+- **[`future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md`](./future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md)**  
   Strategic priorities, risk analysis, and tier ordering guiding implementation.
 - **[`future/2026-09-22T15-16_adaptive-compression.md`](./future/2026-09-22T15-16_adaptive-compression.md)**  
   Phase 2.0 Adaptive Compression design: heuristic content classifier (`compression-levels.ts`) and adaptive transforms.

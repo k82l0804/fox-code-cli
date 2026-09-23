@@ -697,7 +697,7 @@ CI=true bun test test/challenge-ladder.test.ts  # 334-fixture ladder + A/B showd
 | **Phase 2B** | 📋 Planned | Multi-model routing, blast-radius regression detection, LSP confidence scoring |
 | **Phase 3** | 📋 Planned | Guardian task decomposition, OS-level sandboxing, long-horizon project memory |
 
-> 📄 Full roadmap: [`docs/future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md`](docs/future/2026-09-22T15-16_priorities-plan-competitive-features-roadmap.md)
+> 📄 Full roadmap: [`docs/future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md`](docs/future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md)
 
 ---
 
