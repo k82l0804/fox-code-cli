@@ -1,63 +1,40 @@
-### 🟡 **What Needs Attention (Not Problems — Just Strategic Risks)**
+# Fox CLI — Competitive Features Roadmap
 
-> **Status**: Reconciled as of 2026-09-23. Phase 1B and Phase 2.0 complete.
-> Phase 2A split into **Foundation** (benefits every session) and **Guardian**
-> (autonomy-only). Foundation first — it feeds the Guardian when we build it.
-> Revised to incorporate the Guardian Agent concept from
-> [`2026-09-22T15-16_autonomous-dual-agent-design.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md).
-> Multi-Model Routing (BP 4) demoted from Tier 1 — the guardian subsumes
-> deterministic routing decisions with flexible LLM-based reasoning.
-
-#### **1. ~~Phase 2 Has Too Many "Core" Items~~** → ✅ RESOLVED
-Phase 2 has been split into **Phase 2A-Foundation**, **Phase 2A-Guardian**, and **Phase 2B (Refinement & Performance)**.
-
-Phase 2A-Foundation contains infrastructure that improves every interactive session.
-Phase 2A-Guardian contains the dual-agent autonomy layer (depends on Foundation).
-Phase 2B contains items that improve speed, quality, and UX but don't block either.
-
-#### **2. Regression Detection Requires Careful Test Baseline Management**
-The document says:
-
-> "Baseline snapshot: ~50 tokens (stored in-memory, not sent to model)."  
-
-This is correct — but baseline invalidation rules must be explicit:
-
-- When do you refresh the baseline?  
-- How do you handle flaky tests?  
-- How do you handle test suites with nondeterministic output?
-
-This blueprint is deceptively complex.
-
-> **Captured in roadmap**: Demoted to Tier 2. The guardian can classify regressions
-> from compressed test output without a formal baseline-tracking system. Baseline
-> tracking becomes a refinement that provides structured input to the guardian.
-
-#### **3. ~~Multi‑Model Routing Needs Guardrails~~** → Subsumed by Guardian
-The deterministic routing state machine (Blueprint 4) is **subsumed by the
-guardian agent**. The guardian classifies failure types and recommends model
-tier changes with more flexibility than hard-coded escalation rules.
-
-If the guardian proves insufficient for routing, deterministic fallbacks
-can be added in Tier 2 as a complement.
-
-> **Captured in roadmap**: Demoted from Tier 1 to Tier 2.
-
-#### **4. Snapshot ↔ Oscillation Integration Is Non‑Trivial**
-The document warns:
-
-> "Oscillation detection is intentionally pure and stateless… integrating snapshots requires careful layering."  
-
-This is a correct concern. You must avoid coupling snapshot logic into the core loop.
-
-> **Captured in roadmap**: Remains in Tier 2. Oscillation detector works standalone;
-> the guardian adds semantic oscillation detection on top; snapshot integration
-> is a refinement.
+> **Status**: Revised 2026-09-23. Phases 1B and 2.0 complete.
+> Phase 2 now consolidates **all foundation work** — infrastructure, model
+> intelligence, subagents, routing, and performance. Guardian pushed to Phase 3.
+> Phase 4 covers architecture, security, and long-horizon features.
+>
+> **Design principle**: *Build everything that makes Fox better for every user
+> in every session before building the autonomy layer.* The Guardian depends on
+> this foundation — better verification, smarter context, specialized subagents,
+> and tier-aware routing all feed the Guardian when it's built.
+>
+> **References**:
+> - [Reference Architecture](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md)
+> - [Guardian Design](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md)
+> - [Challenge Ladder](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/2026-09-22T15-54_fox-challenge-ladder-report.md)
+> - [Competitive Analysis](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/reports/2026-09-23T10-07_competitive-analysis-product-features.md)
 
 ---
 
-## 🧭 Priority Tiers (Revised 2026-09-23)
+## Strategic Risks
 
-Based on the [reference architecture](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md), the [dual-agent design](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-dual-agent-design.md), and the [Challenge Ladder results](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/2026-09-22T15-54_fox-challenge-ladder-report.md):
+#### **1. ~~Phase 2 Has Too Many "Core" Items~~** → ✅ RESOLVED
+Phase 2 is organized into three sub-phases: **2A (Core Infrastructure)**, **2B (Model Intelligence & Subagents)**, **2C (Routing & Refinement)**. All are foundation work — no autonomy-layer dependencies.
+
+#### **2. Regression Detection Requires Careful Test Baseline Management**
+Baseline invalidation rules (refresh timing, flaky tests, nondeterministic output) must be explicit. The guardian can classify regressions from compressed test output without a formal baseline, but structured baseline tracking provides better signal.
+
+#### **3. ~~Multi‑Model Routing Needs Guardrails~~** → Phase 2C
+System-driven model routing (`recommendModelForTask`) replaces the old Blueprint 4 state machine. Deterministic tier-based routing first; the Guardian adds LLM-based routing decisions later.
+
+#### **4. Snapshot ↔ Oscillation Integration Is Non‑Trivial**
+Oscillation detection is pure and stateless. Snapshot integration requires careful layering to avoid coupling into the core loop. Deferred to Phase 4 refinement.
+
+---
+
+## 🧭 Phases (Revised 2026-09-23)
 
 ### ✅ **Phase 1B — Compression Hardening** → COMPLETE (2026-09-22)
 
@@ -83,76 +60,117 @@ Based on the [reference architecture](file:///home/k82l0804/workarea/fox/fox-cod
 5. ~~**Pipeline Integration + Safety Rails**~~ → ✅ Done
 6. ~~**Guardian-Ready Interface (`CompressionPolicyOverride`)**~~ → ✅ Done
 
-### 🔺 **Phase 2A-Foundation — Core Infrastructure** ← CURRENT PRIORITY
+---
 
-> Infrastructure that makes Fox better for **every user, every session**.
-> These items also serve as inputs to the Guardian when it's built.
+### 🔺 **Phase 2 — Foundation** ← CURRENT PRIORITY
 
-1. **Multi-Command Auto-Verification Pipeline (3a)** — Extend `verification.ts` to run typecheck → tests → lint as a configurable sequence. Today Fox runs only the single best-priority command. Multi-command gives the LLM richer feedback on every edit cycle.
-2. **Turn-Supersession Context Pruning** — Workflow Step 7. Extend `supersede.ts` to cover more stale context patterns. Keeps long sessions lean and the model sharp. Mechanical — guardian doesn't replace this.
-3. **Dynamic Context Window Discovery (4b)** — Query model/provider for actual context limits. Feed into compaction thresholds for proactive overflow prevention instead of reactive recovery. Infrastructure dependency for all downstream features.
-4. **Atomic Task-Completion Commits** — Workflow Step 8. Platform-level commit flow with generated messages, metadata, and optional walkthrough — replacing the current ad-hoc `git commit` via bash. Useful in interactive mode ("fox, commit what you just did").
-5. **Paginated Message Loading (11.2)** — *Promoted from Tier 2.* Performance: loading large sessions is slow. Every user benefits.
-6. **JSON Serialization Bypass (11.3)** — *Promoted from Tier 2.* Performance: reduces serialization overhead. Every user benefits.
+> Everything that makes Fox better for **every user, every session**.
+> No autonomy/Guardian dependencies. Organized into three sub-phases.
 
-### 🔸 **Phase 2A-Guardian — Autonomy Intelligence Layer**
+#### **Phase 2A — Core Infrastructure**
 
-> The dual-agent oversight system. Only needed for `--auto` / headless / `/goal` modes.
-> Depends on Foundation being in place.
+> Verification, context management, commits, and performance.
 
-7. **Guardian Agent (Phase A)** — Dual-agent oversight layer in `processor.ts`:
-   - **Intake Gatekeeper**: "Autonomy is a request, not a guarantee." Classifies incoming tasks (Structured Plan, Atomic/Safe, Ambiguous/Risky). If ambiguous, generates **Assisted Scaffold** with `[REQUIRED]` tags.
-   - **Tool Profiles (`--tools=<profile>`)**: Replaces dangerous `--yolo` with explicit capability envelopes (`basic`, `write`, `system`, `dangerous`, `custom`).
-   - **Command Triad**: Adds `/plan` (blueprint), `/refine` (sharpener), `/verify` (pre-flight audit & post-flight acceptance) across all agents, plus `/enhance` for fast chat rephrasing.
-   - **Runtime Oversight**: Post-failure classification, pre-commit review gate, and progress checks. Enabled by default; falls back to doer's model if no guardian model is specified. Closes P5, P6, P8 in reference architecture.
+1. **Multi-Command Auto-Verification Pipeline (3a)** — Extend `verification.ts` to run typecheck → tests → lint as a configurable sequence. Today Fox runs only the single best-priority command. Multi-command gives the LLM richer feedback per edit cycle. Subsumes Auto-Lint (3c).
+2. **Turn-Supersession Context Pruning** — Extend `supersede.ts` to cover more stale context patterns. Keeps long sessions lean and the model sharp. Mechanical — no LLM intelligence required.
+3. **Dynamic Context Window Discovery (4b)** — Query model/provider for actual context limits. Feed into compaction thresholds for proactive overflow prevention instead of reactive recovery.
+4. **Atomic Task-Completion Commits** — Platform-level commit flow with generated messages, metadata, and optional walkthrough — replacing ad-hoc `git commit` via bash. Useful in interactive mode ("fox, commit what you just did").
+5. **Paginated Message Loading (11.2)** — Performance: loading large sessions is slow today. Every user benefits.
+6. **JSON Serialization Bypass (11.3)** — Performance: reduces serialization overhead. Every user benefits.
 
-### 🔸 **Tier 2 — Refinement & Performance (Phase 2B)**
+#### **Phase 2B — Model Intelligence**
 
-8. **Multi-Model Routing (4)** — *Demoted from Tier 1.* Deterministic fallback/complement to guardian routing decisions.
-9. **Blast-Radius Regression Detection (3b)** — *Demoted from Tier 1.* Structured input to guardian, not a prerequisite.
-10. **Auto-Lint (3c)** — Subsumed by multi-command verification in Foundation if implemented together.
-11. **Snapshot ↔ Oscillation (3d)**
-12. **LSP Confidence Scoring (6a)**
-13. **Repo-Level Intent Detection**
-14. **TUI Live Telemetry Dashboard (BP 13)**
+> Tier-aware tool surfaces, small model safety, and specialized subagents.
+> Builds on the [Model Capability Tier System](file:///home/k82l0804/workarea/fox/fox-code-cli/src/foxcode/model-tier.ts) (Phase 1 complete: 94 tests, `resolveTier()` cascade, step capping).
 
-### 🔹 **Tier 3 — Architecture & UX (Phase 3)**
+7. **Whole-File Rewrite Mode (Tier D)** — New `rewrite_file` tool for tiny models. No diff, no hunk parsing — full-file overwrite. Deliberately simple so small models can write code without failing on edit schemas.
+8. **Tool Surface Filtering by Tier** — Hide complex tools (`task`, `write`, `edit`, `apply_patch`, `skill`) from Tier C/D models. Only safe single-invocation tools remain. Config: `tools_filter_by_tier: true` (default). The `general` subagent stops being a liability.
+9. **Runtime Tier Reclassification** — Promote C→B on first successful tool call. Demote B→C after 2 consecutive failures. Only C↔B transitions. Per-session, not persisted. Config: `dynamic_tier_reclassification: true` (default).
+10. **Specialized Subagents** — Replace the failing `general` subagent with 3 purpose-built agents for small models:
 
-15. **Guardian Phase B — Task Decomposition** — Guardian owns goal decomposition into task graphs with dependencies and acceptance criteria. Extends `todowrite`.
-16. **OS-Level Sandboxing (BP 10)**
-17. **MCP Sidecar Security (BP 8)**
-18. **Long-Horizon Project Memory (BP 7)**
-19. **Mini-TUI Decoupling**
-20. **ACP Multi-Root & Diff Cards**
-21. **Cross-Session Checklist State Machine**
+    | Subagent | Tools | Min Tier | Purpose |
+    |----------|-------|----------|---------|
+    | **scout** | `read`, `grep`, `glob` | C | Read-only codebase research |
+    | **runner** | `bash` (read-only commands) | C | Execute tests, builds, linters |
+    | **scribe** | `rewrite_file`, `write` | B | Write/overwrite single files |
+
+    The LLM picks the right subagent for the task. Existing agents (`code`, `debug`, `explore`, `ask`) remain for primary model use.
+
+#### **Phase 2C — Routing & Refinement**
+
+> System-driven model selection and quality-of-life improvements.
+
+11. **System-Driven Model Routing** — `recommendModelForTask(agentMode, availableModels[])` — system picks cheapest viable model for each subtask. Tier-based: research on Tier C, planning on Tier A/S, implementation on Tier B+.
+12. **Blast-Radius Regression Detection (3b)** — Baseline test tracking to distinguish "I broke this" from "this was already broken." Structured input for future Guardian.
+13. **LSP Confidence Scoring (6a)** — Language-aware edit confidence. The parity matrix shows AST/symbol index as a top gap.
+14. **Repo-Level Intent Detection** — Classify task scope and blast radius from the goal description before planning.
+
+---
+
+### 🔸 **Phase 3 — Guardian (Autonomy Intelligence Layer)**
+
+> The dual-agent oversight system. Needed for `--auto` / headless / `/goal` modes.
+> Depends on Phase 2 foundation being in place.
+
+#### Phase 3A — Guardian Core
+
+15. **Guardian Agent (Phase A)** — Dual-agent oversight layer in `processor.ts`:
+    - **Intake Gatekeeper**: "Autonomy is a request, not a guarantee." Classifies incoming tasks (Structured Plan, Atomic/Safe, Ambiguous/Risky). If ambiguous, generates **Assisted Scaffold** with `[REQUIRED]` tags.
+    - **Tool Profiles (`--tools=<profile>`)**: Replaces `--yolo` with explicit capability envelopes (`basic`, `write`, `system`, `dangerous`, `custom`).
+    - **Command Triad**: `/plan` (blueprint), `/refine` (sharpener), `/verify` (pre-flight + post-flight), `/enhance` (fast chat rephrasing).
+    - **Runtime Oversight**: Post-failure classification, pre-commit review gate, progress checks every N turns. Closes P5, P6, P8 in reference architecture.
+16. **Multi-Model Routing (LLM-based)** — Guardian classifies failure types and recommends model tier changes. Complements the deterministic routing from Phase 2C.
+
+#### Phase 3B — Task Decomposition
+
+17. **Guardian Phase B — Task Decomposition** — Guardian owns goal decomposition into task graphs with dependencies and acceptance criteria. Extends `todowrite` with status tracking and task supersession.
+
+#### Phase 3C — Multi-Worker
+
+18. **Guardian Phase C — Multi-Worker** — Multiple doer sessions executing tasks in parallel, Guardian managing load balancing, branch isolation, and result aggregation.
+
+---
+
+### 🔹 **Phase 4 — Architecture, Security & UX**
+
+> Infrastructure hardening, sandboxing, and long-horizon features.
+
+19. **OS-Level Sandboxing (BP 10)** — Container/sandbox isolation for agent execution. Mutations happen in isolated environments, not the user's working tree.
+20. **MCP Sidecar Security (BP 8)** — Secure MCP tool execution with capability-scoped permissions and audit logging.
+21. **Long-Horizon Project Memory (BP 7)** — Persistent memory across sessions for ongoing projects. The agent remembers prior context, decisions, and established patterns.
+22. **Snapshot ↔ Oscillation Integration (3d)** — Layer snapshot tracking into oscillation detection without coupling it into the core loop.
+23. **Mini-TUI Decoupling** — Extract the TUI into a standalone package for embedding in other tools.
+24. **ACP Multi-Root & Diff Cards** — VS Code extension support for multi-root workspaces and visual diff review.
+25. **Cross-Session Checklist State Machine** — Persist task checklists across sessions with state tracking.
+26. **TUI Live Telemetry Dashboard (BP 13)** — Real-time token usage, cost, and performance metrics in the TUI.
+
+---
 
 ### Phase 1 Remaining (Status: Complete in CLI)
 
 - ~~**Named Shadow Checkpoints & /undo**~~ → ✅ **COMPLETE** (`packages/core/src/checkpoint.ts`, `fox checkpoint list/create/undo/diff`).
 - ~~**Local Model Profiles & Prompts Matrix**~~ → ✅ **COMPLETE** (`model-profiles.json`, `--profile` flag, non-Chinese open weights: Llama 3.1/3.3, Codestral/Mistral, Gemma 2/4, Nemotron, GPT-OSS).
-- **ACP Metadata Debounce & Batching** — Deferred to companion `fox-acp-client` VS Code extension repository. Does not block CLI or autonomous loop.
-
-### 🔮 **Tier 4 — Future Vision**
-
-23. **Guardian Phase C — Multi-Worker** — Multiple doer sessions executing tasks in parallel, guardian managing load balancing.
+- **ACP Metadata Debounce & Batching** — Deferred to companion `fox-acp-client` VS Code extension repository. Does not block CLI.
 
 ---
 
-## 🧱 Final Verdict
+## 🧱 Summary
 
 Phase 1B and Phase 2.0 are complete. Fox's compression is **100% correct**
-across 334 fixtures with **19.1% token savings**. The foundation is solid.
+across 334 fixtures with **19.1% token savings**.
 
-The next critical milestone is **Phase 2A-Foundation** — infrastructure that
-makes every interactive Fox session better. Multi-command verification, smarter
-context pruning, dynamic context window discovery, and clean commit mechanics.
-These also serve as prerequisite inputs to the Guardian.
+**Phase 2 (Foundation)** is the current priority — everything that makes Fox
+better for daily use: multi-command verification, model intelligence (tier
+filtering, rewrite mode, specialized subagents), system-driven routing, and
+performance. This is the **largest phase** because it's the most impactful
+for every user.
 
-After Foundation is in place, **Phase 2A-Guardian** builds the dual-agent
-autonomy layer on top. The compression pipeline is Guardian-ready
-(`CompressionPolicyOverride` interface already in place).
+**Phase 3 (Guardian)** builds on Foundation to add the autonomy intelligence
+layer — the dual-agent oversight system for `--auto` and headless operation.
 
-The revised flow:
+**Phase 4 (Architecture)** hardens the platform with sandboxing, security,
+persistent memory, and UX improvements.
+
 ```
-Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A-Foundation 🔧 → Phase 2A-Guardian → Phase 2B → Phase 3
+Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2 (Foundation) 🔧 → Phase 3 (Guardian) → Phase 4 (Architecture)
 ```
