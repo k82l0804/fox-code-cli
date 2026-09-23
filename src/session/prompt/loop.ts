@@ -64,7 +64,16 @@ import { isOrphanedInterruptedTool } from "./orphan"
 import { createStructuredOutputTool, STRUCTURED_OUTPUT_SYSTEM_PROMPT } from "./structured"
 import { REQUEST_PRUNE_BYTES } from "./attachment"
 import { resolveProfile } from "./model-profile"
-import { resolveTier, computeMaxSteps, shouldWarnCoding, shouldRefuseCoding, createReclassState, reclassifyOnSuccess, reclassifyOnFailure } from "@/foxcode/model-tier"
+import {
+  resolveTier,
+  computeMaxSteps,
+  shouldWarnCoding,
+  shouldRefuseCoding,
+  createReclassState,
+  reclassifyOnSuccess,
+  reclassifyOnFailure,
+  type TierReclassState,
+} from "@/foxcode/model-tier"
 
 export interface PromptLoopDeps {
   readonly sessions: Session.Interface
@@ -158,6 +167,7 @@ export function makePromptLoop(deps: PromptLoopDeps) {
     // Cache static tool definitions across loop steps (Blueprint 11.1).
     // Invalidated when agent, model, or provider changes.
     let toolDefCache: SessionTools.ToolDefinitionCache | undefined
+    let reclassState: TierReclassState | undefined
 
     while (true) {
       yield* status.set(sessionID, { type: "busy" })
@@ -304,6 +314,12 @@ export function makePromptLoop(deps: PromptLoopDeps) {
         overrideTier: cfg.model_tier,
       })
 
+      if (!reclassState || reclassState.original.tier !== tierInfo.tier) {
+        reclassState = createReclassState(tierInfo)
+      }
+      const effectiveTierInfo =
+        cfg.dynamic_tier_reclassification !== false && reclassState ? reclassState.current : tierInfo
+
       if (
         shouldRefuseCoding({
           tierInfo,
@@ -321,7 +337,7 @@ export function makePromptLoop(deps: PromptLoopDeps) {
         throw error
       }
 
-      const maxSteps = computeMaxSteps(agent.steps, tierInfo)
+      const maxSteps = computeMaxSteps(agent.steps, effectiveTierInfo)
       const isLastStep = step >= maxSteps
 
       if (shouldWarnCoding(tierInfo, agent.name)) {
@@ -331,7 +347,7 @@ export function makePromptLoop(deps: PromptLoopDeps) {
           providerID: model.providerID,
           message:
             `Model "${model.name}" is classified as Tier ${tierInfo.tier} (${tierInfo.source}). ` +
-            `Multi-turn coding may produce unreliable results. Steps capped at ${tierInfo.maxSteps}.`,
+            `Multi-turn coding may produce unreliable results. Steps capped at ${effectiveTierInfo.maxSteps}.`,
         })
       }
       msgs = yield* SessionReminders.apply({ messages: msgs, agent, session }).pipe(
@@ -390,14 +406,14 @@ export function makePromptLoop(deps: PromptLoopDeps) {
           : undefined
         // --- Tool Definition Cache (Blueprint 11.1) ---
         // Phase 1: Resolve static definitions (cached across loop steps)
-        const toolCacheKey = `${agent.name}:${model.id}:${model.providerID}:${tierInfo.tier}`
+        const toolCacheKey = `${agent.name}:${model.id}:${model.providerID}:${effectiveTierInfo.tier}`
         if (!toolDefCache || toolDefCache.key !== toolCacheKey) {
           toolDefCache = yield* SessionTools.resolveDefinitions({
             agent,
             session,
             model,
             bypassAgentCheck,
-            tierInfo,
+            tierInfo: effectiveTierInfo,
             toolsFilterByTier: cfg.tools_filter_by_tier,
           }).pipe(
             Effect.provideService(ToolRegistry.Service, registry),
@@ -560,10 +576,25 @@ export function makePromptLoop(deps: PromptLoopDeps) {
           if (handle.message.error) closeReasons.set(sessionID, "error")
           return "break" as const
         }
+
+        const parts = yield* MessageV2.parts(handle.message.id).pipe(
+          Effect.provideService(Database.Service, database),
+        )
+        const toolParts = parts.filter(
+          (part): part is MessageV2.ToolPart => part.type === "tool" && !isOrphanedInterruptedTool(part),
+        )
+        if (toolParts.length > 0 && cfg.dynamic_tier_reclassification !== false && reclassState) {
+          const oldTier = reclassState.current.tier
+          const toolCallFailed = toolParts.some((p) => p.state.status === "error")
+          reclassState = toolCallFailed
+            ? reclassifyOnFailure(reclassState)
+            : reclassifyOnSuccess(reclassState)
+          if (reclassState.current.tier !== oldTier) {
+            toolDefCache = undefined
+          }
+        }
+
         if (result === "compact") {
-          const parts = yield* MessageV2.parts(handle.message.id).pipe(
-            Effect.provideService(Database.Service, database),
-          )
           const tools = parts.some(
             (part) => part.type === "tool" && !part.metadata?.providerExecuted && !isOrphanedInterruptedTool(part),
           )

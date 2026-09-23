@@ -243,10 +243,15 @@ export const TIER_SAFE_TOOLS = new Set([
   "glob",
   "bash",
   "webfetch",
+  "websearch",
   "question",
   "invalid",
   "todowrite",
   "rewrite_file",
+  "recall",
+  "repo_overview",
+  "semantic_search",
+  "notebook_read",
   // Kilo tools that are read-only / status
   "agent_manager_models",
   "fox_memory_recall",
@@ -268,6 +273,9 @@ export const TIER_COMPLEX_TOOLS = new Set([
   "lookup_symbols",
   "fetch_repo_map",
   "lsp",
+  "commit",
+  "notebook_edit",
+  "notebook_execute",
   // Kilo write tools that require multi-step reasoning
   "agent_manager",
   "fox_memory_save",
@@ -356,12 +364,13 @@ export function reclassifyOnSuccess(state: TierReclassState): TierReclassState {
  *
  * Rules:
  * - Only B → C demotion is supported
+ * - Only demotes models whose original tier is not B (preserves B-native models)
  * - Requires 2+ consecutive failures
  * - S, A, C, D tiers are never demoted
  */
 export function reclassifyOnFailure(state: TierReclassState): TierReclassState {
   const next = { ...state, consecutiveFailures: state.consecutiveFailures + 1 }
-  if (next.current.tier === "B" && next.consecutiveFailures >= 2) {
+  if (next.current.tier === "B" && next.consecutiveFailures >= 2 && state.original.tier !== "B") {
     next.current = { tier: "C", ...TIER_META.C, source: "reclassified" }
     next.reclassified = true
   }

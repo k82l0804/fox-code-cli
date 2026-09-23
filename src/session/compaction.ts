@@ -192,7 +192,7 @@ const layer = Layer.effect(
       model: Provider.Model
     }) {
       const msgs = yield* MessageV2.toModelMessagesEffect(input.messages, input.model)
-      return Token.estimate(JSON.stringify(msgs))
+      return msgs.reduce((sum, msg) => sum + Token.estimateMessage(msg), 0)
     })
 
     const select = Effect.fn("SessionCompaction.select")(function* (input: {
@@ -386,7 +386,7 @@ const layer = Layer.effect(
         stripMedia: true,
         toolOutputMaxChars: TOOL_OUTPUT_MAX_CHARS,
       })
-      const tokens = Token.estimate(JSON.stringify(modelMessages))
+      const tokens = modelMessages.reduce((sum, msg) => sum + Token.estimateMessage(msg), 0)
       const tailIndex = selected.tail_start_id
         ? history.findIndex((message) => message.info.id === selected.tail_start_id)
         : -1

@@ -71,7 +71,28 @@ type Input = {
   readonly request: LLMRequest
 }
 
-const estimate = (value: unknown) => Token.estimate(JSON.stringify(value))
+const toolTokensCache = new WeakMap<object, number>()
+
+function estimateTools(tools: unknown): number {
+  if (!tools) return 0
+  if (typeof tools === "object" && tools !== null) {
+    const cached = toolTokensCache.get(tools)
+    if (cached !== undefined) return cached
+    const tokens = Token.estimateObject(tools)
+    toolTokensCache.set(tools, tokens)
+    return tokens
+  }
+  return Token.estimateObject(tools)
+}
+
+function estimateRequest(request: LLMRequest): number {
+  const systemTokens = request.system ? Token.estimateObject(request.system) : 0
+  const toolTokens = request.tools ? estimateTools(request.tools) : 0
+  const msgTokens = request.messages ? request.messages.reduce((sum, msg) => sum + Token.estimateMessage(msg), 0) : 0
+  return systemTokens + toolTokens + msgTokens
+}
+
+const estimate = (value: unknown) => Token.estimateObject(value)
 
 const truncate = (value: string) =>
   value.length <= TOOL_OUTPUT_MAX_CHARS ? value : `${value.slice(0, TOOL_OUTPUT_MAX_CHARS)}\n[truncated]`
@@ -229,7 +250,7 @@ export const make = (dependencies: Dependencies) => {
     if (context === undefined || context <= 0) return false
     const output = input.request.generation?.maxTokens ?? input.model.route.defaults.limits?.output ?? 0
     if (
-      estimate({ system: input.request.system, messages: input.request.messages, tools: input.request.tools }) <=
+      estimateRequest(input.request) <=
       context - Math.max(output, config.buffer)
     )
       return false

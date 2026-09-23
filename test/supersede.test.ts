@@ -350,4 +350,238 @@ describe("buildSupersededSet", () => {
     expect(result.has("branch-1")).toBe(true)
     expect(result.has("branch-2")).toBe(false)
   })
+
+  // ─── Pattern 1: Grep Supersession Tests ────────────────────────────────────
+
+  function grepPart(callID: string, pattern: string, path?: string, output = "matches..."): any {
+    return {
+      id: callID,
+      messageID: `msg-${callID}`,
+      sessionID: "test-session",
+      type: "tool",
+      tool: "grep",
+      callID,
+      state: {
+        status: "completed",
+        input: { pattern, ...(path ? { path } : {}) },
+        output,
+        title: "",
+        metadata: {},
+        time: { start: Date.now(), end: Date.now() },
+      },
+    }
+  }
+
+  test("grep supersession: same query replaces earlier", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [grepPart("grep-1", "foo", "src/")]),
+      assistantMsg("a2", [grepPart("grep-2", "foo", "src/")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("grep-1")).toBe(true)
+    expect(result.has("grep-2")).toBe(false)
+    expect(result.get("grep-1")).toContain("Grep results superseded")
+  })
+
+  test("grep supersession: different query preserved", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [grepPart("grep-1", "foo", "src/")]),
+      assistantMsg("a2", [grepPart("grep-2", "bar", "src/")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("grep-1")).toBe(false)
+    expect(result.has("grep-2")).toBe(false)
+  })
+
+  test("grep supersession: same query different path preserved", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [grepPart("grep-1", "foo", "src/")]),
+      assistantMsg("a2", [grepPart("grep-2", "foo", "test/")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("grep-1")).toBe(false)
+    expect(result.has("grep-2")).toBe(false)
+  })
+
+  // ─── Pattern 2: Glob Supersession Tests ────────────────────────────────────
+
+  function globPart(callID: string, pattern: string, path?: string, output = "files..."): any {
+    return {
+      id: callID,
+      messageID: `msg-${callID}`,
+      sessionID: "test-session",
+      type: "tool",
+      tool: "glob",
+      callID,
+      state: {
+        status: "completed",
+        input: { pattern, ...(path ? { path } : {}) },
+        output,
+        title: "",
+        metadata: {},
+        time: { start: Date.now(), end: Date.now() },
+      },
+    }
+  }
+
+  test("glob supersession: same pattern replaces earlier", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [globPart("glob-1", "*.ts")]),
+      assistantMsg("a2", [globPart("glob-2", "*.ts")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("glob-1")).toBe(true)
+    expect(result.has("glob-2")).toBe(false)
+    expect(result.get("glob-1")).toContain("Glob results superseded")
+  })
+
+  test("glob supersession: different pattern preserved", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [globPart("glob-1", "*.ts")]),
+      assistantMsg("a2", [globPart("glob-2", "*.json")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("glob-1")).toBe(false)
+    expect(result.has("glob-2")).toBe(false)
+  })
+
+  // ─── Pattern 3: Directory Listing (ls/find) Supersession Tests ──────────────
+
+  test("directory listing: superseded by subsequent ls on same directory", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("ls-1", "ls -la src/")]),
+      assistantMsg("a2", [bashPart("ls-2", "ls src/")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("ls-1")).toBe(true)
+    expect(result.has("ls-2")).toBe(false)
+    expect(result.get("ls-1")).toContain("subsequent directory listing")
+  })
+
+  test("directory listing: superseded when file in directory is modified", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("ls-1", "ls src/")]),
+      assistantMsg("a2", [writePart("write-1", "src/foo.ts")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("ls-1")).toBe(true)
+    expect(result.get("ls-1")).toContain("files modified in src")
+  })
+
+  test("directory listing: not superseded when file in different directory is modified", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("ls-1", "ls src/")]),
+      assistantMsg("a2", [writePart("write-1", "test/bar.ts")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("ls-1")).toBe(false)
+  })
+
+  test("directory listing: find superseded on git commit", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [bashPart("find-1", "find . -name '*.ts'")]),
+      assistantMsg("a2", [bashPart("commit-1", "git commit -m 'feat: test'")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("find-1")).toBe(true)
+    expect(result.get("find-1")).toContain("files modified by git commit")
+  })
+
+  // ─── Pattern 4: Verification Output Supersession Tests ─────────────────────
+
+  function verifyPart(callID: string, output?: string): any {
+    const defaultOutput =
+      "─── Auto-Verification Pipeline ❌ FAILED ───\nTests: 1 failed\n─── End Auto-Verification Pipeline ───"
+    return {
+      id: callID,
+      messageID: `msg-${callID}`,
+      sessionID: "test-session",
+      type: "tool",
+      tool: "bash",
+      callID,
+      state: {
+        status: "completed",
+        input: { command: "bun test" },
+        output: output ?? defaultOutput,
+        title: "",
+        metadata: {},
+        time: { start: Date.now(), end: Date.now() },
+      },
+    }
+  }
+
+  test("verification supersession: earlier verification outputs superseded", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [verifyPart("verify-1")]),
+      assistantMsg("a2", [editPart("edit-1", "src/foo.ts")]),
+      assistantMsg("a3", [verifyPart("verify-2", "─── Auto-Verification Pipeline ✅ PASSED ───\nTests: pass\n─── End Auto-Verification Pipeline ───")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("verify-1")).toBe(true)
+    expect(result.has("verify-2")).toBe(false)
+    expect(result.get("verify-1")).toContain("Auto-verification output superseded")
+  })
+
+  test("verification supersession: preserves edit prefix when stripping verification", () => {
+    const editWithVerify: any = {
+      id: "edit-v-1",
+      messageID: "msg-1",
+      sessionID: "test-session",
+      type: "tool",
+      tool: "edit",
+      callID: "edit-v-1",
+      state: {
+        status: "completed",
+        input: { path: "src/foo.ts", oldString: "a", newString: "b" },
+        output:
+          "Edited file successfully: src/foo.ts\nReplacements: 1\n\n─── Auto-Verification Pipeline ❌ FAILED ───\nFailure\n─── End Auto-Verification Pipeline ───",
+        title: "",
+        metadata: {},
+        time: { start: Date.now(), end: Date.now() },
+      },
+    }
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [editWithVerify]),
+      assistantMsg("a2", [verifyPart("verify-2")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("edit-v-1")).toBe(true)
+    const marker = result.get("edit-v-1")!
+    expect(marker).toContain("Edited file successfully: src/foo.ts")
+    expect(marker).toContain("Auto-verification output superseded")
+    expect(marker).not.toContain("─── Auto-Verification Pipeline ❌ FAILED ───")
+  })
+
+  // ─── Pattern 5: Read Supersession on Re-Read Tests ─────────────────────────
+
+  test("read supersession: re-read without mutation", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [readPart("read-1", "src/a.ts")]),
+      assistantMsg("a2", [readPart("read-2", "src/a.ts")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("read-1")).toBe(true)
+    expect(result.has("read-2")).toBe(false)
+    expect(result.get("read-1")).toContain("subsequent read of src/a.ts")
+  })
+
+  test("read supersession: re-read without mutation across intermediate unrelated edit", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [readPart("read-1", "src/a.ts")]),
+      assistantMsg("a2", [editPart("edit-1", "src/b.ts")]),
+      assistantMsg("a3", [readPart("read-2", "src/a.ts")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.has("read-1")).toBe(true)
+    expect(result.has("read-2")).toBe(false)
+  })
+
+  test("no false positives on different files", () => {
+    const msgs: SessionV1.WithParts[] = [
+      assistantMsg("a1", [readPart("read-1", "src/a.ts")]),
+      assistantMsg("a2", [readPart("read-2", "src/b.ts")]),
+    ]
+    const result = buildSupersededSet(msgs, ENABLED)
+    expect(result.size).toBe(0)
+  })
 })

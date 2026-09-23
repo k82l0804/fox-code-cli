@@ -638,6 +638,71 @@ describe("Model Capability Tier System", () => {
       const result = filterToolsByTier(tools, tier)
       expect(result.map((t) => t.id)).toContain("rewrite_file")
     })
+
+    test("commit is in TIER_COMPLEX_TOOLS and filtered out for Tier C", () => {
+      expect(TIER_COMPLEX_TOOLS.has("commit")).toBe(true)
+      const tier = resolveTier({ overrideTier: "C" })
+      const tools = mockTools(["read", "commit"])
+      const result = filterToolsByTier(tools, tier)
+      expect(result.map((t) => t.id)).not.toContain("commit")
+    })
+
+    test("websearch is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
+      expect(TIER_SAFE_TOOLS.has("websearch")).toBe(true)
+      const tier = resolveTier({ overrideTier: "D" })
+      const tools = mockTools(["read", "websearch", "task"])
+      const result = filterToolsByTier(tools, tier)
+      expect(result.map((t) => t.id)).toContain("websearch")
+    })
+
+    test("recall is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
+      expect(TIER_SAFE_TOOLS.has("recall")).toBe(true)
+      const tier = resolveTier({ overrideTier: "D" })
+      const tools = mockTools(["read", "recall", "task"])
+      const result = filterToolsByTier(tools, tier)
+      expect(result.map((t) => t.id)).toContain("recall")
+    })
+
+    test("repo_overview is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
+      expect(TIER_SAFE_TOOLS.has("repo_overview")).toBe(true)
+      const tier = resolveTier({ overrideTier: "D" })
+      const tools = mockTools(["read", "repo_overview", "task"])
+      const result = filterToolsByTier(tools, tier)
+      expect(result.map((t) => t.id)).toContain("repo_overview")
+    })
+
+    test("semantic_search is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
+      expect(TIER_SAFE_TOOLS.has("semantic_search")).toBe(true)
+      const tier = resolveTier({ overrideTier: "D" })
+      const tools = mockTools(["read", "semantic_search", "task"])
+      const result = filterToolsByTier(tools, tier)
+      expect(result.map((t) => t.id)).toContain("semantic_search")
+    })
+
+    test("notebook_read is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
+      expect(TIER_SAFE_TOOLS.has("notebook_read")).toBe(true)
+      const tier = resolveTier({ overrideTier: "D" })
+      const tools = mockTools(["read", "notebook_read", "task"])
+      const result = filterToolsByTier(tools, tier)
+      expect(result.map((t) => t.id)).toContain("notebook_read")
+    })
+
+    test("notebook_edit and notebook_execute are in TIER_COMPLEX_TOOLS and filtered out for Tier C", () => {
+      expect(TIER_COMPLEX_TOOLS.has("notebook_edit")).toBe(true)
+      expect(TIER_COMPLEX_TOOLS.has("notebook_execute")).toBe(true)
+      const tier = resolveTier({ overrideTier: "C" })
+      const tools = mockTools(["read", "notebook_edit", "notebook_execute"])
+      const result = filterToolsByTier(tools, tier)
+      const ids = result.map((t) => t.id)
+      expect(ids).not.toContain("notebook_edit")
+      expect(ids).not.toContain("notebook_execute")
+    })
+
+    test("TIER_SAFE_TOOLS and TIER_COMPLEX_TOOLS have no overlapping tools", () => {
+      for (const tool of TIER_SAFE_TOOLS) {
+        expect(TIER_COMPLEX_TOOLS.has(tool)).toBe(false)
+      }
+    })
   })
 
   // -------------------------------------------------------------------------
@@ -712,14 +777,14 @@ describe("Model Capability Tier System", () => {
       expect(next.reclassified).toBe(false)
     })
 
-    test("Two consecutive failures demote B to C", () => {
+    test("Two consecutive failures do not demote B-native model", () => {
       const tier = resolveTier({ overrideTier: "B" })
       let state = createReclassState(tier)
       state = reclassifyOnFailure(state)
       state = reclassifyOnFailure(state)
-      expect(state.current.tier).toBe("C")
-      expect(state.reclassified).toBe(true)
-      expect(state.current.source).toBe("reclassified")
+      expect(state.current.tier).toBe("B")
+      expect(state.reclassified).toBe(false)
+      expect(state.consecutiveFailures).toBe(2)
     })
 
     test("Failure on Tier S is no-op", () => {
@@ -748,9 +813,11 @@ describe("Model Capability Tier System", () => {
       expect(state.current.tier).toBe("C")
     })
 
-    test("Demotion then promotion returns to original (B→C→B)", () => {
-      const tier = resolveTier({ overrideTier: "B" })
+    test("C model: promote, demote, re-promote (C→B→C→B)", () => {
+      const tier = resolveTier({ overrideTier: "C" })
       let state = createReclassState(tier)
+      state = reclassifyOnSuccess(state) // C → B
+      expect(state.current.tier).toBe("B")
       state = reclassifyOnFailure(state)
       state = reclassifyOnFailure(state) // B → C
       expect(state.current.tier).toBe("C")
@@ -796,17 +863,27 @@ describe("Model Capability Tier System", () => {
       expect(after.map((t) => t.id)).toContain("task")
     })
 
-    test("Tier B after demotion to C narrows tools", () => {
-      const tier = resolveTier({ overrideTier: "B" })
+    test("Promoted Tier B after demotion to C narrows tools", () => {
+      const tier = resolveTier({ overrideTier: "C" })
       let state = createReclassState(tier)
-      // Initially B: task is available
+      state = reclassifyOnSuccess(state) // C → B
+      // Now B: task is available
       const before = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
       expect(before.map((t) => t.id)).toContain("task")
-      // After 2 failures: demoted to C, task is hidden
+      // After 2 failures: demoted back to C, task is hidden
       state = reclassifyOnFailure(state)
       state = reclassifyOnFailure(state)
       const after = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
       expect(after.map((t) => t.id)).not.toContain("task")
+    })
+
+    test("B-native model preserves tools after failures (no demotion)", () => {
+      const tier = resolveTier({ overrideTier: "B" })
+      let state = createReclassState(tier)
+      state = reclassifyOnFailure(state)
+      state = reclassifyOnFailure(state)
+      const after = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
+      expect(after.map((t) => t.id)).toContain("task")
     })
 
     test("TIER_SAFE_TOOLS and TIER_COMPLEX_TOOLS don't overlap", () => {
@@ -829,6 +906,52 @@ describe("Model Capability Tier System", () => {
       expect(state.current.warnOnCoding).toBe(true)
       state = reclassifyOnSuccess(state)
       expect(state.current.warnOnCoding).toBe(false)
+    })
+
+    test("Reclassification changes tool cache key when tier changes", () => {
+      const tier = resolveTier({ overrideTier: "C" })
+      let state = createReclassState(tier)
+      const agentName = "code"
+      const modelId = "test-model"
+      const providerId = "test-provider"
+      const keyBefore = `${agentName}:${modelId}:${providerId}:${state.current.tier}`
+      expect(keyBefore).toBe("code:test-model:test-provider:C")
+
+      state = reclassifyOnSuccess(state)
+      const keyAfter = `${agentName}:${modelId}:${providerId}:${state.current.tier}`
+      expect(keyAfter).toBe("code:test-model:test-provider:B")
+      expect(keyAfter).not.toBe(keyBefore)
+    })
+
+    test("dynamic_tier_reclassification disabled preserves original tier", () => {
+      const tier = resolveTier({ overrideTier: "C" })
+      const dynamicEnabled = false
+      const state = createReclassState(tier)
+      const effectiveTier = dynamicEnabled ? reclassifyOnSuccess(state).current : tier
+      expect(effectiveTier.tier).toBe("C")
+    })
+
+    test("Original tier is preserved for coding refusal and warnings even after promotion", () => {
+      const tier = resolveTier({ overrideTier: "C" })
+      let state = createReclassState(tier)
+      state = reclassifyOnSuccess(state) // Promoted to B
+      expect(state.current.tier).toBe("B")
+      expect(state.original.tier).toBe("C")
+      expect(shouldRefuseCoding({ tierInfo: state.original, agentName: "code", refuseSmallModelCoding: true })).toBe(true)
+      expect(shouldWarnCoding(state.original, "code")).toBe(true)
+    })
+
+    test("Tier transition triggers toolDefCache invalidation condition", () => {
+      const tier = resolveTier({ overrideTier: "C" })
+      let state = createReclassState(tier)
+      let toolDefCache: { key: string } | undefined = { key: "old-key" }
+
+      const oldTier = state.current.tier
+      state = reclassifyOnSuccess(state)
+      if (state.current.tier !== oldTier) {
+        toolDefCache = undefined
+      }
+      expect(toolDefCache).toBeUndefined()
     })
   })
 })

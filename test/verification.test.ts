@@ -22,10 +22,11 @@ import { tmpdir } from "os"
 
 describe("Verification", () => {
   describe("MUTATION_TOOLS", () => {
-    test("includes edit, apply_patch, and write", () => {
+    test("includes edit, apply_patch, write, and commit", () => {
       expect(MUTATION_TOOLS.has("edit")).toBe(true)
       expect(MUTATION_TOOLS.has("apply_patch")).toBe(true)
       expect(MUTATION_TOOLS.has("write")).toBe(true)
+      expect(MUTATION_TOOLS.has("commit")).toBe(true)
     })
 
     test("does NOT include read-only tools", () => {

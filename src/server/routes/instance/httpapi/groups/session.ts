@@ -44,7 +44,10 @@ export const DiffQuery = Schema.Struct({
 export const MessagesQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   limit: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
+  pageSize: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
   before: Schema.optional(Schema.String),
+  beforeId: Schema.optional(MessageID),
+  beforeTime: Schema.optional(Schema.NumberFromString),
 })
 export const DeleteMessageQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,

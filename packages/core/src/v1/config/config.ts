@@ -45,6 +45,21 @@ const CommitMessageSchema = Schema.optional(
     }),
   }),
 ).annotate({ description: "Configuration for AI-generated commit messages" })
+
+/** Schema for commit tool behavior configuration. */
+const CommitConfigSchema = Schema.optional(
+  Schema.Struct({
+    auto_stage: Schema.optional(Schema.Boolean).annotate({
+      description: "Automatically stage modified tracked files before commit. Defaults to true.",
+    }),
+    sign: Schema.optional(Schema.Boolean).annotate({
+      description: "GPG-sign commits. Defaults to false.",
+    }),
+    prefix: Schema.optional(Schema.String).annotate({
+      description: "Prefix for generated commit messages (e.g., 'fox: '). Defaults to none.",
+    }),
+  }),
+).annotate({ description: "Configuration for commit tool behavior" })
 export const Info = Schema.Struct({
   $schema: Schema.optional(Schema.String).annotate({
     description: "JSON schema reference for configuration validation",
@@ -262,6 +277,7 @@ export const Info = Schema.Struct({
     Schema.Struct({ url: Schema.optional(Schema.String).annotate({ description: "Enterprise URL" }) }),
   ),
   commit_message: CommitMessageSchema,
+  commit: CommitConfigSchema,
   tool_output: Schema.optional(
     Schema.Struct({
       max_lines: Schema.optional(PositiveInt).annotate({

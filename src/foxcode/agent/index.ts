@@ -319,6 +319,20 @@ export function hardenExplore(
   )
 }
 
+export function hardenScribe(
+  key: string,
+  item: { permission: Permission.Ruleset; native?: boolean },
+  ...explicit: Permission.Ruleset[]
+) {
+  if (key !== "scribe" || !item.native) return
+  item.permission = Permission.merge(
+    item.permission,
+    Permission.fromConfig({ edit: "deny", apply_patch: "deny", bash: "deny", task: "deny" }),
+    // Hardening is a ceiling, so retain any stricter user-authored denies.
+    ...explicit.map(denies),
+  )
+}
+
 function planGuard(worktree: string, mcp: Record<string, "allow" | "ask" | "deny"> = {}, enabled = false) {
   return Permission.fromConfig({
     "*": "deny",

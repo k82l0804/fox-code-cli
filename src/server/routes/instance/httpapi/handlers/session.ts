@@ -119,24 +119,31 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       query: typeof MessagesQuery.Type
     }) {
-      if (ctx.query.before && ctx.query.limit === undefined) return yield* new HttpApiError.BadRequest({})
-      if (ctx.query.before) {
-        const before = ctx.query.before
+      const limit = ctx.query.pageSize ?? ctx.query.limit
+      let before = ctx.query.before
+      if (!before && ctx.query.beforeId && ctx.query.beforeTime !== undefined) {
+        before = MessageV2.cursor.encode({
+          id: ctx.query.beforeId,
+          time: ctx.query.beforeTime,
+        })
+      }
+      if (before && limit === undefined) return yield* new HttpApiError.BadRequest({})
+      if (before) {
         yield* Effect.try({
           try: () => MessageV2.cursor.decode(before),
           catch: () => new HttpApiError.BadRequest({}),
         })
       }
       yield* requireSession(ctx.params.sessionID)
-      if (ctx.query.limit === undefined || ctx.query.limit === 0) {
+      if (limit === undefined || limit === 0) {
         return yield* SessionError.mapStorageNotFound(session.messages({ sessionID: ctx.params.sessionID }))
       }
 
       const page = yield* SessionError.mapStorageNotFound(
         MessageV2.page({
           sessionID: ctx.params.sessionID,
-          limit: ctx.query.limit,
-          before: ctx.query.before,
+          limit,
+          before,
         }),
       )
       if (!page.cursor) return page.items
@@ -145,7 +152,11 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       // toURL() honors the Host + x-forwarded-proto headers, so the Link
       // header echoes the real origin instead of a hard-coded localhost.
       const url = Option.getOrElse(HttpServerRequest.toURL(request), () => new URL(request.url, "http://localhost"))
-      url.searchParams.set("limit", ctx.query.limit.toString())
+      if (ctx.query.pageSize !== undefined) {
+        url.searchParams.set("pageSize", ctx.query.pageSize.toString())
+      } else {
+        url.searchParams.set("limit", limit.toString())
+      }
       url.searchParams.set("before", page.cursor)
       return HttpServerResponse.jsonUnsafe(page.items, {
         headers: {

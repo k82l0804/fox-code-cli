@@ -75,7 +75,7 @@ export const DEFAULT_VERIFICATION_TIMEOUT_MS = 30_000
  * The mutation tool names that trigger auto-verification.
  * Read-only tools (read, grep, glob) and shell (bash) do NOT trigger.
  */
-export const MUTATION_TOOLS = new Set(["edit", "apply_patch", "write"])
+export const MUTATION_TOOLS = new Set(["edit", "apply_patch", "write", "commit"])
 
 // ---------------------------------------------------------------------------
 // Test Command Detection

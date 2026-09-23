@@ -26,6 +26,9 @@ export const Parameters = Schema.Struct({
     description: "The absolute path to the file to write (must be absolute, not relative)",
   }),
   content: Schema.String.annotate({ description: "The complete new content for the file" }),
+  reason: Schema.optional(Schema.String).annotate({
+    description: "Optional explanation of why the file is being rewritten",
+  }),
 })
 
 type Metadata = {
@@ -33,6 +36,64 @@ type Metadata = {
   exists: boolean
   linesAdded: number
   linesRemoved: number
+}
+
+export function resolveRewritePath(filePath: string, directory: string): string {
+  return path.isAbsolute(filePath) ? filePath : path.join(directory, filePath)
+}
+
+export function computeRewriteDiffStats(oldContent: string, newContent: string): { linesAdded: number; linesRemoved: number } {
+  const changes = diffLines(oldContent, newContent)
+  let linesAdded = 0
+  let linesRemoved = 0
+  for (const change of changes) {
+    const count = change.count ?? 0
+    if (change.added) linesAdded += count
+    if (change.removed) linesRemoved += count
+  }
+  return { linesAdded, linesRemoved }
+}
+
+export function prepareRewriteContent(oldContent: string, newContent: string): {
+  desiredBom: boolean
+  cleanNewContent: string
+  cleanOldContent: string
+  fullContent: string
+} {
+  const next = Bom.split(newContent)
+  const oldBom = Bom.split(oldContent)
+  const desiredBom = oldBom.bom || next.bom
+  return {
+    desiredBom,
+    cleanNewContent: next.text,
+    cleanOldContent: oldBom.text,
+    fullContent: Bom.join(next.text, desiredBom),
+  }
+}
+
+export function buildRewriteOutput(
+  exists: boolean,
+  displayPath: string,
+  stats: { linesAdded: number; linesRemoved: number; lineCount: number },
+): string {
+  const action = exists ? "Overwrote" : "Created"
+  const detail = exists
+    ? ` (+${stats.linesAdded} lines, -${stats.linesRemoved} lines)`
+    : ` (${stats.lineCount} lines)`
+  return `${action} ${displayPath}${detail}`
+}
+
+export function buildRewritePermissionAsk(worktree: string, filepath: string, exists: boolean) {
+  return {
+    permission: "edit" as const,
+    patterns: [path.relative(worktree, filepath)],
+    always: ["*"],
+    metadata: {
+      filepath,
+      diff: `rewrite_file: ${exists ? "overwrite" : "create"} ${filepath}`,
+      filediff: undefined,
+    },
+  }
 }
 
 export const RewriteFileTool = Tool.define<typeof Parameters, Metadata, FSUtil.Service | EventV2Bridge.Service>(
@@ -44,12 +105,10 @@ export const RewriteFileTool = Tool.define<typeof Parameters, Metadata, FSUtil.S
     return {
       description: DESCRIPTION,
       parameters: Parameters,
-      execute: (params: { file_path: string; content: string }, ctx: Tool.Context) =>
+      execute: (params: { file_path: string; content: string; reason?: string }, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
-          const filepath = path.isAbsolute(params.file_path)
-            ? params.file_path
-            : path.join(instance.directory, params.file_path)
+          const filepath = resolveRewritePath(params.file_path, instance.directory)
 
           // Path security checks
           assertMutablePath(filepath)
@@ -57,55 +116,41 @@ export const RewriteFileTool = Tool.define<typeof Parameters, Metadata, FSUtil.S
 
           const exists = yield* fs.existsSafe(filepath)
           const oldContent = exists ? (yield* fs.readFileStringSafe(filepath)) ?? "" : ""
-          const next = Bom.split(params.content)
-          const oldBom = Bom.split(oldContent)
-          const desiredBom = oldBom.bom || next.bom
-          const newContent = next.text
+          const { desiredBom, cleanNewContent, cleanOldContent, fullContent } = prepareRewriteContent(
+            oldContent,
+            params.content,
+          )
 
           // Compute diff stats
-          const changes = diffLines(oldBom.text, newContent)
-          let linesAdded = 0
-          let linesRemoved = 0
-          for (const change of changes) {
-            const count = change.count ?? 0
-            if (change.added) linesAdded += count
-            if (change.removed) linesRemoved += count
-          }
+          const { linesAdded, linesRemoved } = computeRewriteDiffStats(cleanOldContent, cleanNewContent)
 
           // Permission check (uses "edit" permission like write tool)
-          yield* ctx.ask({
-            permission: "edit",
-            patterns: [path.relative(instance.worktree, filepath)],
-            always: ["*"],
-            metadata: {
-              filepath,
-              diff: `rewrite_file: ${exists ? "overwrite" : "create"} ${filepath}`,
-              filediff: undefined,
-            },
-          })
+          yield* ctx.ask(buildRewritePermissionAsk(instance.worktree, filepath, exists))
 
           // Write the file (creates parent directories as needed)
-          yield* fs.writeWithDirs(filepath, Bom.join(newContent, desiredBom))
+          yield* fs.writeWithDirs(filepath, fullContent)
           yield* events.publish(FileSystem.Event.Edited, { file: filepath })
           yield* events.publish(Watcher.Event.Updated, {
             file: filepath,
             event: exists ? "change" : "add",
           })
 
-          const action = exists ? "Overwrote" : "Created"
-          const stats = exists
-            ? ` (+${linesAdded} lines, -${linesRemoved} lines)`
-            : ` (${newContent.split("\n").length} lines)`
+          const displayPath = path.relative(instance.worktree, filepath)
+          const output = buildRewriteOutput(exists, displayPath, {
+            linesAdded,
+            linesRemoved,
+            lineCount: cleanNewContent.split("\n").length,
+          })
 
           return {
-            title: path.relative(instance.worktree, filepath),
+            title: displayPath,
             metadata: {
               filepath,
               exists,
               linesAdded,
               linesRemoved,
             },
-            output: `${action} ${path.relative(instance.worktree, filepath)}${stats}`,
+            output,
           }
         }).pipe(Effect.orDie),
     }

@@ -1,37 +1,6 @@
 # Future Tasks
 
-> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (🔧 current) → **Phase 2B** → Phase 2C → Phase 3 → Phase 4
-
----
-
-## Phase 2B — Model Intelligence
-
-> Tier-aware tool surfaces, small model safety, and specialized subagents.
-> Builds on the [Model Capability Tier System](file:///home/k82l0804/workarea/fox/fox-code-cli/src/foxcode/model-tier.ts) (Phase 1 complete: 94 tests, `resolveTier()` cascade, step capping).
-
-- [ ] **7. Whole-File Rewrite Mode (Tier D)** — New `rewrite_file` tool for tiny models. No diff, no hunk parsing — full-file overwrite. Deliberately simple so small models can write code without failing on edit schemas.
-- [ ] **8. Tool Surface Filtering by Tier** — Hide complex tools (`task`, `write`, `edit`, `apply_patch`, `skill`) from Tier C/D models. Only safe single-invocation tools remain. Config: `tools_filter_by_tier: true` (default). The `general` subagent stops being a liability.
-- [ ] **9. Runtime Tier Reclassification** — Promote C→B on first successful tool call. Demote B→C after 2 consecutive failures. Only C↔B transitions. Per-session, not persisted. Config: `dynamic_tier_reclassification: true` (default).
-- [ ] **10. Specialized Subagents** — Replace the failing `general` subagent with 3 purpose-built agents for small models:
-
-  | Subagent | Tools | Min Tier | Purpose |
-  |----------|-------|----------|---------|
-  | **scout** | `read`, `grep`, `glob` | C | Read-only codebase research |
-  | **runner** | `bash` (read-only commands) | C | Execute tests, builds, linters |
-  | **scribe** | `rewrite_file`, `write` | B | Write/overwrite single files |
-
-  The LLM picks the right subagent for the task. Existing agents (`code`, `debug`, `explore`, `ask`) remain for primary model use.
-
----
-
-## Phase 2C — Routing & Refinement
-
-> System-driven model selection and quality-of-life improvements.
-
-- [ ] **11. System-Driven Model Routing** — `recommendModelForTask(agentMode, availableModels[])` — system picks cheapest viable model for each subtask. Tier-based: research on Tier C, planning on Tier A/S, implementation on Tier B+.
-- [ ] **12. Blast-Radius Regression Detection (3b)** — Baseline test tracking to distinguish "I broke this" from "this was already broken." Structured input for future Guardian.
-- [ ] **13. LSP Confidence Scoring (6a)** — Language-aware edit confidence. The parity matrix shows AST/symbol index as a top gap.
-- [ ] **14. Repo-Level Intent Detection** — Classify task scope and blast radius from the goal description before planning.
+> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (✅) → Phase 2B (✅) → Phase 2C (🔧 current) → **Phase 3** → Phase 4
 
 ---
 

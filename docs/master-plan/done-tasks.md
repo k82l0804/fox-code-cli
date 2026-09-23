@@ -40,3 +40,48 @@
 - [x] **Repeated Pattern Collapsing (Level 2)**
 - [x] **Pipeline Integration + Safety Rails**
 - [x] **Guardian-Ready Interface (`CompressionPolicyOverride`)**
+
+---
+
+## Phase 2A — Core Infrastructure (2026-09-23) ✅
+
+> Multi-command auto-verification pipeline, turn-supersession context pruning, dynamic context window discovery, atomic task-completion commits, paginated message loading, and JSON serialization bypass.
+> All 6 tasks complete, typecheck passes, all test suites pass (292 smoke tests, 44 verification, 19 supersede, 8 discovery, 9 commit, 9 pagination).
+
+- [x] **1. Multi-Command Auto-Verification Pipeline** — [📋 Plan](../completed-plans/2026-09-23T12-40_plan-multi-cmd-verification.md)
+  Extend `verification.ts` to run typecheck → tests → lint as a configurable sequence.
+
+- [x] **2. Turn-Supersession Context Pruning** — [📋 Plan](../completed-plans/2026-09-23T12-40_plan-supersession-pruning.md)
+  Extend `supersede.ts` to cover grep/glob/re-read/verification supersession patterns.
+
+- [x] **3. Dynamic Context Window Discovery** — [📋 Plan](../completed-plans/2026-09-23T12-40_plan-dynamic-context-window.md)
+  Query `/v1/models` for actual context limits to feed into compaction thresholds.
+
+- [x] **4. Atomic Task-Completion Commits** — [📋 Plan](../completed-plans/2026-09-23T12-40_plan-atomic-commits.md)
+  New `commit` tool with LLM-generated messages, replacing ad-hoc `git commit` via bash.
+
+- [x] **5. Paginated Message Loading** — [📋 Plan](../completed-plans/2026-09-23T12-40_plan-paginated-loading.md)
+  Cursor-based pagination for session message loading (UI performance).
+
+- [x] **6. JSON Serialization Bypass** — [📋 Plan](../completed-plans/2026-09-23T12-40_plan-json-bypass.md)
+  Cache token estimates and tool schemas to eliminate redundant `JSON.stringify` calls.
+
+---
+
+## Phase 2B — Model Intelligence (2026-09-23) ✅
+
+> Tier-aware tool surfaces, small model safety, runtime reclassification, and specialized subagents.
+> All 4 tasks complete, typecheck passes, all test suites pass (292 smoke, 119 model-tier, 19 rewrite-file, 19 subagent tests).
+> Code review identified and resolved 4 plan-quality issues (2 omissions, 1 ambiguity, 1 insufficient granularity).
+
+- [x] **7. Whole-File Rewrite Mode (Tier D)** — [📋 Plan](../completed-plans/2026-09-23T16-38_task-07-whole-file-rewrite-mode.md)
+  New `rewrite_file` tool for tiny models. No diff, no hunk parsing — full-file overwrite.
+
+- [x] **8. Tool Surface Filtering by Tier** — [📋 Plan](../completed-plans/2026-09-23T16-38_task-08-tool-surface-filtering.md)
+  Hide complex tools from Tier C/D models. Audit and categorize all tools into `TIER_SAFE_TOOLS` / `TIER_COMPLEX_TOOLS`.
+
+- [x] **9. Runtime Tier Reclassification** — [📋 Plan](../completed-plans/2026-09-23T16-38_task-09-runtime-tier-reclassification.md)
+  Wire `reclassifyOnSuccess`/`reclassifyOnFailure` into session loop. C↔B transitions only, B-native models protected from demotion.
+
+- [x] **10. Specialized Subagents** — [📋 Plan](../completed-plans/2026-09-23T16-38_task-10-specialized-subagents.md)
+  Add `scout` (read-only research), `runner` (test/build execution), `scribe` (file writing) subagents. Rename experimental scout to `reference`.

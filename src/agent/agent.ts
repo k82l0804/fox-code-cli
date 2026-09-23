@@ -12,7 +12,10 @@ import { ProviderTransform } from "@/provider/transform"
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
-import PROMPT_SCOUT from "@/foxcode/agent/scout.txt"
+import PROMPT_REFERENCE from "@/foxcode/agent/scout.txt"
+import PROMPT_SCOUT_LOCAL from "@/foxcode/agent/prompt-scout.txt"
+import PROMPT_RUNNER from "@/foxcode/agent/prompt-runner.txt"
+import PROMPT_SCRIBE from "@/foxcode/agent/prompt-scribe.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import { Permission } from "@/permission"
@@ -234,10 +237,71 @@ const layer = Layer.effect(
             workflow: "research",
             native: true,
           },
+          scout: {
+            name: "scout",
+            description:
+              "Read-only codebase research. Use this for finding files, tracing code, and answering questions about the codebase without making changes.",
+            prompt: PROMPT_SCOUT_LOCAL,
+            options: {},
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                "*": "deny",
+                read: "allow",
+                grep: "allow",
+                glob: "allow",
+              }),
+              user,
+            ),
+            mode: "subagent" as const,
+            workflow: "research",
+            native: true,
+          },
+          runner: {
+            name: "runner",
+            description:
+              "Execute tests, builds, linters, and diagnostic commands. Read-only shell access — no file modifications.",
+            prompt: PROMPT_RUNNER,
+            options: {},
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                "*": "deny",
+                bash: KiloAgent.readOnlyBash,
+                read: "allow",
+                grep: "allow",
+                glob: "allow",
+              }),
+              user,
+            ),
+            mode: "subagent" as const,
+            workflow: "research",
+            native: true,
+          },
+          scribe: {
+            name: "scribe",
+            description:
+              "Create or overwrite files using simple full-file writes. No diffs or patches — just complete file contents.",
+            prompt: PROMPT_SCRIBE,
+            options: {},
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                "*": "deny",
+                rewrite_file: "allow",
+                write: "allow",
+                read: "allow",
+              }),
+              user,
+            ),
+            mode: "subagent" as const,
+            workflow: "swe",
+            native: true,
+          },
           ...(flags.experimentalScout
             ? {
-                scout: {
-                  name: "scout",
+                reference: {
+                  name: "reference",
                   permission: Permission.merge(
                     defaults,
                     Permission.fromConfig({
@@ -257,7 +321,7 @@ const layer = Layer.effect(
                     user,
                   ),
                   description: `Docs and dependency-source specialist. Use this when you need to inspect external documentation, clone dependency repositories into the managed cache, and research library implementation details without modifying the user's workspace.`,
-                  prompt: PROMPT_SCOUT,
+                  prompt: PROMPT_REFERENCE,
                   options: {},
                   mode: "subagent" as const,
                   workflow: "research",
@@ -347,6 +411,7 @@ const layer = Layer.effect(
           KiloAgent.processConfigItem(item)
           KiloAgent.hardenPlan(key, item, ctx.worktree, user, Permission.fromConfig(value.permission ?? {}))
           KiloAgent.hardenExplore(key, item, user, Permission.fromConfig(value.permission ?? {}))
+          KiloAgent.hardenScribe(key, item, user, Permission.fromConfig(value.permission ?? {}))
         }
 
         function referencePrompt(reference: FoxReference.Resolved) {
@@ -399,7 +464,7 @@ const layer = Layer.effect(
               name: resolved.name,
               description: referenceDescription(resolved),
               permission: Permission.merge(
-                agents.scout.permission,
+                agents.reference?.permission ?? agents.scout.permission,
                 Permission.fromConfig({
                   repo_clone: "deny",
                   ...(localPath

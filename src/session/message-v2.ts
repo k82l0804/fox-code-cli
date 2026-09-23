@@ -92,11 +92,26 @@ export const Event = {
   PartRemoved: SessionV1.Event.PartRemoved,
 }
 
-const Cursor = Schema.Struct({
+export const Cursor = Schema.Struct({
   id: MessageID,
   time: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
 })
-type Cursor = typeof Cursor.Type
+export type Cursor = typeof Cursor.Type
+
+export interface PageOptions {
+  /** Maximum messages to load per page. Default: 50 */
+  readonly pageSize?: number
+  /** Cursor to load messages before (exclusive). Omit for latest. */
+  readonly before?: Cursor | string
+  /** If true, also load parts for each message. Default: true */
+  readonly hydrateParts?: boolean
+}
+
+export interface MessagePage {
+  readonly messages: WithParts[]
+  readonly cursor: Cursor | undefined // undefined = no more pages
+  readonly hasMore: boolean
+}
 
 const decodeCursor = Schema.decodeUnknownSync(Cursor)
 
@@ -535,47 +550,99 @@ export function toModelMessages(
   return Effect.runPromise(toModelMessagesEffect(input, model, options))
 }
 
-export const page = Effect.fn("MessageV2.page")(function* (input: {
-  sessionID: SessionID
-  limit: number
-  before?: string
-}) {
+export const pageForSession = Effect.fn("MessageV2.pageForSession")(function* (
+  sessionID: SessionID,
+  options?: PageOptions,
+) {
   const { db } = yield* Database.Service
-  const before = input.before ? cursor.decode(input.before) : undefined
+  const pageSize = Math.max(1, options?.pageSize ?? 50)
+  let before: Cursor | undefined
+  if (typeof options?.before === "string") {
+    before = cursor.decode(options.before)
+  } else if (options?.before) {
+    before = options.before
+  }
+
   const where = before
-    ? and(eq(MessageTable.session_id, input.sessionID), older(before))
-    : eq(MessageTable.session_id, input.sessionID)
+    ? and(eq(MessageTable.session_id, sessionID), older(before))
+    : eq(MessageTable.session_id, sessionID)
+
   const rows = yield* db
     .select()
     .from(MessageTable)
     .where(where)
     .orderBy(desc(MessageTable.time_created), desc(MessageTable.id))
-    .limit(input.limit + 1)
+    .limit(pageSize + 1)
     .all()
     .pipe(Effect.orDie)
+
   if (rows.length === 0) {
     const row = yield* db
       .select({ id: SessionTable.id })
       .from(SessionTable)
-      .where(eq(SessionTable.id, input.sessionID))
+      .where(eq(SessionTable.id, sessionID))
       .get()
       .pipe(Effect.orDie)
-    if (!row) return yield* new NotFoundError({ message: `Session not found: ${input.sessionID}` })
+    if (!row) return yield* new NotFoundError({ message: `Session not found: ${sessionID}` })
     return {
-      items: [] as WithParts[],
-      more: false,
+      messages: [] as WithParts[],
+      cursor: undefined,
+      hasMore: false,
     }
   }
 
-  const more = rows.length > input.limit
-  const slice = more ? rows.slice(0, input.limit) : rows
-  const items = yield* hydrate(db, slice)
-  items.reverse()
+  const hasMore = rows.length > pageSize
+  const slice = hasMore ? rows.slice(0, pageSize) : rows
+  const hydrateParts = options?.hydrateParts ?? true
+
+  const messages: WithParts[] = hydrateParts
+    ? yield* hydrate(db, slice)
+    : slice.map((row) => ({
+        info: info(row),
+        parts: [] as Part[],
+      }))
+
   const tail = slice.at(-1)
+  const nextCursor: Cursor | undefined =
+    hasMore && tail
+      ? {
+          id: tail.id,
+          time: tail.time_created,
+        }
+      : undefined
+
+  return {
+    messages,
+    cursor: nextCursor,
+    hasMore,
+  }
+})
+
+export const listForSession = Effect.fn("MessageV2.listForSession")(function* (sessionID: SessionID) {
+  const all: WithParts[] = []
+  let currentCursor: Cursor | undefined
+  do {
+    const p: MessagePage = yield* pageForSession(sessionID, { before: currentCursor })
+    all.push(...p.messages)
+    currentCursor = p.cursor
+  } while (currentCursor)
+  return all.reverse()
+})
+
+export const page = Effect.fn("MessageV2.page")(function* (input: {
+  sessionID: SessionID
+  limit: number
+  before?: string
+}) {
+  const p = yield* pageForSession(input.sessionID, {
+    pageSize: input.limit,
+    before: input.before,
+  })
+  const items = [...p.messages].reverse()
   return {
     items,
-    more,
-    cursor: more && tail ? cursor.encode({ id: tail.id, time: tail.time_created }) : undefined,
+    more: p.hasMore,
+    cursor: p.cursor ? cursor.encode(p.cursor) : undefined,
   }
 })
 

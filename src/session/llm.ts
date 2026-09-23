@@ -40,6 +40,8 @@ import { LLMRequestPrep } from "./llm/request"
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
 
+const toolSchemaSizeCache = new WeakMap<object, { openAIBytes: number; compactBytes: number }>()
+
 export type StreamInput = {
   user: SessionV1.User
   sessionID: string
@@ -133,10 +135,20 @@ const live: Layer.Layer<
           if (t.type === "provider") continue
           const schema = "jsonSchema" in t.inputSchema ? (t.inputSchema as any).jsonSchema : t.inputSchema
           if (!schema) continue
-          const before = JSON.stringify(ToolSchemaProjection.openAI(schema))
-          const after = JSON.stringify(ToolSchemaProjection.compact(schema))
-          openAIBytes += before.length
-          compactBytes += after.length
+          let sizes: { openAIBytes: number; compactBytes: number } | undefined
+          if (typeof schema === "object" && schema !== null) {
+            sizes = toolSchemaSizeCache.get(schema)
+          }
+          if (!sizes) {
+            const before = JSON.stringify(ToolSchemaProjection.openAI(schema))
+            const after = JSON.stringify(ToolSchemaProjection.compact(schema))
+            sizes = { openAIBytes: before.length, compactBytes: after.length }
+            if (typeof schema === "object" && schema !== null) {
+              toolSchemaSizeCache.set(schema, sizes)
+            }
+          }
+          openAIBytes += sizes.openAIBytes
+          compactBytes += sizes.compactBytes
         }
         const saved = openAIBytes - compactBytes
         if (saved > 0) {

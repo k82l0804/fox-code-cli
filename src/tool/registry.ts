@@ -45,6 +45,7 @@ import { ApplyPatchTool } from "./apply_patch"
 import { RewriteFileTool } from "./rewrite_file"
 import { LookupSymbolsTool } from "./lookup_symbols"
 import { FetchRepoMapTool } from "./fetch_repo_map"
+import { CommitTool } from "./commit"
 import { Glob } from "@opencode-ai/core/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -148,6 +149,7 @@ const layer = Layer.effect(
     const lookupSymbolsTool = yield* LookupSymbolsTool
     const repoMapTool = yield* FetchRepoMapTool
     const rewriteTool = yield* RewriteFileTool
+    const commitTool = yield* CommitTool
     const manager = Option.getOrUndefined(yield* Effect.serviceOption(AgentManager.Service))
     const notebook = Option.getOrUndefined(yield* Effect.serviceOption(Notebook.Service))
     const kiloToolInfos = yield* FoxToolRegistry.infos(manager, notebook).pipe(Effect.provide(MemoryService.layer))
@@ -277,6 +279,7 @@ const layer = Layer.effect(
           lookupSymbols: Tool.init(lookupSymbolsTool),
           repoMap: Tool.init(repoMapTool),
           rewrite: Tool.init(rewriteTool),
+          commit: Tool.init(commitTool),
           ...(codeModeTool ? { execute: Tool.init(codeModeTool) } : {}),
         })
         const kilo = yield* FoxToolRegistry.build(kiloToolInfos, {
@@ -303,6 +306,7 @@ const layer = Layer.effect(
               ...(flags.experimentalScout ? [tool.clone, tool.overview] : []),
               tool.skill,
               tool.patch,
+              tool.commit,
               tool.plan,
               ...(["cli", "vscode"].includes(flags.client) ? [tool.suggest] : []),
               ...FoxToolRegistry.extra(kilo, cfg, flags),

@@ -63,6 +63,13 @@ System prompt for this agent.
 
 `mode` values: `primary` = selectable as main agent, `subagent` = only via Task tool, `all` = both.
 
+Built-in subagents (invoked via the `task` tool):
+- `general` — full-capability multi-step work
+- `explore` — fast codebase exploration (read-only + hardened bash)
+- `scout` — read-only codebase research (read, grep, glob only)
+- `runner` — test/build/lint execution (read-only bash)
+- `scribe` — file creation/overwrite (rewrite_file, write)
+
 ## Workflows (legacy)
 
 Markdown files in `.fox/workflows/`, `.kilo/workflows/` or `.kilocode/workflows/` (project-level) and `~/.fox/workflows/`, `~/.kilo/workflows/` or `~/.kilocode/workflows/` (global). These are automatically converted to commands at startup. The filename (minus `.md`) becomes the command name. Project workflows override global ones with the same name.
@@ -274,6 +281,8 @@ Skills are markdown files at `skills/<name>/SKILL.md` (or `skill/<name>/SKILL.md
 | `username` | `string` | Display name override |
 | `compaction.auto` | `boolean` | Auto-compact when context full (default: true) |
 | `compaction.prune` | `boolean` | Prune old tool outputs (default: true) |
+| `tools_filter_by_tier` | `boolean` | Filter tools by model tier. Default: `true` |
+| `dynamic_tier_reclassification` | `boolean` | Runtime C↔B tier promotion/demotion. Default: `true` |
 
 ## TUI Settings (Ctrl+P Command Palette)
 

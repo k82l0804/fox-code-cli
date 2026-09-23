@@ -22,6 +22,8 @@ docs/
 │   ├── future-tasks.md                      # Planned future phases and items
 │   ├── done-tasks.md                        # Completed phases with delivery dates
 │   └── deferred-tasks.md                    # Parked items — not in any phase
+├── current-plans/                           # Task plans currently active (matches current-tasks.md)
+├── completed-plans/                         # Successfully delivered task plans (matches done-tasks.md)
 ├── future/                                  # Design specs & reference architectures (NOT roadmap)
 │   ├── 2026-09-22T15-16_autonomous-dual-agent-design.md     # Fox Guardian dual-agent architecture & design
 │   ├── 2026-09-22T15-16_autonomous-agent-workflow.md         # Reference architecture (10-step closed loop)
@@ -69,6 +71,10 @@ docs/
 ### 3. Roadmaps & Strategy
 - **[`master-plan/current-tasks.md`](./master-plan/current-tasks.md)**  
   ⭐ **THE single source of truth** for Fox CLI's roadmap. Active sub-phase tasks. See also `future-tasks.md`, `done-tasks.md`, `deferred-tasks.md`.
+- **[`current-plans/`](./current-plans/)**  
+  Active implementation plans corresponding to current tasks in `master-plan/current-tasks.md`.
+- **[`completed-plans/`](./completed-plans/)**  
+  Archived implementation plans for successfully delivered tasks in `master-plan/done-tasks.md`.
 - **[`master-plan/deferred-tasks.md`](./master-plan/deferred-tasks.md)**  
   Parked items not assigned to any phase. Can be promoted later.
 - **[`future/2026-09-22T15-16_adaptive-compression.md`](./future/2026-09-22T15-16_adaptive-compression.md)**  
