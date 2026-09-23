@@ -1,7 +1,7 @@
 export * as SessionRunnerModel from "./model"
 
 import { makeLocationNode } from "../../effect/app-node"
-import { type Model } from "@opencode-ai/llm"
+import { type Model, discoverModelLimits } from "@opencode-ai/llm"
 import * as OpenAICompatibleChat from "@opencode-ai/llm/protocols/openai-compatible-chat"
 import * as OpenAIResponses from "@opencode-ai/llm/protocols/openai-responses"
 import { Auth, type AnyRoute } from "@opencode-ai/llm/route"
@@ -13,6 +13,7 @@ import { Integration } from "../../integration"
 import { ModelV2 } from "../../model"
 import { ProviderV2 } from "../../provider"
 import { SessionSchema } from "../schema"
+import { Config } from "../../config"
 
 export class ModelNotSelectedError extends Schema.TaggedErrorClass<ModelNotSelectedError>()(
   "SessionRunnerModel.ModelNotSelectedError",
@@ -169,8 +170,69 @@ export const fromCatalogModel = (
   )
 }
 
-export const resolve = (session: SessionSchema.Info, model: ModelV2.Info, credential?: Credential.Value) =>
-  withVariant(model, session.model?.variant).pipe(Effect.flatMap((model) => fromCatalogModel(model, credential)))
+const applyDiscoveredLimits = (
+  model: Model,
+  resolved: ModelV2.Info,
+  credential?: Credential.Value,
+  enabled = true,
+): Effect.Effect<Model, never> => {
+  if (!enabled) return Effect.succeed(model)
+  if (model.route.defaults.limits?.context !== undefined && model.route.defaults.limits.context > 0) {
+    return Effect.succeed(model)
+  }
+  const baseURL =
+    resolved.api.url ??
+    (typeof (model.route.endpoint as any)?.baseURL === "string"
+      ? ((model.route.endpoint as any).baseURL as string)
+      : undefined)
+  if (!baseURL) return Effect.succeed(model)
+
+  const rawKey: string | undefined =
+    credential?.type === "key"
+      ? credential.key
+      : credential?.type === "oauth"
+        ? credential.access
+        : typeof (resolved.request.body.apiKey ?? resolved.api.settings?.apiKey) === "string"
+          ? String(resolved.request.body.apiKey ?? resolved.api.settings?.apiKey)
+          : undefined
+
+  return Effect.promise(async () => {
+    try {
+      const discovered = await discoverModelLimits(
+        baseURL,
+        resolved.api.id,
+        rawKey,
+        { context: model.route.defaults.limits?.context, output: model.route.defaults.limits?.output },
+      )
+      if (discovered.context) {
+        const updatedRoute = model.route.with({
+          limits: {
+            context: discovered.context,
+            output: discovered.output ?? model.route.defaults.limits?.output,
+          },
+        })
+        return {
+          ...model,
+          route: updatedRoute,
+        }
+      }
+    } catch {
+      // Non-fatal, fall back to model as-is
+    }
+    return model
+  })
+}
+
+export const resolve = (
+  session: SessionSchema.Info,
+  model: ModelV2.Info,
+  credential?: Credential.Value,
+  enabled = true,
+): Effect.Effect<Model, Error> =>
+  withVariant(model, session.model?.variant).pipe(
+    Effect.flatMap((variantModel) => fromCatalogModel(variantModel, credential)),
+    Effect.flatMap((resolvedModel) => applyDiscoveredLimits(resolvedModel, model, credential, enabled)),
+  )
 
 export const supported = (model: ModelV2.Info) =>
   model.api.type === "aisdk" &&
@@ -183,8 +245,17 @@ export const locationLayer = Layer.effect(
   Effect.gen(function* () {
     const catalog = yield* Catalog.Service
     const integrations = yield* Integration.Service
+    const configOption = yield* Effect.serviceOption(Config.Service)
     return Service.of({
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session) {
+        let enabled = true
+        if (configOption._tag === "Some") {
+          const entries = yield* configOption.value.entries().pipe(Effect.orDie)
+          const val = Config.latest(entries, "discover_context_window")
+          if (val === false) {
+            enabled = false
+          }
+        }
         // Location plugins populate and filter the catalog asynchronously during layer startup.
         const defaultModel = session.model ? undefined : yield* catalog.model.default()
         const selected = session.model
@@ -208,6 +279,7 @@ export const locationLayer = Layer.effect(
           session,
           selected,
           connection ? yield* integrations.connection.resolve(connection) : undefined,
+          enabled,
         )
       }),
     })

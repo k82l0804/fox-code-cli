@@ -44,6 +44,7 @@ export function migrate(info: typeof ConfigV1.Info.Type) {
     username: info.username,
     permissions: permissions(info.permission, info.tools),
     agents: agents(info),
+    discover_context_window: info.discover_context_window,
     snapshots: info.snapshot,
     watcher: info.watcher,
     formatter: info.formatter,

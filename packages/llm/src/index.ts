@@ -31,3 +31,5 @@ export type {
   ModelFactory as ProviderModelFactory,
   ModelOptions as ProviderModelOptions,
 } from "./provider"
+export * from "./discovery"
+export * from "./discovery-cache"

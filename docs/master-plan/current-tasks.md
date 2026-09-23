@@ -13,7 +13,7 @@
 - [ ] **2. Turn-Supersession Context Pruning** — [📋 Plan](../plans/2026-09-23T12-40_plan-supersession-pruning.md)
   Extend `supersede.ts` to cover grep/glob/re-read/verification supersession patterns.
 
-- [ ] **3. Dynamic Context Window Discovery** — [📋 Plan](../plans/2026-09-23T12-40_plan-dynamic-context-window.md)
+- [x] **3. Dynamic Context Window Discovery** — [📋 Plan](../plans/2026-09-23T12-40_plan-dynamic-context-window.md)
   Query `/v1/models` for actual context limits to feed into compaction thresholds.
 
 - [ ] **4. Atomic Task-Completion Commits** — [📋 Plan](../plans/2026-09-23T12-40_plan-atomic-commits.md)

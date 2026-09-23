@@ -104,6 +104,9 @@ export const Info = Schema.Struct({
     description:
       "Enable runtime tier promotion/demotion based on observed tool-call success. Only C↔B transitions. Default: true.",
   }),
+  discover_context_window: Schema.optional(Schema.Boolean).annotate({
+    description: "Query /v1/models for context window limits at session start. Defaults to true.",
+  }),
   // NOTE: Any new kilocode_change key added to Config.Info must also be mirrored in
   // apps/web/src/app/config.json/extras.ts in the cloud repo, otherwise
   // $schema: https://app.kilo.ai/config.json will not recognize it.

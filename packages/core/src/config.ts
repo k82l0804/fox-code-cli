@@ -61,6 +61,9 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   model_profile: Schema.String.pipe(Schema.optional).annotate({
     description: "Model family profile override for context window, prompts, and tool conventions",
   }),
+  discover_context_window: Schema.Boolean.pipe(Schema.optional).annotate({
+    description: "Query /v1/models for context window limits at session start. Defaults to true.",
+  }),
   permissions: Permission.Ruleset.pipe(Schema.optional).annotate({
     description: "Ordered tool permission rules applied to agent tool use",
   }),
