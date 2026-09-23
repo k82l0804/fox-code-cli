@@ -42,6 +42,7 @@ import { Env } from "@/env"
 import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
+import { RewriteFileTool } from "./rewrite_file"
 import { LookupSymbolsTool } from "./lookup_symbols"
 import { FetchRepoMapTool } from "./fetch_repo_map"
 import { Glob } from "@opencode-ai/core/util/glob"
@@ -146,6 +147,7 @@ const layer = Layer.effect(
     const suggesttool = yield* SuggestTool
     const lookupSymbolsTool = yield* LookupSymbolsTool
     const repoMapTool = yield* FetchRepoMapTool
+    const rewriteTool = yield* RewriteFileTool
     const manager = Option.getOrUndefined(yield* Effect.serviceOption(AgentManager.Service))
     const notebook = Option.getOrUndefined(yield* Effect.serviceOption(Notebook.Service))
     const kiloToolInfos = yield* FoxToolRegistry.infos(manager, notebook).pipe(Effect.provide(MemoryService.layer))
@@ -274,6 +276,7 @@ const layer = Layer.effect(
           suggest: Tool.init(suggesttool),
           lookupSymbols: Tool.init(lookupSymbolsTool),
           repoMap: Tool.init(repoMapTool),
+          rewrite: Tool.init(rewriteTool),
           ...(codeModeTool ? { execute: Tool.init(codeModeTool) } : {}),
         })
         const kilo = yield* FoxToolRegistry.build(kiloToolInfos, {
@@ -307,6 +310,7 @@ const layer = Layer.effect(
               ...(flags.experimentalLspTool ? [tool.lsp] : []),
               tool.lookupSymbols,
               tool.repoMap,
+              tool.rewrite,
             ],
             kilo,
           ),

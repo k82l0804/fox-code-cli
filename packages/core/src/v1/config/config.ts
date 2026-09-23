@@ -90,6 +90,20 @@ export const Info = Schema.Struct({
   model_profile: Schema.optional(Schema.String).annotate({
     description: "Model family profile override for context window, prompts, and tool conventions",
   }),
+  model_tier: Schema.optional(Schema.NullOr(Schema.Literals(["S", "A", "B", "C", "D"]))).annotate({
+    description: "Override the auto-detected model capability tier. Affects step limits and coding warnings.",
+  }),
+  refuse_small_model_coding: Schema.optional(Schema.Boolean).annotate({
+    description: "Refuse to execute coding agents with Tier C or D models",
+  }),
+  tools_filter_by_tier: Schema.optional(Schema.Boolean).annotate({
+    description:
+      "Filter available tools based on model capability tier. When false, all tools are available regardless of tier. Default: true.",
+  }),
+  dynamic_tier_reclassification: Schema.optional(Schema.Boolean).annotate({
+    description:
+      "Enable runtime tier promotion/demotion based on observed tool-call success. Only C↔B transitions. Default: true.",
+  }),
   // NOTE: Any new kilocode_change key added to Config.Info must also be mirrored in
   // apps/web/src/app/config.json/extras.ts in the cloud repo, otherwise
   // $schema: https://app.kilo.ai/config.json will not recognize it.

@@ -24,6 +24,7 @@ import { SessionProcessor } from "./processor"
 import { PartID } from "./schema"
 import { EffectBridge } from "@/effect/bridge"
 import * as SandboxPolicy from "@/foxcode/sandbox/policy"
+import { filterToolsByTier } from "@/foxcode/model-tier"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { Config } from "@/config/config"
@@ -106,6 +107,10 @@ interface DefinitionInput {
   model: Provider.Model
   session: Session.Info
   bypassAgentCheck: boolean
+  /** When provided, tools are filtered based on tier capability (Phase 2). */
+  tierInfo?: import("@/foxcode/model-tier").TierInfo
+  /** Config override: when false, tier-based tool filtering is disabled. */
+  toolsFilterByTier?: boolean
 }
 
 export const resolveDefinitions = Effect.fn("SessionTools.resolveDefinitions")(function* (input: DefinitionInput) {
@@ -118,14 +123,19 @@ export const resolveDefinitions = Effect.fn("SessionTools.resolveDefinitions")(f
 
   // --- Built-in tools ---
   const builtins: CachedBuiltinTool[] = []
-  for (const item of yield* registry.tools({
+  let rawTools = yield* registry.tools({
     modelID: ModelV2.ID.make(input.model.api.id),
     providerID: input.model.providerID,
     family: input.model.family,
     agent: input.agent,
     permission: input.session.permission,
     networkRestricted: restricted,
-  })) {
+  })
+  // Phase 2: Filter tools by model capability tier
+  if (input.tierInfo) {
+    rawTools = filterToolsByTier(rawTools, input.tierInfo, input.toolsFilterByTier !== false)
+  }
+  for (const item of rawTools) {
     if (!GoalPolicy.available(input.session.id, item.id)) continue
     const base = ToolJsonSchema.fromTool(item)
     const schema = ProviderTransform.schema(input.model, base)

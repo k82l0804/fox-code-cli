@@ -5,6 +5,7 @@ import { Effect, Schema } from "effect"
 import { matchesQuery } from "./model-search"
 import DESCRIPTION from "./agent-manager-models.txt"
 import { Config } from "@/config/config"
+import { resolveTier, type ModelTier } from "@/foxcode/model-tier"
 
 const Params = Schema.Struct({
   query: Schema.optional(Schema.String).annotate({
@@ -26,6 +27,7 @@ type Entry = {
   variants: string[]
   ids: string[]
   rank: number
+  tier?: ModelTier
 }
 
 // Group models by display name so the agent picks a model, not a provider.
@@ -47,6 +49,12 @@ function entries(providers: Record<ProviderV2.ID, Provider.Info>): Entry[] {
       for (const variant of Object.keys(model.variants ?? {})) {
         if (!entry.variants.includes(variant)) entry.variants.push(variant)
       }
+      const explicitTier = (model as any).tier as ModelTier | undefined
+      if (explicitTier) {
+        entry.tier = explicitTier
+      } else if (!entry.tier) {
+        entry.tier = resolveTier({ modelId: model.id, providerId: provider.id }).tier
+      }
       const index = typeof model.recommendedIndex === "number" ? model.recommendedIndex : Number.POSITIVE_INFINITY
       entry.rank = Math.min(entry.rank, index)
       byName.set(model.name, entry)
@@ -56,7 +64,7 @@ function entries(providers: Record<ProviderV2.ID, Provider.Info>): Entry[] {
 }
 
 function view(entry: Entry) {
-  return { name: entry.name, providers: entry.providers, variants: entry.variants }
+  return { name: entry.name, providers: entry.providers, variants: entry.variants, tier: entry.tier }
 }
 
 export const AgentManagerModelsTool = Tool.define<

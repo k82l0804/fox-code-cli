@@ -4,6 +4,8 @@
     {
       "id": "llama-3.3",
       "name": "Meta Llama 3.3 70B",
+      "tier": "S",
+      "parameterHint": 70,
       "patterns": ["llama-3.3", "llama3.3", "meta-llama/llama-3.3"],
       "contextWindow": 131072,
       "toolCalling": "native",
@@ -28,12 +30,15 @@
       "promptFile": "local.txt",
       "quirks": [
         "Native OpenAI tool calling support",
-        "Recommended temperature 0.2 for deterministic code edits"
+        "Recommended temperature 0.2 for deterministic code edits",
+        "Tier varies by variant: 8B=C, 70B=S, 405B=S. Auto-detected from model ID."
       ]
     },
     {
       "id": "codestral",
       "name": "Mistral Codestral",
+      "tier": "A",
+      "parameterHint": 32,
       "patterns": ["codestral", "codestral-2508", "mistralai/codestral"],
       "contextWindow": 32768,
       "toolCalling": "native",
@@ -49,6 +54,8 @@
     {
       "id": "mistral",
       "name": "Mistral Large/Medium",
+      "tier": "S",
+      "parameterHint": 123,
       "patterns": ["mistral-large", "mistral-medium", "mistralai/mistral"],
       "contextWindow": 131072,
       "toolCalling": "native",
@@ -64,6 +71,8 @@
     {
       "id": "gemma",
       "name": "Google Gemma 2 / 4",
+      "tier": "A",
+      "parameterHint": 30,
       "patterns": ["gemma", "gemma-4", "gemma-2", "google/gemma"],
       "contextWindow": 32768,
       "toolCalling": "native",
@@ -79,6 +88,8 @@
     {
       "id": "nemotron",
       "name": "Nvidia Nemotron 3 / 4",
+      "tier": "S",
+      "parameterHint": 70,
       "patterns": ["nemotron", "nemotron-3", "nvidia/nemotron"],
       "contextWindow": 131072,
       "toolCalling": "native",
@@ -94,6 +105,8 @@
     {
       "id": "gpt-oss",
       "name": "OpenAI GPT-OSS 120B",
+      "tier": "S",
+      "parameterHint": 120,
       "patterns": ["gpt-oss", "gpt-oss-120b", "openai/gpt-oss"],
       "contextWindow": 131072,
       "toolCalling": "native",
@@ -104,6 +117,38 @@
       "quirks": [
         "Native OpenAI tool calling format",
         "Reasoning tokens emitted in separate completion stream channels"
+      ]
+    },
+    {
+      "id": "qwen",
+      "name": "Alibaba Qwen 2.5",
+      "patterns": ["qwen", "qwen2", "qwen2.5", "qwen/qwen"],
+      "contextWindow": 131072,
+      "toolCalling": "native",
+      "systemPromptBudget": 2048,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Native OpenAI tool calling support",
+        "Tier varies by variant: 7B=C, 14B=B, 32B=A, 72B=S. Auto-detected from model ID."
+      ]
+    },
+    {
+      "id": "phi",
+      "name": "Microsoft Phi",
+      "tier": "D",
+      "parameterHint": 3.8,
+      "patterns": ["phi-4", "phi-3", "phi-mini", "microsoft/phi"],
+      "contextWindow": 16384,
+      "toolCalling": "native",
+      "systemPromptBudget": 1024,
+      "temperature": 0.2,
+      "topP": 0.95,
+      "promptFile": "local.txt",
+      "quirks": [
+        "Small model — not reliable for multi-turn coding tasks",
+        "Best suited for summarization, routing, and simple chat"
       ]
     }
   ],

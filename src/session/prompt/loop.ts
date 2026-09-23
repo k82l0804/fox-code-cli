@@ -63,6 +63,8 @@ import type { EventV2 } from "@opencode-ai/core/event"
 import { isOrphanedInterruptedTool } from "./orphan"
 import { createStructuredOutputTool, STRUCTURED_OUTPUT_SYSTEM_PROMPT } from "./structured"
 import { REQUEST_PRUNE_BYTES } from "./attachment"
+import { resolveProfile } from "./model-profile"
+import { resolveTier, computeMaxSteps, shouldWarnCoding, shouldRefuseCoding, createReclassState, reclassifyOnSuccess, reclassifyOnFailure } from "@/foxcode/model-tier"
 
 export interface PromptLoopDeps {
   readonly sessions: Session.Interface
@@ -288,8 +290,50 @@ export function makePromptLoop(deps: PromptLoopDeps) {
         yield* events.publish(Session.Event.Error, { sessionID, error: error.toObject() })
         throw error
       }
-      const maxSteps = agent.steps ?? Infinity
+      const cfg = yield* config.get()
+      const profile = resolveProfile({
+        modelId: model.api.id,
+        providerId: model.providerID,
+        overrideProfile: cfg.model_profile,
+      })
+      const tierInfo = resolveTier({
+        modelId: model.api.id,
+        providerId: model.providerID,
+        profileTier: profile.tier,
+        profileParamHint: profile.parameterHint,
+        overrideTier: cfg.model_tier,
+      })
+
+      if (
+        shouldRefuseCoding({
+          tierInfo,
+          agentName: agent.name,
+          refuseSmallModelCoding: cfg.refuse_small_model_coding,
+        })
+      ) {
+        const error = new NamedError.Unknown({
+          message:
+            `Refusing to run coding agent "${agent.name}" with Tier ${tierInfo.tier} model "${model.name}". ` +
+            `Small models (<13B) lack the capability for reliable multi-turn code generation and editing. ` +
+            `Please select a Tier A or Tier S model (30B+) for coding tasks.`,
+        })
+        yield* events.publish(Session.Event.Error, { sessionID, error: error.toObject() })
+        throw error
+      }
+
+      const maxSteps = computeMaxSteps(agent.steps, tierInfo)
       const isLastStep = step >= maxSteps
+
+      if (shouldWarnCoding(tierInfo, agent.name)) {
+        yield* Effect.logWarning("model-tier-warning", {
+          tier: tierInfo.tier,
+          modelID: model.id,
+          providerID: model.providerID,
+          message:
+            `Model "${model.name}" is classified as Tier ${tierInfo.tier} (${tierInfo.source}). ` +
+            `Multi-turn coding may produce unreliable results. Steps capped at ${tierInfo.maxSteps}.`,
+        })
+      }
       msgs = yield* SessionReminders.apply({ messages: msgs, agent, session }).pipe(
         Effect.provideService(RuntimeFlags.Service, flags),
         Effect.provideService(FSUtil.Service, fsys),
@@ -346,13 +390,15 @@ export function makePromptLoop(deps: PromptLoopDeps) {
           : undefined
         // --- Tool Definition Cache (Blueprint 11.1) ---
         // Phase 1: Resolve static definitions (cached across loop steps)
-        const toolCacheKey = `${agent.name}:${model.id}:${model.providerID}`
+        const toolCacheKey = `${agent.name}:${model.id}:${model.providerID}:${tierInfo.tier}`
         if (!toolDefCache || toolDefCache.key !== toolCacheKey) {
           toolDefCache = yield* SessionTools.resolveDefinitions({
             agent,
             session,
             model,
             bypassAgentCheck,
+            tierInfo,
+            toolsFilterByTier: cfg.tools_filter_by_tier,
           }).pipe(
             Effect.provideService(ToolRegistry.Service, registry),
             Effect.provideService(MCP.Service, mcp),

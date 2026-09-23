@@ -38,6 +38,8 @@ docs/
 ## 📚 Core Documentation Areas
 
 ### 1. Benchmarks & Testing
+- **[`2026-09-22T20-40_competitive-agent-benchmark-aider-goose.md`](./2026-09-22T20-40_competitive-agent-benchmark-aider-goose.md)**  
+  *Competitive Multi-Agent SWE Benchmark Report*. Empirical evaluation of Fox Code CLI vs Aider (0.86.2) and Goose (1.51.0) on real-world engineering challenges (Task Queue, Pricing Refactor, Rate Limiter) using `tools/competitor-eval.sh`.
 - **[`2026-09-22T15-54_fox-challenge-ladder-report.md`](./2026-09-22T15-54_fox-challenge-ladder-report.md)**  
   *Canonical benchmark report (v1.1)*. Details the 334-fixture deterministic stress test across 4 tiers: Baseline (80), Long-Horizon (100), Adversarial (66), and External Benchmarks (88). Verifies 100% pass rate with 19.1% average token savings after Phase 2.0 Adaptive Compression.
 - **[`challenge-history/`](./challenge-history/)**  
@@ -46,6 +48,12 @@ docs/
 ### 2. Architecture & Systems Design
 - **[`2026-09-22T15-16_daemon-architecture.md`](./2026-09-22T15-16_daemon-architecture.md)**  
   Architecture specification for the Fox background daemon, JSON-RPC 2.0 over Unix domain sockets / Windows named pipes, multi-session state isolation, and client lifecycle management.
+- **[`future/2026-09-22T20-55_spec-react-fast-path.md`](./future/2026-09-22T20-55_spec-react-fast-path.md)**  
+  *ReAct Fast-Path Specification*. Single-turn speculative edit pipeline with zero-risk fallback to eliminate multi-turn latency on localized repairs.
+- **[`future/2026-09-22T20-55_spec-state-tracking-planner.md`](./future/2026-09-22T20-55_spec-state-tracking-planner.md)**  
+  *State-Tracking Planner Specification*. Native `task_checklist` tool and Guardian verification gate for disciplined task decomposition.
+- **[`future/2026-09-22T20-55_spec-atomic-multifile-mutations.md`](./future/2026-09-22T20-55_spec-atomic-multifile-mutations.md)**  
+  *Atomic Multi-File Mutations Specification*. Multi-file unified diff parsing and `batch_write` for zero-to-one application scaffolding in a single turn.
 - **[`future/2026-09-22T15-16_autonomous-dual-agent-design.md`](./future/2026-09-22T15-16_autonomous-dual-agent-design.md)**  
   *Fox Guardian* design specification: dual-agent architecture with an Intake Gatekeeper, Failure Classifier, Verification & Lint Gate, and Pre-Commit Inspector running in an isolated sub-process.
 - **[`future/2026-09-22T15-16_autonomous-agent-workflow.md`](./future/2026-09-22T15-16_autonomous-agent-workflow.md)**  

@@ -1,8 +1,11 @@
+import type { ModelTier } from "@/foxcode/model-tier"
 import MODEL_PROFILES_DATA from "./model-profiles.json"
 
 export interface ModelProfile {
   readonly id: string
   readonly name: string
+  readonly tier?: ModelTier
+  readonly parameterHint?: number
   readonly patterns: readonly string[]
   readonly contextWindow: number
   readonly toolCalling: "native" | "xml" | "json-markdown"

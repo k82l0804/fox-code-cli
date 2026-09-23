@@ -56,6 +56,7 @@ export const FOX_MODEL_SCHEMA_EXTENSIONS = {
     }),
   ),
   ai_sdk_provider: Schema.optional(Schema.Literals(AI_SDK_PROVIDERS)),
+  tier: Schema.optional(Schema.Literals(["S", "A", "B", "C", "D"])),
 }
 export const KILO_MODEL_SCHEMA_EXTENSIONS = FOX_MODEL_SCHEMA_EXTENSIONS
 

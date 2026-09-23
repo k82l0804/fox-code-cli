@@ -1,0 +1,418 @@
+{
+  "version": "1.0",
+  "date": "2026-09-23",
+  "timestamp": "2026-09-23T01:00:35.246Z",
+  "foxVersion": "0.1.0",
+  "fixtureCount": 334,
+  "ladder": {
+    "globalScore": 334,
+    "maxScore": 334,
+    "globalPct": 100,
+    "tiers": [
+      {
+        "tier": 1,
+        "name": "Baseline",
+        "score": 80,
+        "maxScore": 80,
+        "pct": 100,
+        "categories": [
+          {
+            "category": "swe-bench-mini",
+            "fixtureCount": 40,
+            "score": 40,
+            "maxScore": 40,
+            "pct": 100,
+            "avgCompressionPct": 2
+          },
+          {
+            "category": "gitops",
+            "fixtureCount": 10,
+            "score": 10,
+            "maxScore": 10,
+            "pct": 100,
+            "avgCompressionPct": 12
+          },
+          {
+            "category": "test-output",
+            "fixtureCount": 10,
+            "score": 10,
+            "maxScore": 10,
+            "pct": 100,
+            "avgCompressionPct": 38.6
+          },
+          {
+            "category": "diff",
+            "fixtureCount": 10,
+            "score": 10,
+            "maxScore": 10,
+            "pct": 100,
+            "avgCompressionPct": 19.6
+          },
+          {
+            "category": "shell-output",
+            "fixtureCount": 5,
+            "score": 5,
+            "maxScore": 5,
+            "pct": 100,
+            "avgCompressionPct": 38.8
+          },
+          {
+            "category": "document",
+            "fixtureCount": 5,
+            "score": 5,
+            "maxScore": 5,
+            "pct": 100,
+            "avgCompressionPct": 43.7
+          }
+        ]
+      },
+      {
+        "tier": 2,
+        "name": "Long-Horizon",
+        "score": 100,
+        "maxScore": 100,
+        "pct": 100,
+        "categories": [
+          {
+            "category": "gitops-workflows",
+            "fixtureCount": 30,
+            "score": 30,
+            "maxScore": 30,
+            "pct": 100,
+            "avgCompressionPct": 0
+          },
+          {
+            "category": "swe-multifile",
+            "fixtureCount": 25,
+            "score": 25,
+            "maxScore": 25,
+            "pct": 100,
+            "avgCompressionPct": 0.9
+          },
+          {
+            "category": "shell-pipelines",
+            "fixtureCount": 25,
+            "score": 25,
+            "maxScore": 25,
+            "pct": 100,
+            "avgCompressionPct": 6.7
+          },
+          {
+            "category": "multi-doc-research",
+            "fixtureCount": 20,
+            "score": 20,
+            "maxScore": 20,
+            "pct": 100,
+            "avgCompressionPct": 0
+          }
+        ]
+      },
+      {
+        "tier": 3,
+        "name": "Adversarial",
+        "score": 66,
+        "maxScore": 66,
+        "pct": 100,
+        "categories": [
+          {
+            "category": "malformed-diffs",
+            "fixtureCount": 16,
+            "score": 16,
+            "maxScore": 16,
+            "pct": 100,
+            "avgCompressionPct": 7.6
+          },
+          {
+            "category": "corrupted-logs",
+            "fixtureCount": 17,
+            "score": 17,
+            "maxScore": 17,
+            "pct": 100,
+            "avgCompressionPct": 7.2
+          },
+          {
+            "category": "partial-stacktraces",
+            "fixtureCount": 17,
+            "score": 17,
+            "maxScore": 17,
+            "pct": 100,
+            "avgCompressionPct": 0
+          },
+          {
+            "category": "ambiguous-workflows",
+            "fixtureCount": 16,
+            "score": 16,
+            "maxScore": 16,
+            "pct": 100,
+            "avgCompressionPct": 0
+          }
+        ]
+      },
+      {
+        "tier": 4,
+        "name": "External Benchmarks",
+        "score": 88,
+        "maxScore": 88,
+        "pct": 100,
+        "categories": [
+          {
+            "category": "gaia-style",
+            "fixtureCount": 22,
+            "score": 22,
+            "maxScore": 22,
+            "pct": 100,
+            "avgCompressionPct": 0
+          },
+          {
+            "category": "webarena-style",
+            "fixtureCount": 23,
+            "score": 23,
+            "maxScore": 23,
+            "pct": 100,
+            "avgCompressionPct": 0
+          },
+          {
+            "category": "osworld-style",
+            "fixtureCount": 22,
+            "score": 22,
+            "maxScore": 22,
+            "pct": 100,
+            "avgCompressionPct": 1.1
+          },
+          {
+            "category": "swe-bench-verified",
+            "fixtureCount": 21,
+            "score": 21,
+            "maxScore": 21,
+            "pct": 100,
+            "avgCompressionPct": 0.9
+          }
+        ]
+      }
+    ],
+    "metrics": {
+      "avgPrefillTokens": 408,
+      "avgCompressionRatio": 5,
+      "avgLatencyMs": 0.05,
+      "maxHorizonLength": 9,
+      "totalFixtures": 334,
+      "totalPassed": 334,
+      "totalFailed": 0
+    },
+    "worstFixtures": []
+  },
+  "ab": {
+    "totals": {
+      "totalFixtures": 334,
+      "totalUnoptimizedTokens": 136272,
+      "totalOptimizedTokens": 110177,
+      "totalTokenSavings": 26095,
+      "globalSavingsPct": 19.1,
+      "totalUnoptimizedChars": 544592,
+      "totalOptimizedChars": 440190,
+      "totalCharSavings": 104402,
+      "avgLatencyMs": 0.04,
+      "passRate": 100
+    },
+    "categories": [
+      {
+        "category": "swe-bench-mini",
+        "fixtureCount": 40,
+        "totalUnoptimizedTokens": 2541,
+        "totalOptimizedTokens": 2471,
+        "totalTokenSavings": 70,
+        "savingsPct": 2.8,
+        "avgCompressionPct": 2,
+        "avgLatencyMs": 0.02,
+        "passRate": 100
+      },
+      {
+        "category": "gitops",
+        "fixtureCount": 10,
+        "totalUnoptimizedTokens": 3553,
+        "totalOptimizedTokens": 3073,
+        "totalTokenSavings": 480,
+        "savingsPct": 13.5,
+        "avgCompressionPct": 12,
+        "avgLatencyMs": 0.03,
+        "passRate": 100
+      },
+      {
+        "category": "test-output",
+        "fixtureCount": 10,
+        "totalUnoptimizedTokens": 4100,
+        "totalOptimizedTokens": 1835,
+        "totalTokenSavings": 2265,
+        "savingsPct": 55.2,
+        "avgCompressionPct": 38.6,
+        "avgLatencyMs": 0.05,
+        "passRate": 100
+      },
+      {
+        "category": "diff",
+        "fixtureCount": 10,
+        "totalUnoptimizedTokens": 5416,
+        "totalOptimizedTokens": 1024,
+        "totalTokenSavings": 4392,
+        "savingsPct": 81.1,
+        "avgCompressionPct": 19.6,
+        "avgLatencyMs": 0.05,
+        "passRate": 100
+      },
+      {
+        "category": "shell-output",
+        "fixtureCount": 5,
+        "totalUnoptimizedTokens": 18308,
+        "totalOptimizedTokens": 6210,
+        "totalTokenSavings": 12098,
+        "savingsPct": 66.1,
+        "avgCompressionPct": 38.8,
+        "avgLatencyMs": 0.59,
+        "passRate": 100
+      },
+      {
+        "category": "document",
+        "fixtureCount": 5,
+        "totalUnoptimizedTokens": 3683,
+        "totalOptimizedTokens": 1592,
+        "totalTokenSavings": 2091,
+        "savingsPct": 56.8,
+        "avgCompressionPct": 43.7,
+        "avgLatencyMs": 0.08,
+        "passRate": 100
+      },
+      {
+        "category": "gitops-workflows",
+        "fixtureCount": 30,
+        "totalUnoptimizedTokens": 23856,
+        "totalOptimizedTokens": 23856,
+        "totalTokenSavings": 0,
+        "savingsPct": 0,
+        "avgCompressionPct": 0,
+        "avgLatencyMs": 0.03,
+        "passRate": 100
+      },
+      {
+        "category": "swe-multifile",
+        "fixtureCount": 25,
+        "totalUnoptimizedTokens": 7975,
+        "totalOptimizedTokens": 7885,
+        "totalTokenSavings": 90,
+        "savingsPct": 1.1,
+        "avgCompressionPct": 0.9,
+        "avgLatencyMs": 0.03,
+        "passRate": 100
+      },
+      {
+        "category": "shell-pipelines",
+        "fixtureCount": 25,
+        "totalUnoptimizedTokens": 28168,
+        "totalOptimizedTokens": 25960,
+        "totalTokenSavings": 2208,
+        "savingsPct": 7.8,
+        "avgCompressionPct": 6.7,
+        "avgLatencyMs": 0.06,
+        "passRate": 100
+      },
+      {
+        "category": "multi-doc-research",
+        "fixtureCount": 20,
+        "totalUnoptimizedTokens": 7256,
+        "totalOptimizedTokens": 7256,
+        "totalTokenSavings": 0,
+        "savingsPct": 0,
+        "avgCompressionPct": 0,
+        "avgLatencyMs": 0.02,
+        "passRate": 100
+      },
+      {
+        "category": "malformed-diffs",
+        "fixtureCount": 16,
+        "totalUnoptimizedTokens": 2890,
+        "totalOptimizedTokens": 1838,
+        "totalTokenSavings": 1052,
+        "savingsPct": 36.4,
+        "avgCompressionPct": 7.6,
+        "avgLatencyMs": 0.02,
+        "passRate": 100
+      },
+      {
+        "category": "corrupted-logs",
+        "fixtureCount": 17,
+        "totalUnoptimizedTokens": 4230,
+        "totalOptimizedTokens": 2996,
+        "totalTokenSavings": 1234,
+        "savingsPct": 29.2,
+        "avgCompressionPct": 7.2,
+        "avgLatencyMs": 0.02,
+        "passRate": 100
+      },
+      {
+        "category": "partial-stacktraces",
+        "fixtureCount": 17,
+        "totalUnoptimizedTokens": 2588,
+        "totalOptimizedTokens": 2588,
+        "totalTokenSavings": 0,
+        "savingsPct": 0,
+        "avgCompressionPct": 0,
+        "avgLatencyMs": 0.01,
+        "passRate": 100
+      },
+      {
+        "category": "ambiguous-workflows",
+        "fixtureCount": 16,
+        "totalUnoptimizedTokens": 3166,
+        "totalOptimizedTokens": 3166,
+        "totalTokenSavings": 0,
+        "savingsPct": 0,
+        "avgCompressionPct": 0,
+        "avgLatencyMs": 0.02,
+        "passRate": 100
+      },
+      {
+        "category": "gaia-style",
+        "fixtureCount": 22,
+        "totalUnoptimizedTokens": 2517,
+        "totalOptimizedTokens": 2517,
+        "totalTokenSavings": 0,
+        "savingsPct": 0,
+        "avgCompressionPct": 0,
+        "avgLatencyMs": 0.01,
+        "passRate": 100
+      },
+      {
+        "category": "webarena-style",
+        "fixtureCount": 23,
+        "totalUnoptimizedTokens": 9051,
+        "totalOptimizedTokens": 9051,
+        "totalTokenSavings": 0,
+        "savingsPct": 0,
+        "avgCompressionPct": 0,
+        "avgLatencyMs": 0.02,
+        "passRate": 100
+      },
+      {
+        "category": "osworld-style",
+        "fixtureCount": 22,
+        "totalUnoptimizedTokens": 3710,
+        "totalOptimizedTokens": 3644,
+        "totalTokenSavings": 66,
+        "savingsPct": 1.8,
+        "avgCompressionPct": 1.1,
+        "avgLatencyMs": 0.02,
+        "passRate": 100
+      },
+      {
+        "category": "swe-bench-verified",
+        "fixtureCount": 21,
+        "totalUnoptimizedTokens": 3264,
+        "totalOptimizedTokens": 3215,
+        "totalTokenSavings": 49,
+        "savingsPct": 1.5,
+        "avgCompressionPct": 0.9,
+        "avgLatencyMs": 0.03,
+        "passRate": 100
+      }
+    ]
+  }
+}
