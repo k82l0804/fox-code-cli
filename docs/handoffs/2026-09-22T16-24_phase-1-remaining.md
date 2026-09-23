@@ -4,7 +4,7 @@
 > **Status:** Phase 1 Complete in `fox-code-cli` (Items 2 & 3 Done; Item 1 deferred to `fox-acp-client`)
 > **Priority:** Phase 2A Unblocked — Guardian Agent Architecture is next
 > **Originating Session:** [`188a6acb`](../../.gemini/antigravity-ide/brain/188a6acb-cd0f-451e-873f-af0d1ba57900/walkthrough.md) → Completed in [`009a6611`](../../.gemini/antigravity-ide/brain/009a6611-f490-4be7-b11a-2200bcb4cf34/walkthrough.md)
-> **Roadmap Reference:** [`2026-09-23T11-22_master-plan.md`](../plans/2026-09-23T11-22_master-plan.md) — archived from original mega-doc Phase 1 items 3, 4, 6
+> **Roadmap Reference:** [`docs/master-plan/`](../master-plan/) — archived from original mega-doc Phase 1 items 3, 4, 6
 
 ---
 

@@ -17,9 +17,11 @@ docs/
 ├── 2026-09-22T15-16_daemon-architecture.md                   # Daemon & IPC client architecture specification
 ├── challenge-history/                        # Deterministic test run JSON telemetry snapshots
 │   └── 2026-09-22.json                      # Latest baseline run (334/334, 19.1% compression)
-├── plans/                                   # ⭐ SINGLE SOURCE OF TRUTH for planning
-│   ├── *_master-plan.md                     # THE canonical roadmap — phases, priorities, items
-│   └── *_deferred-items.md                  # Traceability ledger — items traced to originating sessions
+├── master-plan/                             # ⭐ SINGLE SOURCE OF TRUTH for planning
+│   ├── current-tasks.md                     # Active sub-phase (what we're building NOW)
+│   ├── future-tasks.md                      # Planned future phases and items
+│   ├── done-tasks.md                        # Completed phases with delivery dates
+│   └── deferred-tasks.md                    # Parked items — not in any phase
 ├── future/                                  # Design specs & reference architectures (NOT roadmap)
 │   ├── 2026-09-22T15-16_autonomous-dual-agent-design.md     # Fox Guardian dual-agent architecture & design
 │   ├── 2026-09-22T15-16_autonomous-agent-workflow.md         # Reference architecture (10-step closed loop)
@@ -65,10 +67,10 @@ docs/
   The 10-step autonomous SWE closed-loop reference architecture: `intake → search → plan → edit → verify → detect → route → prune → commit → handoff`.
 
 ### 3. Roadmaps & Strategy
-- **[`plans/2026-09-23T11-22_master-plan.md`](./plans/2026-09-23T11-22_master-plan.md)**  
-  ⭐ **THE single source of truth** for Fox CLI's roadmap. Phase 2 (Foundation), Phase 3 (Guardian), Phase 4 (Architecture). All priority changes go here.
-- **[`plans/2026-09-23T11-22_deferred-items.md`](./plans/2026-09-23T11-22_deferred-items.md)**  
-  Deferred Items Traceability Ledger. 1-to-1 mapping from originating sessions to master plan phases.
+- **[`master-plan/current-tasks.md`](./master-plan/current-tasks.md)**  
+  ⭐ **THE single source of truth** for Fox CLI's roadmap. Active sub-phase tasks. See also `future-tasks.md`, `done-tasks.md`, `deferred-tasks.md`.
+- **[`master-plan/deferred-tasks.md`](./master-plan/deferred-tasks.md)**  
+  Parked items not assigned to any phase. Can be promoted later.
 - **[`future/2026-09-22T15-16_adaptive-compression.md`](./future/2026-09-22T15-16_adaptive-compression.md)**  
   Phase 2.0 Adaptive Compression design: heuristic content classifier (`compression-levels.ts`) and adaptive transforms.
 - **[`future/2026-09-22T15-16_autonomous-agent-std-tests.md`](./future/2026-09-22T15-16_autonomous-agent-std-tests.md)**  
