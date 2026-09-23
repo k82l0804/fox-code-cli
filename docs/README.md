@@ -17,9 +17,10 @@ docs/
 ├── 2026-09-22T15-16_daemon-architecture.md                   # Daemon & IPC client architecture specification
 ├── challenge-history/                        # Deterministic test run JSON telemetry snapshots
 │   └── 2026-09-22.json                      # Latest baseline run (334/334, 19.1% compression)
-├── future/                                  # Strategic roadmaps & autonomous SWE architecture
-│   ├── 2026-09-21T06-12_plan-competitive-features-roadmap.md # Master roadmap (v1.5.0) with phased milestones
-│   ├── 2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md # Reconciled priorities & risk matrix
+├── plans/                                   # ⭐ SINGLE SOURCE OF TRUTH for planning
+│   ├── *_master-plan.md                     # THE canonical roadmap — phases, priorities, items
+│   └── *_deferred-items.md                  # Traceability ledger — items traced to originating sessions
+├── future/                                  # Design specs & reference architectures (NOT roadmap)
 │   ├── 2026-09-22T15-16_autonomous-dual-agent-design.md     # Fox Guardian dual-agent architecture & design
 │   ├── 2026-09-22T15-16_autonomous-agent-workflow.md         # Reference architecture (10-step closed loop)
 │   ├── 2026-09-22T15-16_autonomous-agent-std-tests.md        # Benchmark strategy (SWE-bench, RepoQA, etc.)
@@ -64,10 +65,10 @@ docs/
   The 10-step autonomous SWE closed-loop reference architecture: `intake → search → plan → edit → verify → detect → route → prune → commit → handoff`.
 
 ### 3. Roadmaps & Strategy
-- **[`future/2026-09-21T06-12_plan-competitive-features-roadmap.md`](./future/2026-09-21T06-12_plan-competitive-features-roadmap.md)**  
-  *Master Architectural Roadmap (v1.5.0)*. Contains competitive audits against Claude Code, Aider, Codex, OpenCode, and Cursor, plus the Master Deferred Items Traceability Ledger and phased delivery schedule (Phase 1, 2A, 2B, 3).
-- **[`future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md`](./future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md)**  
-  Strategic priorities, risk analysis, and tier ordering guiding implementation.
+- **[`plans/2026-09-23T11-22_master-plan.md`](./plans/2026-09-23T11-22_master-plan.md)**  
+  ⭐ **THE single source of truth** for Fox CLI's roadmap. Phase 2 (Foundation), Phase 3 (Guardian), Phase 4 (Architecture). All priority changes go here.
+- **[`plans/2026-09-23T11-22_deferred-items.md`](./plans/2026-09-23T11-22_deferred-items.md)**  
+  Deferred Items Traceability Ledger. 1-to-1 mapping from originating sessions to master plan phases.
 - **[`future/2026-09-22T15-16_adaptive-compression.md`](./future/2026-09-22T15-16_adaptive-compression.md)**  
   Phase 2.0 Adaptive Compression design: heuristic content classifier (`compression-levels.ts`) and adaptive transforms.
 - **[`future/2026-09-22T15-16_autonomous-agent-std-tests.md`](./future/2026-09-22T15-16_autonomous-agent-std-tests.md)**  

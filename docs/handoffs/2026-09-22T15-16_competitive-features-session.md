@@ -47,7 +47,7 @@ Full implementation of SQLite-backed Tree-sitter symbol indexing:
 - Demoted Snapshot↔Oscillation to Phase 2B (works standalone, integration is refinement)
 - Added missing Blueprint 11.3 (JSON Serialization Bypass) to Phase 2B
 - Added risk callouts to routing, regression detection, and snapshot integration items
-- Reconciled [`2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md)
+- Reconciled into [`2026-09-23T11-22_master-plan.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/plans/2026-09-23T11-22_master-plan.md)
 
 ---
 
@@ -64,8 +64,8 @@ Full implementation of SQLite-backed Tree-sitter symbol indexing:
 
 | Document | Purpose |
 |----------|---------|
-| [`docs/future/2026-09-21T06-12_plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-21T06-12_plan-competitive-features-roadmap.md) | Master roadmap with phased implementation plan |
-| [`docs/future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-23T10-54_priorities-plan-competitive-features-roadmap.md) | Priority tiers and risk analysis (reconciled) |
+| [`docs/archived/2026-09-21T06-12_plan-competitive-features-roadmap.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/archived/2026-09-21T06-12_plan-competitive-features-roadmap.md) | Archived mega-roadmap (superseded by master plan) |
+| [`docs/plans/2026-09-23T11-22_master-plan.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/plans/2026-09-23T11-22_master-plan.md) | **Master Plan** — single source of truth for phases and priorities |
 | [`docs/future/2026-09-22T15-16_autonomous-agent-workflow.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/future/2026-09-22T15-16_autonomous-agent-workflow.md) | Gold-standard 10-step autonomous SWE loop |
 
 ---
