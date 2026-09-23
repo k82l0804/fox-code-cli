@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test"
 import {
   detectTestCommands,
   detectBestCommand,
+  detectCommandPipeline,
+  executePipeline,
+  formatPipelineFeedback,
   formatVerificationFeedback,
   truncateOutput,
   readPackageScripts,
@@ -10,6 +13,8 @@ import {
   MAX_VERIFICATION_OUTPUT_BYTES,
   DEFAULT_VERIFICATION_TIMEOUT_MS,
   type VerificationResult,
+  type VerificationPipeline,
+  type PipelineResult,
 } from "@opencode-ai/core/verification"
 import { mkdtemp, writeFile, rm, mkdir } from "fs/promises"
 import { join } from "path"
@@ -440,6 +445,267 @@ describe("Verification", () => {
       } finally {
         await rm(tempDir, { recursive: true, force: true })
       }
+    })
+  })
+
+  // =========================================================================
+  // Multi-Command Verification Pipeline
+  // =========================================================================
+
+  describe("detectCommandPipeline", () => {
+    test("detectCommandPipeline returns all commands in priority order", () => {
+      const pipeline = detectCommandPipeline({
+        lint: "eslint .",
+        test: "jest",
+        typecheck: "tsc --noEmit",
+      })
+      expect(pipeline.commands).toHaveLength(3)
+      expect(pipeline.strategy).toBe("sequential")
+
+      // Pipeline priority order: typecheck (1) -> test (2) -> lint (3)
+      expect(pipeline.commands[0]!.command).toBe("npm run typecheck")
+      expect(pipeline.commands[0]!.source).toBe("package.json scripts.typecheck")
+      expect(pipeline.commands[0]!.priority).toBe(1)
+
+      expect(pipeline.commands[1]!.command).toBe("npm run test")
+      expect(pipeline.commands[1]!.source).toBe("package.json scripts.test")
+      expect(pipeline.commands[1]!.priority).toBe(2)
+
+      expect(pipeline.commands[2]!.command).toBe("npm run lint")
+      expect(pipeline.commands[2]!.source).toBe("package.json scripts.lint")
+      expect(pipeline.commands[2]!.priority).toBe(3)
+    })
+
+    test("detectCommandPipeline with overrides", () => {
+      const pipeline = detectCommandPipeline(
+        { test: "jest", lint: "eslint ." },
+        {
+          typecheck_command: "tsc --noEmit",
+          test_command: "vitest run",
+          lint_command: "biome check",
+          verification_strategy: "all",
+        },
+      )
+      expect(pipeline.commands).toHaveLength(3)
+      expect(pipeline.strategy).toBe("all")
+
+      expect(pipeline.commands[0]!.command).toBe("tsc --noEmit")
+      expect(pipeline.commands[0]!.source).toBe("fox.jsonc autonomous.typecheck_command")
+      expect(pipeline.commands[0]!.priority).toBe(0)
+
+      expect(pipeline.commands[1]!.command).toBe("vitest run")
+      expect(pipeline.commands[1]!.source).toBe("fox.jsonc autonomous.test_command")
+      expect(pipeline.commands[1]!.priority).toBe(0)
+
+      expect(pipeline.commands[2]!.command).toBe("biome check")
+      expect(pipeline.commands[2]!.source).toBe("fox.jsonc autonomous.lint_command")
+      expect(pipeline.commands[2]!.priority).toBe(0)
+    })
+
+    test("detectCommandPipeline typecheck_command override at priority 0", () => {
+      const pipeline = detectCommandPipeline(
+        { test: "jest", typecheck: "npm run tc" },
+        { typecheck_command: "tsc --build" },
+      )
+      expect(pipeline.commands).toHaveLength(2)
+      expect(pipeline.commands[0]!.command).toBe("tsc --build")
+      expect(pipeline.commands[0]!.priority).toBe(0)
+      expect(pipeline.commands[0]!.source).toBe("fox.jsonc autonomous.typecheck_command")
+      expect(pipeline.commands[1]!.command).toBe("npm run test")
+    })
+
+    test("detectCommandPipeline empty scripts", () => {
+      expect(detectCommandPipeline(null).commands).toEqual([])
+      expect(detectCommandPipeline(undefined).commands).toEqual([])
+      expect(detectCommandPipeline({}).commands).toEqual([])
+      expect(detectCommandPipeline({ dev: "vite", build: "vite build" }).commands).toEqual([])
+    })
+
+    test("detectCommandPipeline skips whitespace-only scripts", () => {
+      const pipeline = detectCommandPipeline({
+        test: "  ",
+        typecheck: "",
+        lint: "   ",
+      })
+      expect(pipeline.commands).toEqual([])
+    })
+
+    test("detectCommandPipeline uses check when typecheck not present", () => {
+      const pipeline = detectCommandPipeline({
+        check: "cargo check",
+        test: "cargo test",
+      })
+      expect(pipeline.commands).toHaveLength(2)
+      expect(pipeline.commands[0]!.command).toBe("npm run check")
+      expect(pipeline.commands[1]!.command).toBe("npm run test")
+    })
+
+    test("backward compat: detectBestCommand unchanged", () => {
+      // detectBestCommand still prefers test (priority 1) over typecheck (priority 3)
+      const best = detectBestCommand({ test: "jest", typecheck: "tsc --noEmit" })
+      expect(best).toBeDefined()
+      expect(best!.command).toBe("npm run test")
+    })
+  })
+
+  describe("executePipeline", () => {
+    test("executePipeline sequential stops on failure", async () => {
+      const pipeline: VerificationPipeline = {
+        commands: [
+          { command: "sh -c 'echo \"typecheck failed\" && exit 1'", source: "tc", priority: 1 },
+          { command: "echo 'test passed'", source: "test", priority: 2 },
+        ],
+        strategy: "sequential",
+      }
+
+      const result = await executePipeline(pipeline, { cwd: tmpdir() })
+
+      expect(result.allPassed).toBe(false)
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0]!.exitCode).toBe(1)
+      expect(result.results[0]!.passed).toBe(false)
+      expect(result.firstFailure).toBeDefined()
+      expect(result.firstFailure!.command).toContain("typecheck failed")
+      expect(result.totalElapsedMs).toBeGreaterThanOrEqual(0)
+    })
+
+    test("executePipeline all runs everything", async () => {
+      const pipeline: VerificationPipeline = {
+        commands: [
+          { command: "sh -c 'echo \"typecheck failed\" && exit 1'", source: "tc", priority: 1 },
+          { command: "echo 'test passed'", source: "test", priority: 2 },
+        ],
+        strategy: "all",
+      }
+
+      const result = await executePipeline(pipeline, { cwd: tmpdir() })
+
+      expect(result.allPassed).toBe(false)
+      expect(result.results).toHaveLength(2)
+      expect(result.results[0]!.passed).toBe(false)
+      expect(result.results[1]!.passed).toBe(true)
+      expect(result.firstFailure).toBe(result.results[0])
+    })
+
+    test("executePipeline returns allPassed=true when all succeed", async () => {
+      const pipeline: VerificationPipeline = {
+        commands: [
+          { command: "echo 'check 1'", source: "tc", priority: 1 },
+          { command: "echo 'check 2'", source: "test", priority: 2 },
+        ],
+        strategy: "sequential",
+      }
+
+      const result = await executePipeline(pipeline, { cwd: tmpdir() })
+
+      expect(result.allPassed).toBe(true)
+      expect(result.results).toHaveLength(2)
+      expect(result.firstFailure).toBeUndefined()
+    })
+
+    test("executePipeline handles empty commands", async () => {
+      const pipeline: VerificationPipeline = {
+        commands: [],
+        strategy: "sequential",
+      }
+
+      const result = await executePipeline(pipeline, { cwd: tmpdir() })
+
+      expect(result.allPassed).toBe(true)
+      expect(result.results).toHaveLength(0)
+      expect(result.firstFailure).toBeUndefined()
+    })
+  })
+
+  describe("formatPipelineFeedback", () => {
+    test("formatPipelineFeedback multi-result shows all statuses, only fail output", () => {
+      const mockResult: PipelineResult = {
+        allPassed: false,
+        totalElapsedMs: 1500,
+        firstFailure: {
+          command: "npm run test",
+          exitCode: 1,
+          passed: false,
+          compressedOutput: "FAIL: src/foo.test.ts > expects 1 to be 2",
+          truncated: false,
+          elapsedMs: 800,
+        },
+        results: [
+          {
+            command: "npm run typecheck",
+            exitCode: 0,
+            passed: true,
+            compressedOutput: "",
+            truncated: false,
+            elapsedMs: 300,
+          },
+          {
+            command: "npm run test",
+            exitCode: 1,
+            passed: false,
+            compressedOutput: "FAIL: src/foo.test.ts > expects 1 to be 2",
+            truncated: false,
+            elapsedMs: 800,
+          },
+          {
+            command: "npm run lint",
+            exitCode: 0,
+            passed: true,
+            compressedOutput: "",
+            truncated: false,
+            elapsedMs: 400,
+          },
+        ],
+      }
+
+      const feedback = formatPipelineFeedback(mockResult)
+
+      expect(feedback).toContain("─── Auto-Verification Pipeline ❌ FAILED ───")
+      expect(feedback).toContain("Pipeline: 3 checks executed | Total elapsed: 1.5s")
+      expect(feedback).toContain("[✅ PASS] npm run typecheck (exit 0, 0.3s)")
+      expect(feedback).toContain("[❌ FAIL] npm run test (exit 1, 0.8s)")
+      expect(feedback).toContain("[✅ PASS] npm run lint (exit 0, 0.4s)")
+      expect(feedback).toContain('Failure details for "npm run test":')
+      expect(feedback).toContain("FAIL: src/foo.test.ts > expects 1 to be 2")
+      expect(feedback).not.toContain('Failure details for "npm run typecheck"')
+      expect(feedback).not.toContain('Failure details for "npm run lint"')
+      expect(feedback).toContain("─── End Auto-Verification Pipeline ───")
+    })
+
+    test("formatPipelineFeedback formats passing pipeline", () => {
+      const mockResult: PipelineResult = {
+        allPassed: true,
+        totalElapsedMs: 800,
+        firstFailure: undefined,
+        results: [
+          {
+            command: "npm run typecheck",
+            exitCode: 0,
+            passed: true,
+            compressedOutput: "",
+            truncated: false,
+            elapsedMs: 300,
+          },
+          {
+            command: "npm run test",
+            exitCode: 0,
+            passed: true,
+            compressedOutput: "",
+            truncated: false,
+            elapsedMs: 500,
+          },
+        ],
+      }
+
+      const feedback = formatPipelineFeedback(mockResult)
+
+      expect(feedback).toContain("─── Auto-Verification Pipeline ✅ PASSED ───")
+      expect(feedback).toContain("Pipeline: 2 checks executed | Total elapsed: 0.8s")
+      expect(feedback).toContain("[✅ PASS] npm run typecheck")
+      expect(feedback).toContain("[✅ PASS] npm run test")
+      expect(feedback).toContain("All pipeline checks passed.")
+      expect(feedback).not.toContain("Failure details")
+      expect(feedback).toContain("─── End Auto-Verification Pipeline ───")
     })
   })
 })

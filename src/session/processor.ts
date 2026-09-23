@@ -638,23 +638,28 @@ const layer = Layer.effect(
                 const scripts: Record<string, string> | undefined = yield* Effect.promise(() =>
                   Verification.readPackageScripts(projectDir),
                 )
-                const testCmd = Verification.detectBestCommand(scripts, autonomousCfg?.test_command)
+                const pipeline = Verification.detectCommandPipeline(scripts, {
+                  test_command: autonomousCfg?.test_command,
+                  typecheck_command: autonomousCfg?.typecheck_command,
+                  lint_command: autonomousCfg?.lint_command,
+                  verification_strategy: autonomousCfg?.verification_strategy,
+                })
 
-                if (testCmd) {
+                if (pipeline.commands.length > 0) {
                   const timeoutMs = autonomousCfg?.test_timeout ?? Verification.DEFAULT_VERIFICATION_TIMEOUT_MS
-                  const verifyResult: Verification.VerificationResult = yield* Effect.promise(() =>
-                    Verification.executeVerification(testCmd.command, {
+                  const pipelineResult: Verification.PipelineResult = yield* Effect.promise(() =>
+                    Verification.executePipeline(pipeline, {
                       cwd: projectDir,
                       timeoutMs,
                     }),
                   )
-                  const feedback = Verification.formatVerificationFeedback(verifyResult)
+                  const feedback = Verification.formatPipelineFeedback(pipelineResult)
                   outputText = `${outputText}\n\n${feedback}`
 
                   // Update repair budget based on verification outcome
                   const maxRepairTurns = autonomousCfg?.max_repair_turns ?? 3
                   const budget = getRepairBudget(ctx.sessionID, maxRepairTurns)
-                  if (!verifyResult.passed) {
+                  if (!pipelineResult.allPassed) {
                     const budgetResult = RepairBudgetTracker.recordFailure(budget)
                     const warning = RepairBudgetTracker.RepairBudgetWarning.format(budget)
                     if (budgetResult.exhausted && warning) {

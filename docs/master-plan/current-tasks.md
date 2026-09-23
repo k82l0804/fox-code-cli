@@ -7,7 +7,7 @@
 
 ---
 
-- [ ] **1. Multi-Command Auto-Verification Pipeline** — [📋 Plan](../plans/2026-09-23T12-40_plan-multi-cmd-verification.md)
+- [x] **1. Multi-Command Auto-Verification Pipeline** — [📋 Plan](../plans/2026-09-23T12-40_plan-multi-cmd-verification.md)
   Extend `verification.ts` to run typecheck → tests → lint as a configurable sequence.
 
 - [ ] **2. Turn-Supersession Context Pruning** — [📋 Plan](../plans/2026-09-23T12-40_plan-supersession-pruning.md)

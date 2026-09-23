@@ -363,6 +363,16 @@ export const Info = Schema.Struct({
         description:
           "Override the auto-detected test command. Set to null to auto-detect from package.json scripts. Defaults to null (auto-detect).",
       }),
+      typecheck_command: Schema.optional(Schema.NullOr(Schema.String)).annotate({
+        description: "Override the auto-detected typecheck command. Defaults to null (auto-detect).",
+      }),
+      lint_command: Schema.optional(Schema.NullOr(Schema.String)).annotate({
+        description: "Override the auto-detected lint command. Defaults to null (auto-detect).",
+      }),
+      verification_strategy: Schema.optional(Schema.Literals(["sequential", "all"])).annotate({
+        description:
+          "Pipeline strategy: 'sequential' stops at first failure, 'all' runs everything. Defaults to 'sequential'.",
+      }),
       test_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for auto-verification commands. Defaults to 30000.",
       }),

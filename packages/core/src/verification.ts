@@ -41,6 +41,26 @@ export interface VerificationResult {
   readonly elapsedMs: number
 }
 
+/** A verification execution pipeline configuration. */
+export interface VerificationPipeline {
+  /** Ordered list of verification commands to run. */
+  readonly commands: VerificationCommand[]
+  /** Strategy: 'sequential' stops on first failure, 'all' runs everything. */
+  readonly strategy: "sequential" | "all"
+}
+
+/** Aggregated result of running a verification pipeline. */
+export interface PipelineResult {
+  /** Individual verification results in execution order. */
+  readonly results: VerificationResult[]
+  /** True if all executed commands passed. */
+  readonly allPassed: boolean
+  /** First failed verification result, if any. */
+  readonly firstFailure: VerificationResult | undefined
+  /** Total elapsed time across all executed commands in milliseconds. */
+  readonly totalElapsedMs: number
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -125,6 +145,107 @@ export function detectBestCommand(
   return commands[0]
 }
 
+/**
+ * Detect all verification commands and return them as an ordered pipeline.
+ * The pipeline runs commands in priority order (typecheck before tests before lint).
+ *
+ * @param scripts - package.json scripts object
+ * @param overrides - User-configured command overrides from fox.jsonc
+ * @returns Pipeline of commands to execute in order
+ */
+export function detectCommandPipeline(
+  scripts: Record<string, string> | undefined | null,
+  overrides?: {
+    test_command?: string | null
+    typecheck_command?: string | null
+    lint_command?: string | null
+    verification_strategy?: "sequential" | "all" | null
+  },
+): VerificationPipeline {
+  const commands: VerificationCommand[] = []
+
+  // 1. Typecheck (fastest static checks: typecheck -> check)
+  if (
+    overrides?.typecheck_command &&
+    typeof overrides.typecheck_command === "string" &&
+    overrides.typecheck_command.trim().length > 0
+  ) {
+    commands.push({
+      command: overrides.typecheck_command.trim(),
+      source: "fox.jsonc autonomous.typecheck_command",
+      priority: 0,
+    })
+  } else if (scripts && typeof scripts === "object") {
+    if (typeof scripts.typecheck === "string" && scripts.typecheck.trim().length > 0) {
+      commands.push({
+        command: "npm run typecheck",
+        source: "package.json scripts.typecheck",
+        priority: 1,
+      })
+    } else if (typeof scripts.check === "string" && scripts.check.trim().length > 0) {
+      commands.push({
+        command: "npm run check",
+        source: "package.json scripts.check",
+        priority: 1,
+      })
+    }
+  }
+
+  // 2. Tests (unit / integration tests: test -> test:check -> test:unit -> test:smoke)
+  if (
+    overrides?.test_command &&
+    typeof overrides.test_command === "string" &&
+    overrides.test_command.trim().length > 0
+  ) {
+    commands.push({
+      command: overrides.test_command.trim(),
+      source: "fox.jsonc autonomous.test_command",
+      priority: 0,
+    })
+  } else if (scripts && typeof scripts === "object") {
+    const testNames = ["test", "test:check", "test:unit", "test:smoke"] as const
+    for (const name of testNames) {
+      const cmd = scripts[name]
+      if (typeof cmd === "string" && cmd.trim().length > 0) {
+        commands.push({
+          command: `npm run ${name}`,
+          source: `package.json scripts.${name}`,
+          priority: 2,
+        })
+        break
+      }
+    }
+  }
+
+  // 3. Lint (style / static analysis: lint)
+  if (
+    overrides?.lint_command &&
+    typeof overrides.lint_command === "string" &&
+    overrides.lint_command.trim().length > 0
+  ) {
+    commands.push({
+      command: overrides.lint_command.trim(),
+      source: "fox.jsonc autonomous.lint_command",
+      priority: 0,
+    })
+  } else if (scripts && typeof scripts === "object") {
+    if (typeof scripts.lint === "string" && scripts.lint.trim().length > 0) {
+      commands.push({
+        command: "npm run lint",
+        source: "package.json scripts.lint",
+        priority: 3,
+      })
+    }
+  }
+
+  const strategy = overrides?.verification_strategy === "all" ? "all" : "sequential"
+
+  return {
+    commands,
+    strategy,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Result Formatting
 // ---------------------------------------------------------------------------
@@ -153,6 +274,51 @@ export function formatVerificationFeedback(result: VerificationResult): string {
   }
 
   lines.push(`─── End Auto-Verification ───`)
+
+  return lines.join("\n")
+}
+
+/**
+ * Format pipeline results as a model-facing feedback block.
+ * Shows status summary for all executed checks, but only includes
+ * compressed failure output for commands that failed.
+ *
+ * @param pipelineResult Aggregated pipeline execution result.
+ * @returns Formatted feedback string.
+ */
+export function formatPipelineFeedback(pipelineResult: PipelineResult): string {
+  const status = pipelineResult.allPassed ? "✅ PASSED" : "❌ FAILED"
+  const count = pipelineResult.results.length
+  const totalElapsed = `${(pipelineResult.totalElapsedMs / 1000).toFixed(1)}s`
+
+  const lines = [
+    ``,
+    `─── Auto-Verification Pipeline ${status} ───`,
+    `Pipeline: ${count} ${count === 1 ? "check" : "checks"} executed | Total elapsed: ${totalElapsed}`,
+  ]
+
+  for (const r of pipelineResult.results) {
+    const itemStatus = r.passed ? "✅ PASS" : "❌ FAIL"
+    const truncNote = r.truncated ? " [output truncated]" : ""
+    const elapsed = `${(r.elapsedMs / 1000).toFixed(1)}s`
+    lines.push(`  [${itemStatus}] ${r.command} (exit ${r.exitCode}, ${elapsed})${truncNote}`)
+  }
+
+  const failures = pipelineResult.results.filter((r) => !r.passed)
+  if (failures.length > 0) {
+    for (const fail of failures) {
+      lines.push(``, `Failure details for "${fail.command}":`)
+      if (fail.compressedOutput.trim().length > 0) {
+        lines.push(fail.compressedOutput)
+      } else {
+        lines.push(`(Command exited with code ${fail.exitCode} with no output)`)
+      }
+    }
+  } else if (pipelineResult.allPassed && count > 0) {
+    lines.push(``, `All pipeline checks passed.`)
+  }
+
+  lines.push(`─── End Auto-Verification Pipeline ───`)
 
   return lines.join("\n")
 }
@@ -342,5 +508,41 @@ export async function executeVerification(
     compressedOutput: finalOutput,
     truncated,
     elapsedMs,
+  }
+}
+
+/**
+ * Execute a verification pipeline. Runs commands in order.
+ * With "sequential" strategy, stops at first failure.
+ * With "all" strategy, runs all commands regardless.
+ *
+ * @param pipeline The verification pipeline to execute.
+ * @param options Execution options (cwd, timeout, env).
+ * @returns Aggregated PipelineResult.
+ */
+export async function executePipeline(
+  pipeline: VerificationPipeline,
+  options: VerificationExecutionOptions,
+): Promise<PipelineResult> {
+  const results: VerificationResult[] = []
+  const startTime = performance.now()
+
+  for (const cmd of pipeline.commands) {
+    const res = await executeVerification(cmd.command, options)
+    results.push(res)
+    if (!res.passed && pipeline.strategy === "sequential") {
+      break
+    }
+  }
+
+  const totalElapsedMs = Math.round(performance.now() - startTime)
+  const firstFailure = results.find((r) => !r.passed)
+  const allPassed = results.length > 0 ? results.every((r) => r.passed) : true
+
+  return {
+    results,
+    allPassed,
+    firstFailure,
+    totalElapsedMs,
   }
 }
