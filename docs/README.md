@@ -93,13 +93,14 @@ docs/
 
 ## 🏷️ Document Naming Convention
 
-All Markdown (`.md`) files in `docs/` (recursively across all subdirectories, including `future/`, `handoffs/`, and `archived/`) must follow the ISO 8601 prefix standard:
+All Markdown (`.md`) files in `docs/` (recursively across all subdirectories, including `future/`, `handoffs/`, `archived/`, and `reports/`) must follow the ISO 8601 prefix standard:
 
 ```
 YYYY-MM-DDTHH-MM_<descriptive-name>.md
 ```
 
 - **Natural Chronological Sorting**: File browsers and `ls` automatically display documents in exact historical sequence.
+- **Timestamp Update on Modification (MANDATORY)**: Any time an existing document is modified, its timestamp prefix **must be updated to the current date and time** (via `git mv`), and all cross-references across the workspace updated accordingly. This guarantees that file sorting always reflects the most recently updated documents and makes modification recency immediately clear.
 - **Entrypoint Exception**: `README.md` files are the only exempt files, remaining un-prefixed to serve as landing pages.
 - **Archiving Rule**: Any document superseded by later implementations or roadmaps must be moved to `docs/archived/` via `git mv`, preserving its timestamp prefix. See [`.agents/rules/documentation-naming.md`](../../.agents/rules/documentation-naming.md).
 
