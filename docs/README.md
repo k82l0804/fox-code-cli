@@ -30,7 +30,8 @@ docs/
 │   ├── 2026-09-22T16-24_phase-1-remaining.md                 # Handoff for Phase 1 remaining items (Completed in CLI)
 │   └── 2026-09-22T15-16_competitive-features-session.md # Competitive features session brief
 ├── reports/                                 # In-depth architectural & competitive reports
-│   └── 2026-09-23T09-18_competitive-analysis-fox-aider-goose.md # Capability-Proportional Execution analysis
+│   ├── 2026-09-23T09-18_competitive-analysis-fox-aider-goose.md # Capability-Proportional Execution analysis
+│   └── 2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md # Competitor Benchmark Report (Aider vs Goose vs Kilo)
 └── archived/                                # Chronologically ordered archive of superseded docs
     └── README.md                            # Supersession index & redirect guide
 ```
@@ -80,6 +81,8 @@ docs/
   Summary of competitive roadmap execution, Phase 2.0 implementation, and regression fixes.
 
 ### 5. Architectural & Competitive Reports
+- **[`reports/2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md`](./reports/2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md)**  
+  *Competitor Agent Benchmark Report: Aider vs. Goose vs. Kilo Code CLI*. Empirical performance results, token and schema economics, constrained-model stress tests, and master comparative matrix across external and baseline coding CLIs.
 - **[`reports/2026-09-23T09-18_competitive-analysis-fox-aider-goose.md`](./reports/2026-09-23T09-18_competitive-analysis-fox-aider-goose.md)**  
   *Fox vs Aider vs Goose: Capability-Proportional Execution*. Architectural evaluation of multi-model routing, task decomposition, subagent specialization, and small-model failure mitigation across competitive SWE CLIs.
 
