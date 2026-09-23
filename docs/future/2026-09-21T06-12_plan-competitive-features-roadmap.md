@@ -811,13 +811,11 @@ Nice-to-haves, not essential for autonomous capability.
 ### Phase 1: Near-Term (Q4 2026 — Core Foundations & Precision)
 1. ~~**Patch Confidence Scoring & Conflict Detection**~~ → ✅ **COMPLETED** (Blueprint 6: Transactional Patch Engine with in-memory journal, 4-tier confidence scoring, 28 tests)
 2. ~~**Incremental AST Caching in `@foxcode/indexing`**~~ → ✅ **COMPLETED** (Blueprint 1 Phase 1: SQLite-backed SHA1 file-keyed Tree-sitter indexing, `lookup_symbols` + `fetch_repo_map` tools, 36 WASM grammars, enabled by default)
-3. **Editor Latency Optimization**: ⏳ **OPEN**
-   - Add 150ms debounce and priority channels to [`fox-acp-client`](file:///home/k82l0804/workarea/fox/fox-acp-client/).
-4. **Enhanced Shadow Snapshots & Named Revert**: ⏳ **OPEN**
-   - Surface `/undo` and `/diff` commands in TUI referencing internal shadow git states.
+3. **Editor Latency Optimization** (Blueprint 8): ⏳ **DEFERRED to `fox-acp-client`**
+   - Add 150ms debounce and priority channels to [`fox-acp-client`](file:///home/k82l0804/workarea/fox/fox-acp-client/) (VS Code extension repo).
+4. ~~**Enhanced Shadow Snapshots & Named Revert**~~ → ✅ **COMPLETED** (Pre-mutation baseline capture via `Checkpoint.Service`, FIFO ring buffer, CLI `fox checkpoint`, `/undo`, `/diff`, 8 tests)
 5. ~~**Static Tool Closure Resolution Caching**~~ → ✅ **COMPLETED** (Blueprint 11.1: Decoupled `resolveDefinitions` from `bindExecutionContext` in `tools.ts`, enabling static definition caching across turns)
-6. **Local Open-Weights Model Family Profiles & Prompts Matrix** (Blueprint 12): ⏳ **OPEN**
-   - Curate and test profiles in `prompts.json` for Qwen 2.5, DeepSeek R1/V3, Llama 3, Codestral.
+6. ~~**Local Open-Weights Model Family Profiles & Prompts Matrix** (Blueprint 12)~~ → ✅ **COMPLETED** (Curated profiles in `model-profiles.json` for Llama 3.1/3.3, Codestral/Mistral, Gemma 2/4, Nemotron, GPT-OSS; auto-detection, compaction alignment, `--profile` flag, 21 tests)
 7. ~~**Continuous Invariant & Compression CI Drift Gate**~~ (Blueprint 13) → ✅ **COMPLETED** (Challenge Ladder CI gate: `test:challenge` in `package.json`, 334-fixture suite with min score ≥285, historical snapshots in `docs/challenge-history/`)
 
 ### Phase 1B: Compression Hardening → ✅ **COMPLETED** (2026-09-22)

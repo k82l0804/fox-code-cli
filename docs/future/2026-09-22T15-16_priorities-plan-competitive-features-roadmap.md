@@ -116,13 +116,11 @@ Based on the [reference architecture](file:///home/k82l0804/workarea/fox/fox-cod
 20. **ACP Multi-Root & Diff Cards**
 21. **Cross-Session Checklist State Machine**
 
-### Phase 1 Remaining (Low Priority — Not Blocking)
+### Phase 1 Remaining (Status: Complete in CLI)
 
-These were originally Phase 1 items that haven't been completed. They're useful but don't block the autonomous loop:
-
-- **ACP Metadata Debounce & Batching** — Add 150ms debounce to `fox-acp-client`. UX improvement only.
-- **Named Shadow Checkpoints & /undo** — Surface `/undo` and `/diff` in TUI. Nice-to-have.
-- **Local Model Profiles & Prompts Matrix** — Curate profiles for Qwen 2.5, DeepSeek R1/V3, Llama 3, Codestral.
+- ~~**Named Shadow Checkpoints & /undo**~~ → ✅ **COMPLETE** (`packages/core/src/checkpoint.ts`, `fox checkpoint list/create/undo/diff`).
+- ~~**Local Model Profiles & Prompts Matrix**~~ → ✅ **COMPLETE** (`model-profiles.json`, `--profile` flag, non-Chinese open weights: Llama 3.1/3.3, Codestral/Mistral, Gemma 2/4, Nemotron, GPT-OSS).
+- **ACP Metadata Debounce & Batching** — Deferred to companion `fox-acp-client` VS Code extension repository. Does not block CLI or autonomous loop.
 
 ### 🔮 **Tier 4 — Future Vision**
 

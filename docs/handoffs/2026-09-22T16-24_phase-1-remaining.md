@@ -1,25 +1,28 @@
 # Handoff: Phase 1 Remaining Items
 
 > **Created:** 2026-09-22
-> **Status:** Open — 3 items remaining (not blocking Phase 2A)
-> **Priority:** Low — these improve UX/DX but don't block the autonomous loop
-> **Originating Session:** [`188a6acb`](../../.gemini/antigravity-ide/brain/188a6acb-cd0f-451e-873f-af0d1ba57900/walkthrough.md)
+> **Status:** Phase 1 Complete in `fox-code-cli` (Items 2 & 3 Done; Item 1 deferred to `fox-acp-client`)
+> **Priority:** Phase 2A Unblocked — Guardian Agent Architecture is next
+> **Originating Session:** [`188a6acb`](../../.gemini/antigravity-ide/brain/188a6acb-cd0f-451e-873f-af0d1ba57900/walkthrough.md) → Completed in [`009a6611`](../../.gemini/antigravity-ide/brain/009a6611-f490-4be7-b11a-2200bcb4cf34/walkthrough.md)
 > **Roadmap Reference:** [`2026-09-21T06-12_plan-competitive-features-roadmap.md`](../future/2026-09-21T06-12_plan-competitive-features-roadmap.md) Phase 1 items 3, 4, 6
 
 ---
 
 ## Context
 
-Phase 1 originally had 7 items. 4 are complete:
+Phase 1 originally had 7 items. 6 are complete in `fox-code-cli`, and Item 1 is deferred to the VS Code client:
 
 | # | Item | Status |
 |---|------|--------|
 | 1 | Patch Confidence Scoring (BP 6) | ✅ Done |
 | 2 | Incremental AST Caching (BP 1) | ✅ Done |
+| 3 | ACP Metadata Debounce & Batching (BP 8) | ⏳ Deferred (`fox-acp-client` VS Code extension) |
+| 4 | Named Shadow Checkpoints & `/undo` | ✅ Done (`packages/core/src/checkpoint.ts`, `fox checkpoint`) |
 | 5 | Static Tool Closure Resolution (BP 11.1) | ✅ Done |
+| 6 | Local Open-Weights Model Profiles (BP 12) | ✅ Done (`model-profiles.json`, `--profile`) |
 | 7 | CI Invariant & Compression Gate | ✅ Done (`test:challenge`) |
 
-The 3 remaining items are documented below with implementation guidance.
+The implementation details for the completed items and remaining client item are documented below.
 
 ---
 
@@ -75,11 +78,11 @@ Fox makes file edits through `apply_patch` and `edit` tools. While the transacti
 - TUI command registration: `src/session/` slash command infrastructure
 
 ### Acceptance Criteria
-- [ ] Checkpoint created after each successful `apply_patch` / `edit` tool call
-- [ ] `/undo` reverts all files to previous checkpoint state
-- [ ] `/diff` shows changes since last checkpoint
-- [ ] User's `git log` / `git status` is never affected by checkpoint internals
-- [ ] Old checkpoints evicted when limit exceeded
+- [x] Checkpoint created after each successful `apply_patch` / `edit` tool call
+- [x] `/undo` reverts all files to previous checkpoint state
+- [x] `/diff` shows changes since last checkpoint
+- [x] User's `git log` / `git status` is never affected by checkpoint internals
+- [x] Old checkpoints evicted when limit exceeded
 
 ---
 
@@ -90,37 +93,37 @@ Fox makes file edits through `apply_patch` and `edit` tools. While the transacti
 **Effort Estimate:** ~1 day (testing-heavy)
 
 ### Problem
-Fox works with any OpenAI-compatible endpoint, but different local models (Qwen 2.5 Coder, DeepSeek R1/V3, Llama 3, Codestral, Mistral) have different strengths, context windows, tool-calling conventions, and system prompt sensitivities. There are no curated profiles.
+Fox works with any OpenAI-compatible endpoint, but different local models (Llama 3.1/3.3, Codestral/Mistral, Gemma, Nemotron, GPT-OSS) have different strengths, context windows, tool-calling conventions, and system prompt sensitivities. There are no curated profiles.
 
 ### What to Build
-1. **Model family profiles** in a config file (e.g., `prompts.json` or `models.json`):
+1. **Model family profiles** in a config file (e.g., `model-profiles.json`):
    - Context window size (for compaction thresholds)
    - Tool calling format (native vs. XML vs. JSON-in-markdown)
    - System prompt length budget
    - Recommended temperature / top_p
-   - Known quirks (e.g., "DeepSeek R1 needs explicit tool schema in system prompt")
+   - Known quirks (e.g., prompt hints or tool-calling hints)
 2. **Auto-detection**: When connecting to a model, attempt to match the model ID against known profiles
-3. **Manual override**: `--profile qwen-2.5-coder-32b` or in `fox.jsonc`
+3. **Manual override**: `--profile <name>` or in `fox.jsonc`
 
-### Models to Profile (Priority Order)
-1. **Qwen 2.5 Coder** (7B, 14B, 32B) — most popular local coding model
-2. **DeepSeek Coder V2 / R1** — strong reasoning, different tool format
-3. **Llama 3.1 / 3.2** (8B, 70B) — Meta's general-purpose family
-4. **Codestral / Mistral** — Mistral AI's code-focused models
-5. **Gemma 2** (9B, 27B) — Google's open model
+### Models Profiled (Non-Chinese Open-Weights Focus)
+1. **Meta Llama 3.1 / 3.3** (8B, 70B) — Meta's open weights (`llama-3.1`, `llama-3.3`)
+2. **Mistral Codestral / Mistral** (22B, 2508) — Mistral AI code models (`codestral`, `mistral`)
+3. **Google Gemma 2 / 4** (9B, 27B, 31B) — Google open weights (`gemma`)
+4. **Nvidia Nemotron 3 / 4** (Ultra 550B, etc.) — Nvidia open weights (`nemotron`)
+5. **OpenAI GPT-OSS 120B** — Open weights (`gpt-oss`)
 
 ### Where to Look
 - Current model config: [`src/foxcode/config/config.ts`](../../src/foxcode/config/config.ts) — `provider` and `models` schema
-- LLM request construction: [`src/session/llm.ts`](../../src/session/llm.ts) and [`src/session/llm/native-request.ts`](../../src/session/llm/native-request.ts)
-- System prompt: [`src/session/prompt/default.txt`](../../src/session/prompt/default.txt)
+- LLM request construction: [`src/session/llm.ts`](../../src/session/llm.ts) and [`src/session/llm/request.ts`](../../src/session/llm/request.ts)
+- System prompt: [`src/session/prompt/local.txt`](../../src/session/prompt/local.txt) and [`src/session/prompt/model-profiles.json`](../../src/session/prompt/model-profiles.json)
 - The [LiteLLM proxy](../../../openai-proxy/) can be used for testing cloud-vs-local routing
 
 ### Acceptance Criteria
-- [ ] At least 3 model families profiled with tested configurations
-- [ ] Auto-detection works for common Ollama model names (e.g., `qwen2.5-coder:32b`)
-- [ ] Context window size from profile is used for compaction thresholds
-- [ ] Manual `--profile` override works from CLI and `fox.jsonc`
-- [ ] Documentation in README listing supported models and recommended configurations
+- [x] At least 3 model families profiled with tested configurations
+- [x] Auto-detection works for common Ollama model names (e.g., `llama3.1:8b`, `codestral:22b`, `gemma2:9b`, `nemotron:latest`, `gpt-oss:120b`)
+- [x] Context window size from profile is used for compaction thresholds
+- [x] Manual `--profile` override works from CLI and `fox.jsonc`
+- [x] Documentation in README listing supported models and recommended configurations
 
 ---
 

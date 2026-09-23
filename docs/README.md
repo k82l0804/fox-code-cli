@@ -26,7 +26,8 @@ docs/
 │   ├── 2026-09-22T15-16_adaptive-compression.md              # Phase 2.0 Adaptive Compression design & classifier
 │   └── 2026-09-22T15-16_opinion-ideal-sw-agent-workflow.md   # Core design principles and research backing
 ├── handoffs/                                # Inter-session state handoffs & next-step briefs
-│   ├── 2026-09-22T16-24_phase-1-remaining.md                 # Handoff for Phase 1 remaining items
+│   ├── 2026-09-22T20-15_phase-2-handoff.md                   # Handoff for Phase 2 Autonomous Guardian & Loop
+│   ├── 2026-09-22T16-24_phase-1-remaining.md                 # Handoff for Phase 1 remaining items (Completed in CLI)
 │   └── 2026-09-22T15-16_competitive-features-session.md # Competitive features session brief
 └── archived/                                # Chronologically ordered archive of superseded docs
     └── README.md                            # Supersession index & redirect guide
@@ -61,8 +62,10 @@ docs/
   Standard autonomous agent benchmark strategy: SWE-bench Verified, RepoQA, and local validation suites.
 
 ### 4. Active Handoffs
+- **[`handoffs/2026-09-22T20-15_phase-2-handoff.md`](./handoffs/2026-09-22T20-15_phase-2-handoff.md)**  
+  *Canonical Phase 2 Handoff*. Full roadmap and execution guide for Phase 2A (Guardian Agent Core, Auto-Verification Execution, Checkpoint Reversal, Multi-Model Escalation).
 - **[`handoffs/2026-09-22T16-24_phase-1-remaining.md`](./handoffs/2026-09-22T16-24_phase-1-remaining.md)**  
-  Handoff document detailing the remaining items in Phase 1 (Worktree support, Model tiering, ACP batching, Token budgeting).
+  Handoff document detailing Phase 1 items (Checkpoints and Model Profiles landed in CLI; ACP debounce deferred to extension).
 - **[`handoffs/2026-09-22T15-16_competitive-features-session.md`](./handoffs/2026-09-22T15-16_competitive-features-session.md)**  
   Summary of competitive roadmap execution, Phase 2.0 implementation, and regression fixes.
 
