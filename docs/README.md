@@ -31,7 +31,8 @@ docs/
 │   └── 2026-09-22T15-16_competitive-features-session.md # Competitive features session brief
 ├── reports/                                 # In-depth architectural & competitive reports
 │   ├── 2026-09-23T09-18_competitive-analysis-fox-aider-goose.md # Capability-Proportional Execution analysis
-│   └── 2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md # Competitor Benchmark Report (Aider vs Goose vs Kilo)
+│   ├── 2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md # Competitor Benchmark Report (Aider vs Goose vs Kilo)
+│   └── 2026-09-23T10-07_competitive-analysis-product-features.md # Product Features Competitive Analysis (Aider vs Goose vs Kilo vs Peers)
 └── archived/                                # Chronologically ordered archive of superseded docs
     └── README.md                            # Supersession index & redirect guide
 ```
@@ -81,6 +82,8 @@ docs/
   Summary of competitive roadmap execution, Phase 2.0 implementation, and regression fixes.
 
 ### 5. Architectural & Competitive Reports
+- **[`reports/2026-09-23T10-07_competitive-analysis-product-features.md`](./reports/2026-09-23T10-07_competitive-analysis-product-features.md)**  
+  *AI Coding Agent CLIs: Comprehensive Competitive Product Feature Analysis*. Deep architectural and functional audit comparing Aider, Goose, Kilo Code CLI, Claude Code, and OpenHands across 24 core capabilities, editing paradigms, context management, and runtime models.
 - **[`reports/2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md`](./reports/2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md)**  
   *Competitor Agent Benchmark Report: Aider vs. Goose vs. Kilo Code CLI*. Empirical performance results, token and schema economics, constrained-model stress tests, and master comparative matrix across external and baseline coding CLIs.
 - **[`reports/2026-09-23T09-18_competitive-analysis-fox-aider-goose.md`](./reports/2026-09-23T09-18_competitive-analysis-fox-aider-goose.md)**  
