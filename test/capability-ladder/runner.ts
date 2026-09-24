@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, rmSync, readdirSync, statSync } from "fs";
 import { join, resolve } from "path";
-import { scoreChallenge } from "./rubric";
+import { scoreChallenge, scoreTier } from "./rubric";
 import type {
   ChallengeMetadata,
   TierMetadata,
@@ -16,7 +16,6 @@ import type {
   ChallengeScore,
   TierScore,
 } from "./rubric";
-import { scoreTier } from "./rubric";
 
 // ─── Config ─────────────────────────────────────────────────────────────
 
@@ -35,19 +34,109 @@ const DEFAULT_TIER_TIMEOUTS: Record<number, number> = {
 };
 
 /**
- * Agent invocation commands.
+ * Agent binary resolvers.
  */
-const AGENT_COMMANDS: Record<string, (sandbox: string, prompt: string) => string[]> = {
-  fox: (sandbox, prompt) => [
-    "bun", "run", join(LADDER_ROOT, "../../src/index.ts"),
-    "ask", "--message", prompt, "--yes",
-  ],
-  aider: (sandbox, prompt) => [
-    "aider", "--message", prompt, "--yes", "--no-auto-commits",
-  ],
-  goose: (sandbox, prompt) => [
-    "goose", "run", "-t", prompt, "--no-session",
-  ],
+export function getAiderBin(): string {
+  if (process.env.AIDER_BIN && existsSync(process.env.AIDER_BIN)) return process.env.AIDER_BIN;
+  const workspaceAider = resolve(LADDER_ROOT, "../../../ext-repo/agent-cli/aider/.venv/bin/aider");
+  if (existsSync(workspaceAider)) return workspaceAider;
+  const systemAider = Bun.which("aider");
+  if (systemAider) return systemAider;
+  return "aider";
+}
+
+export function getGooseBin(): string {
+  if (process.env.GOOSE_BIN && existsSync(process.env.GOOSE_BIN)) return process.env.GOOSE_BIN;
+  const systemGoose = Bun.which("goose");
+  if (systemGoose) return systemGoose;
+  const homeGoose = join(process.env.HOME ?? "", ".local/bin/goose");
+  if (existsSync(homeGoose)) return homeGoose;
+  return "goose";
+}
+
+export interface AgentInvocation {
+  args: string[];
+  env: Record<string, string | undefined>;
+}
+
+/**
+ * Agent invocation command builders.
+ */
+export const AGENT_COMMANDS: Record<
+  string,
+  (sandbox: string, prompt: string, model?: string) => AgentInvocation
+> = {
+  fox: (sandbox, prompt, model) => {
+    const args = [
+      "bun", "run", join(LADDER_ROOT, "../../src/index.ts"),
+      "run", prompt,
+      "--dir", sandbox,
+      "--auto",
+    ];
+    if (model) {
+      args.push("-m", model);
+    }
+    return {
+      args,
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: "0",
+        CI: "true",
+        AFB_SANDBOX: sandbox,
+      },
+    };
+  },
+  aider: (sandbox, prompt, model) => {
+    const aiderModel = model ? `openai/${model.replace(/^openai\//, "")}` : "openai/gpt-4o";
+    const aiderBin = getAiderBin();
+    return {
+      args: [
+        aiderBin,
+        "--model", aiderModel,
+        "--message", prompt,
+        "--yes-always",
+        "--no-git-commit-verify",
+        "--no-analytics",
+        "--no-check-update",
+        "--no-show-release-notes",
+        "--no-browser",
+        "--no-pretty",
+        "--exit",
+      ],
+      env: {
+        ...process.env,
+        OPENAI_API_BASE: process.env.OPENAI_BASE_URL ?? "http://localhost:8000/v1",
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "local-dev",
+        GIT_TERMINAL_PROMPT: "0",
+        CI: "true",
+        AFB_SANDBOX: sandbox,
+      },
+    };
+  },
+  goose: (sandbox, prompt, model) => {
+    const gooseModel = model ? model.replace(/^openai\//, "") : "gpt-4o";
+    const gooseBin = getGooseBin();
+    return {
+      args: [
+        gooseBin,
+        "run",
+        "--no-session",
+        "--stats",
+        "--provider", "openai",
+        "--model", gooseModel,
+        "--text", prompt,
+      ],
+      env: {
+        ...process.env,
+        GOOSE_PROVIDER: "openai",
+        OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? "http://localhost:8000/v1",
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "local-dev",
+        GIT_TERMINAL_PROMPT: "0",
+        CI: "true",
+        AFB_SANDBOX: sandbox,
+      },
+    };
+  },
 };
 
 // ─── Discovery ──────────────────────────────────────────────────────────
@@ -149,6 +238,10 @@ export function createSandbox(tierDir: string, challengeDir: string): string {
     cwd: sandboxPath,
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
   });
+  Bun.spawnSync(["git", "tag", "-f", "initial-state"], {
+    cwd: sandboxPath,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+  });
 
   return sandboxPath;
 }
@@ -182,25 +275,36 @@ export async function runAgent(
   challenge: ChallengeMetadata,
   sandboxPath: string,
   timeoutSeconds: number,
+  model?: string,
 ): Promise<AgentRun> {
-  const commandBuilder = AGENT_COMMANDS[agent];
-  if (!commandBuilder) {
+  const invocationBuilder = AGENT_COMMANDS[agent];
+  if (!invocationBuilder) {
     throw new Error(`Unknown agent: ${agent}`);
   }
 
-  const args = commandBuilder(sandboxPath, challenge.inputs.task_prompt);
+  // Pre-flight check for external binaries
+  if (agent === "aider") {
+    const bin = getAiderBin();
+    if (!existsSync(bin) && !Bun.which("aider")) {
+      throw new Error(`Aider executable not found at ${bin}`);
+    }
+  }
+  if (agent === "goose") {
+    const bin = getGooseBin();
+    if (!existsSync(bin) && !Bun.which("goose")) {
+      throw new Error(`Goose executable not found at ${bin}`);
+    }
+  }
+
+  const { args, env } = invocationBuilder(sandboxPath, challenge.inputs.task_prompt, model);
   const startTime = Date.now();
 
   const proc = Bun.spawn(args, {
     cwd: sandboxPath,
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
-    env: {
-      ...process.env,
-      GIT_TERMINAL_PROMPT: "0",
-      CI: "true",
-      AFB_SANDBOX: sandboxPath,
-    },
+    env: env as Record<string, string>,
   });
 
   // Set up timeout
@@ -216,9 +320,9 @@ export async function runAgent(
 
   const durationSeconds = (Date.now() - startTime) / 1000;
 
-  // Get git diff stats
+  // Get git diff stats against initial-state
   const diffResult = Bun.spawnSync(
-    ["git", "diff", "--stat", "HEAD"],
+    ["git", "diff", "--stat", "initial-state"],
     {
       cwd: sandboxPath,
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
@@ -251,8 +355,6 @@ export async function runAgent(
  */
 function countFilesInDiff(diffStat: string): number {
   const lines = diffStat.trim().split("\n");
-  // Last line of git diff --stat is summary: "N files changed, ..."
-  // Each preceding line is a file
   return Math.max(0, lines.length - 1);
 }
 
@@ -268,11 +370,11 @@ function countLinesInDiff(diffStat: string): number {
 }
 
 /**
- * Get the full git diff for analysis.
+ * Get the full git diff against initial-state for analysis.
  */
 export function getGitDiff(sandboxPath: string): string {
   const result = Bun.spawnSync(
-    ["git", "diff", "HEAD"],
+    ["git", "diff", "initial-state"],
     {
       cwd: sandboxPath,
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
@@ -345,6 +447,7 @@ export async function runChallenge(
   tierDir: string,
   challengeDir: string,
   timeoutSeconds?: number,
+  model?: string,
 ): Promise<ChallengeScore> {
   const challenge = await loadChallenge(tierDir, challengeDir);
   const tier = await loadTier(tierDir);
@@ -354,7 +457,7 @@ export async function runChallenge(
   const sandboxPath = createSandbox(tierDir, challengeDir);
 
   // 2. Run agent
-  const run = await runAgent(agent, challenge, sandboxPath, timeout);
+  const run = await runAgent(agent, challenge, sandboxPath, timeout, model);
 
   // 3. Run verification
   const verifyResult = await runVerification(tierDir, challengeDir, sandboxPath);
@@ -369,18 +472,52 @@ export async function runChallenge(
 }
 
 /**
+ * Run a challenge N times and return the median scored result.
+ * Median is selected by total score; ties broken by raw efficiency.
+ */
+export async function runChallengeWithMedian(
+  agent: "fox" | "aider" | "goose",
+  tierDir: string,
+  challengeDir: string,
+  runs: number = 1,
+  timeoutSeconds?: number,
+  model?: string,
+): Promise<ChallengeScore> {
+  if (runs <= 1) {
+    return runChallenge(agent, tierDir, challengeDir, timeoutSeconds, model);
+  }
+
+  const scores: ChallengeScore[] = [];
+  for (let i = 0; i < runs; i++) {
+    const score = await runChallenge(agent, tierDir, challengeDir, timeoutSeconds, model);
+    scores.push(score);
+  }
+
+  // Sort ascending by total score, then by raw efficiency (lower is better)
+  scores.sort((a, b) => {
+    if (a.total !== b.total) return a.total - b.total;
+    return b.efficiency_raw - a.efficiency_raw;
+  });
+
+  const medianIndex = Math.floor(scores.length / 2);
+  return scores[medianIndex];
+}
+
+/**
  * Run all challenges in a tier for a single agent. Returns the tier score.
  */
 export async function runTier(
   agent: "fox" | "aider" | "goose",
   tierDir: string,
+  runs: number = 1,
+  model?: string,
 ): Promise<TierScore> {
   const tier = await loadTier(tierDir);
   const challenges = discoverChallenges(tierDir);
   const scores: ChallengeScore[] = [];
 
   for (const challengeDir of challenges) {
-    const score = await runChallenge(agent, tierDir, challengeDir, tier.timeout_seconds);
+    const score = await runChallengeWithMedian(agent, tierDir, challengeDir, runs, tier.timeout_seconds, model);
     scores.push(score);
   }
 
@@ -392,12 +529,14 @@ export async function runTier(
  */
 export async function runAllTiers(
   agent: "fox" | "aider" | "goose",
+  runs: number = 1,
+  model?: string,
 ): Promise<TierScore[]> {
   const tiers = discoverTiers();
   const results: TierScore[] = [];
 
   for (const tierDir of tiers) {
-    const tierScore = await runTier(agent, tierDir);
+    const tierScore = await runTier(agent, tierDir, runs, model);
     results.push(tierScore);
   }
 
@@ -412,28 +551,52 @@ export async function runAllTiers(
  *   bun run test/capability-ladder/runner.ts --agent fox
  *   bun run test/capability-ladder/runner.ts --agent fox --tier t01-sanity
  *   bun run test/capability-ladder/runner.ts --agent fox --challenge t01-sanity/t01-01
+ *   bun run test/capability-ladder/runner.ts --agent fox --all --runs 3 --model gpt-4o
  */
 export async function main() {
   const args = process.argv.slice(2);
   const agentIdx = args.indexOf("--agent");
   const tierIdx = args.indexOf("--tier");
   const challengeIdx = args.indexOf("--challenge");
+  const runsIdx = args.indexOf("--runs");
+  const modelIdx = args.indexOf("--model");
+  const isAll = args.includes("--all");
 
-  const agent = agentIdx >= 0 ? args[agentIdx + 1] as "fox" | "aider" | "goose" : "fox";
+  const agent = agentIdx >= 0 ? (args[agentIdx + 1] as "fox" | "aider" | "goose") : "fox";
+  const runs = runsIdx >= 0 ? Math.max(1, parseInt(args[runsIdx + 1], 10) || 1) : 1;
+  const model = modelIdx >= 0 ? args[modelIdx + 1] : undefined;
 
   if (challengeIdx >= 0) {
     // Run a single challenge
-    const [tierDir, challengeDir] = args[challengeIdx + 1].split("/");
-    const score = await runChallenge(agent, tierDir, challengeDir);
+    const rawChallenge = args[challengeIdx + 1];
+    let tierDir: string;
+    let challengeDir: string;
+
+    if (rawChallenge.includes("/")) {
+      [tierDir, challengeDir] = rawChallenge.split("/");
+    } else if (tierIdx >= 0) {
+      tierDir = args[tierIdx + 1];
+      challengeDir = rawChallenge;
+    } else {
+      const allTiers = discoverTiers();
+      const foundTier = allTiers.find((t) => discoverChallenges(t).includes(rawChallenge));
+      if (!foundTier) {
+        throw new Error(`Challenge not found: ${rawChallenge}`);
+      }
+      tierDir = foundTier;
+      challengeDir = rawChallenge;
+    }
+
+    const score = await runChallengeWithMedian(agent, tierDir, challengeDir, runs, undefined, model);
     console.log(JSON.stringify(score, null, 2));
-  } else if (tierIdx >= 0) {
+  } else if (tierIdx >= 0 && !isAll) {
     // Run a single tier
     const tierDir = args[tierIdx + 1];
-    const tierScore = await runTier(agent, tierDir);
+    const tierScore = await runTier(agent, tierDir, runs, model);
     console.log(JSON.stringify(tierScore, null, 2));
   } else {
     // Run all tiers
-    const tierScores = await runAllTiers(agent);
+    const tierScores = await runAllTiers(agent, runs, model);
     console.log(JSON.stringify(tierScores, null, 2));
   }
 }

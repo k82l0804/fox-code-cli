@@ -18,7 +18,7 @@ describe("t01-01: Fix off-by-one in array chunking", () => {
   test("test/utils.test.ts was not modified", async () => {
     // Check git diff to ensure test file wasn't touched
     const proc = Bun.spawnSync(
-      ["git", "diff", "--name-only", "HEAD"],
+      ["git", "diff", "--name-only", "initial-state"],
       {
         cwd: SANDBOX,
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
@@ -57,7 +57,7 @@ describe("t01-01: Fix off-by-one in array chunking", () => {
 
   test("only src/utils.ts was changed (blast radius = 1)", () => {
     const proc = Bun.spawnSync(
-      ["git", "diff", "--name-only", "HEAD"],
+      ["git", "diff", "--name-only", "initial-state"],
       {
         cwd: SANDBOX,
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },

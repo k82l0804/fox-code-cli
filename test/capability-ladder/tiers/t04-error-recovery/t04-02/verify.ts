@@ -17,7 +17,7 @@ describe("t04-02: Misleading error — bug is elsewhere", () => {
 
   test("src/formatter.ts was NOT modified (it was correct)", () => {
     const proc = Bun.spawnSync(
-      ["git", "diff", "--name-only", "HEAD"],
+      ["git", "diff", "--name-only", "initial-state"],
       { cwd: SANDBOX, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } },
     );
     const changed = proc.stdout.toString().trim().split("\n").filter(Boolean);
@@ -26,7 +26,7 @@ describe("t04-02: Misleading error — bug is elsewhere", () => {
 
   test("src/parser.ts WAS modified (root cause)", () => {
     const proc = Bun.spawnSync(
-      ["git", "diff", "--name-only", "HEAD"],
+      ["git", "diff", "--name-only", "initial-state"],
       { cwd: SANDBOX, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } },
     );
     const changed = proc.stdout.toString().trim().split("\n").filter(Boolean);
@@ -43,7 +43,7 @@ describe("t04-02: Misleading error — bug is elsewhere", () => {
 
   test("test file was not modified", () => {
     const proc = Bun.spawnSync(
-      ["git", "diff", "--name-only", "HEAD"],
+      ["git", "diff", "--name-only", "initial-state"],
       { cwd: SANDBOX, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } },
     );
     const changed = proc.stdout.toString().trim().split("\n").filter(Boolean);

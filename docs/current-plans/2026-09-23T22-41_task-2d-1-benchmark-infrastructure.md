@@ -1,7 +1,7 @@
 # Implementation Plan — Task 2D-1: Benchmark Infrastructure
 
 > **Task**: 2D-1. Benchmark Infrastructure (`test/capability-ladder/`)  
-> **Status**: Pending  
+> **Status**: Completed  
 > **Depends on**: Phase 2C  
 > **Target**: Gemini Flash 3.8 High  
 
