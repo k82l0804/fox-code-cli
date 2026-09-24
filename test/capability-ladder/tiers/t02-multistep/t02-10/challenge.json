@@ -1,0 +1,52 @@
+{
+  "id": "t02-10",
+  "tier": 2,
+  "name": "Implement order lifecycle state machine with history tracking",
+  "description": "Implement OrderStateMachine with states PENDING, PROCESSING, COMPLETED, CANCELLED, state guards, and transition history in src/order-machine.ts.",
+  "difficulty": "easy",
+  "fault_line": "state_machine",
+  "inputs": {
+    "files": [
+      "src/order-machine.ts",
+      "test/order-machine.test.ts"
+    ],
+    "task_prompt": "Implement the OrderStateMachine class in src/order-machine.ts. Valid states: PENDING, PROCESSING, COMPLETED, CANCELLED. Initial state is PENDING. Transitions: 1) startProcessing(): PENDING -> PROCESSING, 2) complete(): PROCESSING -> COMPLETED, 3) cancel(reason: string): PENDING or PROCESSING -> CANCELLED. Any invalid transition must throw InvalidStateTransitionError. Expose getState(), getHistory() (array of { from, to, timestamp, reason? }), and isTerminal(). All tests in test/order-machine.test.ts must pass."
+  },
+  "acceptance_criteria": [
+    "Initial state is PENDING",
+    "startProcessing transitions from PENDING to PROCESSING",
+    "complete transitions from PROCESSING to COMPLETED",
+    "cancel transitions from PENDING or PROCESSING to CANCELLED",
+    "Invalid transition throws InvalidStateTransitionError",
+    "getHistory tracks timestamp and transition metadata",
+    "isTerminal returns true for COMPLETED and CANCELLED",
+    "All tests in test/order-machine.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/order-machine.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4500,
+    "time_budget_seconds": 60,
+    "files_changed": 1,
+    "lines_changed": 55
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/order-machine.test.ts"
+  ],
+  "tags": [
+    "state-machine",
+    "order",
+    "history",
+    "guards"
+  ]
+}

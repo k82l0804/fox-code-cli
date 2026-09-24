@@ -1,0 +1,49 @@
+{
+  "id": "t02-02",
+  "tier": 2,
+  "name": "Add reserved stock tracking across 3 inventory functions",
+  "description": "Coordinate reservation logic across addItem, reserveStock, releaseStock, and getAvailableStock in src/inventory.ts.",
+  "difficulty": "easy",
+  "fault_line": "multi_function_coordination",
+  "inputs": {
+    "files": [
+      "src/inventory.ts",
+      "test/inventory.test.ts"
+    ],
+    "task_prompt": "Update the InventoryRegistry in src/inventory.ts to support stock reservations. In addItem, initialize reserved to 0. In reserveStock, verify available >= quantity, deduct from available, add to reserved, and return true (or false if insufficient). In releaseStock, verify reserved >= quantity, deduct from reserved, add back to available, and return true. In getAvailableStock, return available. All tests in test/inventory.test.ts must pass."
+  },
+  "acceptance_criteria": [
+    "addItem initializes reserved to 0",
+    "reserveStock transfers from available to reserved",
+    "reserveStock returns false when requested qty > available",
+    "releaseStock returns reserved back to available",
+    "releaseStock returns false when requested qty > reserved",
+    "All tests in test/inventory.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/inventory.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4000,
+    "time_budget_seconds": 60,
+    "files_changed": 1,
+    "lines_changed": 30
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/inventory.test.ts"
+  ],
+  "tags": [
+    "inventory",
+    "multi-function",
+    "state"
+  ]
+}

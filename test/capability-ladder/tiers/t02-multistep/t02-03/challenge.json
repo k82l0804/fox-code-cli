@@ -1,0 +1,49 @@
+{
+  "id": "t02-03",
+  "tier": 2,
+  "name": "Implement CacheStore interface with MemoryCache and BoundedCache",
+  "description": "Implement the CacheStore interface with two concrete classes: MemoryCache (unbounded map) and BoundedCache (capacity with FIFO eviction) in src/cache.ts.",
+  "difficulty": "easy",
+  "fault_line": "oop_interfaces",
+  "inputs": {
+    "files": [
+      "src/cache.ts",
+      "test/cache.test.ts"
+    ],
+    "task_prompt": "Implement the CacheStore<T> interface in src/cache.ts and provide two exported classes: MemoryCache<T> (implements CacheStore) and BoundedCache<T> (implements CacheStore, accepts maxCapacity in constructor and evicts oldest inserted key when capacity is exceeded). Ensure all tests in test/cache.test.ts pass."
+  },
+  "acceptance_criteria": [
+    "MemoryCache implements CacheStore<T>",
+    "BoundedCache implements CacheStore<T> with capacity eviction",
+    "BoundedCache evicts oldest key when size reaches maxCapacity",
+    "get, set, delete, clear, size work correctly on both classes",
+    "All tests in test/cache.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/cache.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4500,
+    "time_budget_seconds": 60,
+    "files_changed": 1,
+    "lines_changed": 50
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/cache.test.ts"
+  ],
+  "tags": [
+    "oop",
+    "interface",
+    "cache",
+    "eviction"
+  ]
+}
