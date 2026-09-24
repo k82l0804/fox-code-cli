@@ -1,0 +1,52 @@
+{
+  "id": "t03-05",
+  "tier": 3,
+  "name": "Rename exported type TaskItem to WorkUnit across 6 files",
+  "description": "Rename TaskItem to WorkUnit across definition and 5 consumer modules with zero stale references.",
+  "difficulty": "medium",
+  "fault_line": "type_rename_ripple",
+  "inputs": {
+    "files": [
+      "src/types.ts",
+      "src/queue.ts",
+      "src/worker.ts",
+      "src/scheduler.ts",
+      "src/reporter.ts",
+      "src/storage.ts",
+      "test/work-unit.test.ts"
+    ],
+    "task_prompt": "Rename the exported interface TaskItem to WorkUnit in src/types.ts. Update all imports and usages across src/queue.ts, src/worker.ts, src/scheduler.ts, src/reporter.ts, and src/storage.ts. Ensure zero stale references to TaskItem remain in src/."
+  },
+  "acceptance_criteria": [
+    "WorkUnit is defined and exported in src/types.ts",
+    "No occurrences of TaskItem remain in src/",
+    "All 5 consumer modules import and use WorkUnit",
+    "All tests in test/work-unit.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/work-unit.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4500,
+    "time_budget_seconds": 90,
+    "files_changed": 6,
+    "lines_changed": 25
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/work-unit.test.ts"
+  ],
+  "tags": [
+    "type-rename",
+    "ripple",
+    "multi-file"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "t03-08",
+  "tier": 3,
+  "name": "Fix root cause tax calculation bug 2 files away from test symptom",
+  "description": "Diagnose invoice total mismatch symptom in test/invoice.test.ts and fix root cause in src/tax.ts, leaving src/invoice.ts unchanged.",
+  "difficulty": "medium",
+  "fault_line": "root_cause_distance",
+  "inputs": {
+    "files": [
+      "src/invoice.ts",
+      "src/pricing.ts",
+      "src/tax.ts",
+      "test/invoice.test.ts"
+    ],
+    "task_prompt": "test/invoice.test.ts fails: B2B invoices for country 'US' are incorrectly charged an 8% tax rate instead of 0% tax. Trace the execution through src/invoice.ts and src/pricing.ts to locate the root cause in src/tax.ts. Fix the bug at the root cause in src/tax.ts so B2B exempt customers receive a 0% tax rate. Do NOT modify src/invoice.ts or test/invoice.test.ts."
+  },
+  "acceptance_criteria": [
+    "src/tax.ts is modified to return 0 tax rate for B2B customers",
+    "src/invoice.ts was NOT modified (fixing root, not symptom)",
+    "All tests in test/invoice.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify src/invoice.ts",
+    "Do not modify test/invoice.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4500,
+    "time_budget_seconds": 90,
+    "files_changed": 1,
+    "lines_changed": 5
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified src/invoice.ts to patch symptom"
+  ],
+  "tags": [
+    "root-cause",
+    "separation",
+    "tax"
+  ]
+}

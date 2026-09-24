@@ -1,0 +1,51 @@
+{
+  "id": "t03-06",
+  "tier": 3,
+  "name": "Move levenshteinDistance from math to string module and update callers",
+  "description": "Move string metric levenshteinDistance from src/math.ts to src/string.ts, re-export in src/index.ts, and update callers.",
+  "difficulty": "medium",
+  "fault_line": "module_relocation",
+  "inputs": {
+    "files": [
+      "src/math.ts",
+      "src/string.ts",
+      "src/index.ts",
+      "src/search.ts",
+      "test/string-metric.test.ts"
+    ],
+    "task_prompt": "Move the function levenshteinDistance from src/math.ts to src/string.ts. In src/index.ts, re-export levenshteinDistance from src/string.ts instead of src/math.ts. Update the caller in src/search.ts to import from ./string. All tests in test/string-metric.test.ts must pass."
+  },
+  "acceptance_criteria": [
+    "levenshteinDistance is implemented and exported from src/string.ts",
+    "levenshteinDistance is removed from src/math.ts",
+    "src/search.ts imports from ./string",
+    "src/index.ts re-exports correctly",
+    "All tests in test/string-metric.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/string-metric.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4500,
+    "time_budget_seconds": 90,
+    "files_changed": 4,
+    "lines_changed": 35
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/string-metric.test.ts"
+  ],
+  "tags": [
+    "move",
+    "re-export",
+    "module-boundary"
+  ]
+}

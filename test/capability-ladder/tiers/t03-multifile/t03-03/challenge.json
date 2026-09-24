@@ -1,0 +1,48 @@
+{
+  "id": "t03-03",
+  "tier": 3,
+  "name": "Decompose monolith into http, auth, and router modules",
+  "description": "Split monolithic src/monolith.ts into src/http.ts, src/auth.ts, and src/router.ts with clean re-exports in src/index.ts.",
+  "difficulty": "medium",
+  "fault_line": "module_decomposition",
+  "inputs": {
+    "files": [
+      "src/monolith.ts",
+      "test/modular.test.ts"
+    ],
+    "task_prompt": "Decompose src/monolith.ts into modular files: 1) src/http.ts: Request, Response, createResponse, 2) src/auth.ts: verifyApiKey, 3) src/router.ts: handleRoute. In src/index.ts, re-export all symbols from http, auth, and router. Delete src/monolith.ts. Ensure no circular dependencies exist and test/modular.test.ts passes."
+  },
+  "acceptance_criteria": [
+    "src/http.ts, src/auth.ts, src/router.ts exist",
+    "src/index.ts re-exports all public types and functions",
+    "src/monolith.ts is deleted",
+    "No circular dependencies",
+    "All tests in test/modular.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/modular.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 5000,
+    "time_budget_seconds": 90,
+    "files_changed": 5,
+    "lines_changed": 50
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/modular.test.ts"
+  ],
+  "tags": [
+    "decomposition",
+    "refactoring",
+    "monolith"
+  ]
+}
