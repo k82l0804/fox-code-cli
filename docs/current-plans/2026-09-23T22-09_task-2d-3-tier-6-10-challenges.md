@@ -16,6 +16,11 @@ Design, implement, and validate the advanced 50 benchmark challenges across Tier
 - **Tier 9 (Multi-Agent Arbitration)**: Evaluates selecting between candidate diffs/plans, rejecting hallucinated dependencies, and merging partial solutions.
 - **Tier 10 (Realistic SWE-bench Style Bugs)**: High-difficulty real-world software defects (race conditions, async event memory leaks, UTF-8 BOM encoding anomalies, cache invalidation races, prototype pollution).
 
+### Current State: 0 of 50 challenges exist
+All 5 tier directories exist with `tier.json` metadata but contain **zero challenge subdirectories**. All 50 challenges must be authored from scratch.
+
+Author tier-by-tier: T6 → T10 → T7 → T8 → T9 (T8/T9 last since they have the most open design questions).
+
 ---
 
 ## 2. Key Code Locations & Touchpoints
@@ -44,8 +49,14 @@ Each challenge directory `test/capability-ladder/tiers/<tier>/<id>/` contains:
   `minimal-vs-rewrite`, `ask-vs-guess`, `naive-breaks-others`, `style-fix-creep`, `stop-vs-loop`, `unconventional-code-preserve`, `delete-shortcut-avoidance`, `read-only-config-write`, `test-edge-case-tamper`, `clean-rollback-failure`.
 - **Tier 8 (Guardian Scenarios: t08-01 to t08-10)**:
   Evaluated on native behavior pre-Guardian; establishes baseline for future Phase 3 Guardian validation.
+  **⚠️ Open design question**: How to simulate "worker proposes risky diff" without a Guardian agent. Options:
+  - (A) Provide pre-staged diffs in the workspace and prompt the agent to review/accept/reject them
+  - (B) Present a multi-step task where the agent’s own first attempt is intentionally flawed, testing whether it self-corrects
+  - (C) Measure only blast radius and safety penalty on native behavior (no Guardian simulation)
+  Decision deferred to implementation time; option (C) is simplest and still produces useful baseline data.
 - **Tier 9 (Arbitration Scenarios: t09-01 to t09-10)**:
   Provides competing candidate diffs/plans in the workspace to test whether the agent can evaluate and select the correct option.
+  **⚠️ Open design question**: Workspace must contain pre-staged candidate solutions (e.g. `candidates/a.patch` and `candidates/b.patch`) with the task prompt asking the agent to evaluate and apply the better one. This is a novel workspace layout not used in T1–T7.
 - **Tier 10 (SWE-bench Bugs: t10-01 to t10-10)**:
   `misleading-stacktrace`, `profiling-perf-regression`, `async-race-condition`, `event-memory-leak`, `utf8-bom-encoding`, `pagination-off-by-one`, `timezone-utc-est`, `cache-invalidation-stale`, `import-order-side-effects`, `prototype-pollution-merge`.
 
@@ -70,8 +81,9 @@ Each challenge directory `test/capability-ladder/tiers/<tier>/<id>/` contains:
 ## 6. Refinement Checklist
 
 1. **Rename Ripple Analysis**: N/A (independent challenge directories).
-2. **Audit Completeness**: All 50 challenges across Tiers 6–10 enumerated with explicit IDs, targets, and criteria.
+2. **Audit Completeness**: All 50 challenges across Tiers 6–10 enumerated with explicit IDs, targets, and criteria. 0/50 exist; all to author.
 3. **Constraint Specificity**: Clarified that T8–9 do not count toward Criterion 1's 70% floor, but DO count toward Criterion 2 (overall score) and Criterion 4 (zero catastrophic failures).
 4. **Abstraction Boundary Precision**: Reference solutions must touch only files specified in `inputs.files` unless explicit scope expansion is part of the challenge acceptance criteria.
 
 > **Refinement pass**: Completed 2026-09-23. Established deterministic test harnesses for concurrency tests and verified timeout tiers.
+> **Refinement pass 2**: Completed 2026-09-23. Fixed: (1) Acknowledged 0/50 completion state. (2) Documented open design questions for T8/T9 Guardian-less evaluation. (3) Proposed candidate-diff workspace layout for T9 arbitration challenges.

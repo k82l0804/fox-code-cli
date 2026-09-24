@@ -16,6 +16,22 @@ Design, implement, and validate the first 50 benchmark challenges across Tiers 1
 - **Tier 4 (Tool Orchestration & Error Recovery)**: 10 challenges with misleading stack traces, flaky tests, root-cause separation from symptoms, and circular dependencies.
 - **Tier 5 (Adversarial Instructions)**: 10 challenges with conflicting requirements, hidden constraints, misleading TODO comments, non-existent path references, and security bait.
 
+### Current State: 2 of 50 challenges exist
+- **`t01-sanity/t01-01`** — Off-by-one fix (complete: workspace, challenge.json, verify.ts, solution)
+- **`t04-error-recovery/t04-02`** — Misleading error trace (complete: workspace, challenge.json, verify.ts, solution)
+- Tier directories exist for all 5 tiers but contain only `tier.json` metadata.
+- **48 challenges must be authored from scratch**, each requiring a self-contained TypeScript workspace, calibrated metadata, deterministic verification, and a reference solution.
+
+### Pragmatic Authoring Strategy
+Author challenges **tier-by-tier, not all 50 at once**:
+1. Complete T1 (9 remaining) → validate all 10 with `bun run bench --agent fox --tier t01-sanity`
+2. Complete T2 (10 remaining) → validate
+3. Complete T3 (10 remaining) → validate
+4. Complete T4 (9 remaining) → validate
+5. Complete T5 (10 remaining) → validate
+
+This catches workspace isolation bugs, verify.ts flakiness, and reference solution calibration issues early.
+
 ---
 
 ## 2. Key Code Locations & Touchpoints
@@ -57,8 +73,9 @@ Each challenge directory `test/capability-ladder/tiers/<tier>/<id>/` must contai
 ## 4. Edge Cases & Failure Modes
 
 1. **Flaky Verification Scripts**: `verify.ts` must execute quickly (<5 seconds) and never depend on external network access.
-2. **Circular Dependencies in Workspaces**: Workspaces must be self-contained so that running `bun test` inside the sandbox does not resolve to the parent Fox monorepo `node_modules` unexpectedly.
+2. **Workspace → Monorepo Leakage**: Each workspace must include its own `package.json` so that `bun test` resolves dependencies from the sandbox, not from the parent Fox monorepo `node_modules/`. Use `"workspaces"` field exclusion or explicit `bunfig.toml` to prevent leakage.
 3. **Reference Solution Divergence**: Every reference solution in `solution/` must be tested against `verify.ts` during development to guarantee 100% passability.
+4. **Import Path Brittleness in verify.ts**: Verification scripts that dynamically import from `AFB_SANDBOX` (like `t01-01/verify.ts` does) must handle module cache invalidation between runs. Use `import()` with cache-busting query params if needed.
 
 ---
 
@@ -73,8 +90,9 @@ Each challenge directory `test/capability-ladder/tiers/<tier>/<id>/` must contai
 ## 6. Refinement Checklist
 
 1. **Rename Ripple Analysis**: N/A (challenge workspace files are scoped to their respective subdirectories).
-2. **Audit Completeness**: All 50 challenge IDs (`t01-01` through `t05-10`) are enumerated with explicit fault lines and criteria.
+2. **Audit Completeness**: All 50 challenge IDs (`t01-01` through `t05-10`) enumerated with explicit fault lines and criteria. 2/50 already exist; 48 to author.
 3. **Constraint Specificity**: Each challenge states explicit acceptance criteria and catastrophic indicators (e.g. modifying read-only tests in t05-05 counts as a catastrophic failure).
 4. **Abstraction Boundary Precision**: `verify.ts` only inspects filesystem and test exit codes; it does not import internal agent modules.
 
 > **Refinement pass**: Completed 2026-09-23. Validated reference solution testing harness requirement and self-contained workspace isolation.
+> **Refinement pass 2**: Completed 2026-09-23. Fixed: (1) Acknowledged 2/50 completion state. (2) Added tier-by-tier authoring strategy. (3) Clarified workspace → monorepo isolation requirement. (4) Added import cache invalidation edge case.

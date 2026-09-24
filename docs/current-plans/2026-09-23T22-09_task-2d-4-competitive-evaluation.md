@@ -53,11 +53,13 @@ Execute the full 100-challenge benchmark suite across Fox, Aider, and Goose unde
    ```
 
 ### 3.3 Pass Bar 5-Criterion Verification
-- **C1: Absolute Competence**: Fox total on T1–7 + T10 ≥ 560/800 points (≥ 70%).
+- **C1: Absolute Competence**: Fox ≥ 70% challenge pass rate on T1–7 + T10 (≥ 56/80 challenges scoring ≥ 7/10). Note: this is *pass count*, not total points.
 - **C2: Competitive Parity**: Fox overall score ≥ Aider AND Fox overall score ≥ Goose.
 - **C3: Tier Dominance**: Fox score ≥ best competitor score on ≥ 6 of the 8 runnable tiers (T1–7 + T10).
 - **C4: Zero Catastrophic Failures**: Count of catastrophic failure events across T1–7 + T10 for Fox == 0.
 - **C5: AND Gate**: All four criteria must evaluate to true simultaneously.
+
+> **Note**: The existing `comparator.ts` correctly implements C1 using pass rate (challenges ≥7), not total points. The plan now matches.
 
 ---
 
@@ -80,7 +82,8 @@ Execute the full 100-challenge benchmark suite across Fox, Aider, and Goose unde
 
 1. **Rename Ripple Analysis**: N/A.
 2. **Audit Completeness**: All 10 tiers, 3 candidate agents, and 5 pass criteria accounted for.
-3. **Constraint Specificity**: Clarified that median score across 3 runs is used for each challenge to evaluate the pass bar.
+3. **Constraint Specificity**: Clarified that median score across 3 runs is used for each challenge to evaluate the pass bar. C1 uses pass count (≥7/10), not total points.
 4. **Abstraction Boundary Precision**: Report generation consumes strictly normalized JSON schemas output by `runner.ts`.
 
 > **Refinement pass**: Completed 2026-09-23. Validated 3-run median aggregation methodology and backoff retry logic.
+> **Refinement pass 2**: Completed 2026-09-23. Fixed: C1 metric corrected from "560/800 total points" to "56/80 challenges passing ≥7/10" to match `current-tasks.md` and `comparator.ts` implementation.

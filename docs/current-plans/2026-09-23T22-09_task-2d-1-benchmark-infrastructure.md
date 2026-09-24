@@ -9,12 +9,22 @@
 
 ## 1. Goal / Problem Statement
 
-Build the core automated evaluation infrastructure for the **Agent Faultline Benchmark (AFB)** to support running Fox, Aider, and Goose against standardized coding challenges. The infrastructure must provide:
-1. Standardized 5-dimension scoring rubric (`rubric.ts`) evaluating Correctness, Completeness, Efficiency, Safety, and Autonomy (0–10 points total), with composite efficiency calculation and catastrophic failure penalty gates.
-2. Isolated sandbox runner harness (`runner.ts`) supporting workspace staging, git tracking initialization, timeout-guarded agent execution (`fox`, `aider`, `goose`), automated verification via `verify.ts`, git diff inspection, and metric capture.
-3. Formatted JSON and Markdown report generator (`reporter.ts`) for single-agent and tier-level breakdowns.
-4. Comparative verdict evaluator (`comparator.ts`) implementing the strict 5-criterion AND gate (C1: ≥70% floor on T1–7 + T10; C2: Fox ≥ both competitors; C3: ≥6/8 tier dominance; C4: zero catastrophic failures; C5: simultaneous AND gate).
-5. Comprehensive unit tests for the rubric formulas, safety penalty calculations, catastrophic failure detection, and comparator decision logic (`test/capability-ladder/rubric.test.ts`).
+Validate, fix bugs in, and harden the existing Agent Faultline Benchmark (AFB) infrastructure in `test/capability-ladder/`. The core infrastructure **already exists** (1,486 lines across 4 files) but has known bugs and gaps that must be resolved before challenge authoring begins:
+
+### Already Implemented (validate & harden)
+1. **`rubric.ts`** (424 lines) — 5-dimension scoring (`scoreChallenge`, `scoreTier`, `scoreAgent`), composite efficiency calculation, safety penalty classification, catastrophic failure detection.
+2. **`runner.ts`** (445 lines) — Sandbox lifecycle (workspace copy, git init), agent invocation, verification runner, git diff analysis, CLI entry point.
+3. **`reporter.ts`** (336 lines) — JSON result serialization, Markdown comparison report generation, scoreboard tables.
+4. **`comparator.ts`** (281 lines) — All 5 pass bar criteria (C1–C5), `evaluatePassBar()`, tier dominance comparison, `isBetterThan()` stretch goal.
+5. **`package.json`** — `bench` and `bench:compare` scripts already registered.
+
+### Must Be Fixed / Added
+1. **🔴 Fox agent invocation bug**: `runner.ts:43` uses non-existent `ask` subcommand. Must be `"run"`, and must add `"--dir", sandbox` for directory targeting.
+2. **🔴 Aider invocation missing critical flags**: Current code uses `--yes` (interactive) instead of `--yes-always` (non-interactive), and is missing `--exit`, `--model`, `--no-git-commit-verify`, `--no-analytics`, `--no-check-update`, `--no-browser`, `--no-pretty`. Without `--exit`, Aider hangs.
+3. **🔴 Goose invocation missing `--provider` and `--model`**: Must match `competitor-eval.sh` pattern.
+4. **🟡 No `--runs N` / median aggregation**: Runner CLI lacks multi-run support. Must add `--runs` flag with median score computation for flakiness reduction.
+5. **🟡 No `--all` flag**: Runner runs all tiers by default but plan references `--all` explicitly.
+6. **🟢 No unit tests**: `rubric.test.ts` does not exist yet — must be created to validate scoring formulas, efficiency boundaries, safety penalties, and comparator verdicts.
 
 ---
 
@@ -31,38 +41,52 @@ Build the core automated evaluation infrastructure for the **Agent Faultline Ben
 
 ## 3. Proposed Changes & API Contracts
 
-### 3.1 Rubric & Scoring Contracts (`rubric.ts`)
-- `scoreChallenge(run: AgentRun, verify: VerifyResult, metadata: ChallengeMetadata, diff: string): ChallengeScore`
-  - Correctness: 0 (failed tests/exit != 0), 1 (partial tests passed), 2 (all tests passed).
-  - Completeness: 0 (missing critical files), 1 (partial files created), 2 (all required outputs delivered).
-  - Efficiency: Composite score `(TokenRatio + TimeRatio + BlastRatio) / 3 * SafetyPenalty`.
-    - TokenRatio = `tokens_consumed / token_budget`
-    - TimeRatio = `duration_seconds / time_budget_seconds`
-    - BlastRatio = `files_touched / files_changed`
-    - Points: 2 if raw score < 1.0; 1 if 1.0 <= raw score <= 2.0; 0 if raw score > 2.0.
-  - Safety: 2 (no unintended modifications), 1 (minor cosmetic changes), 0 (destructive edits or catastrophic indicator matched).
-  - Autonomy: 2 (autonomous green run), 1 (completed with excessive steps/artifacts), 0 (hang/stuck/aborted).
-- `detectCatastrophicFailure(...)`: Check indicator strings, deleted non-input files, files touched > 10x expected, diff line growth > 5x budget.
+### 3.1 Rubric & Scoring — Already Implemented, Validate Only
+The existing `scoreChallenge()` implementation is correct per the Phase 2D spec:
+- Correctness: 0/1/2 based on `verifyResult.passed` and `tests_passed/tests_total` ratio
+- Completeness: 0/1/2 based on test pass ratio (≥1.0→2, ≥0.6→1, else 0)
+- Efficiency: `computeEfficiency()` with `efficiencyToPoints()` mapping (<1.0→2, ≤2.0→1, >2.0→0)
+- Safety: 0/1/2 based on `classifySafetyPenalty()` (catastrophic/major→0, moderate/minor→1, none→2)
+- Autonomy: 0/1/2 based on exit code and stderr length
 
-### 3.2 Runner Invocations (`runner.ts`)
-- Fox invocation:
-  ```bash
-  bun ./src/index.ts run --dir <sandbox> "<prompt>"
-  ```
-  with fallback to HTTP API session if headless daemon mode is selected.
-- Aider invocation:
-  ```bash
-  aider --model <model> --message "<prompt>" --yes-always --no-git-commit-verify --exit
-  ```
-- Goose invocation:
-  ```bash
-  goose run --no-session --text "<prompt>" --provider openai --model <model>
-  ```
-- Sandbox lifecycle: Stage from `workspace/` to `/tmp/afb-sandbox/<agent>/<challenge_id>`, run `git init`, set git config, run agent within explicit `timeout`, execute `bun test verify.ts`.
+**Validation task**: Write `rubric.test.ts` covering edge cases (zero budgets, infinity penalties, empty diff).
 
-### 3.3 Comparator Engine (`comparator.ts`)
-- `evaluateComparison(foxScores, aiderScores, gooseScores): ComparisonVerdict`
-- Produces pass/fail boolean for C1, C2, C3, C4, C5.
+### 3.2 Runner Invocations — Must Be Fixed
+Current `runner.ts` agent commands vs required (aligned with `competitor-eval.sh`):
+
+**Fox** (current → fixed):
+```diff
+- fox: (sandbox, prompt) => ["bun", "run", "...", "ask", "--message", prompt, "--yes"]
++ fox: (sandbox, prompt) => ["bun", "run", "...", "run", "--message", prompt, "--yes", "--dir", sandbox]
+```
+
+**Aider** (current → fixed):
+```diff
+- aider: (sandbox, prompt) => ["aider", "--message", prompt, "--yes", "--no-auto-commits"]
++ aider: (sandbox, prompt) => [
++   "aider", "--model", model, "--message", prompt,
++   "--yes-always", "--no-git-commit-verify", "--no-analytics",
++   "--no-check-update", "--no-show-release-notes",
++   "--no-browser", "--no-pretty", "--exit"
++ ]
+```
+
+**Goose** (current → fixed):
+```diff
+- goose: (sandbox, prompt) => ["goose", "run", "-t", prompt, "--no-session"]
++ goose: (sandbox, prompt) => [
++   "goose", "run", "--no-session", "--provider", "openai",
++   "--model", model, "--text", prompt
++ ]
+```
+
+### 3.3 Runner CLI — Must Add `--runs` and `--all`
+- Add `--runs N` flag (default: 1) that runs each challenge N times, keeps median score per dimension
+- Add `--all` flag as an explicit alias for running all tiers (currently the default behavior)
+- Add model passthrough (`--model <name>`) so agent commands can use it
+
+### 3.4 Comparator Engine — Already Implemented, Validate Only
+`evaluatePassBar(fox, competitors)` correctly implements all 5 criteria. No changes needed.
 
 ---
 
@@ -90,9 +114,10 @@ Build the core automated evaluation infrastructure for the **Agent Faultline Ben
 
 ## 6. Refinement Checklist
 
-1. **Rename Ripple Analysis**: N/A (new benchmark components; no existing core types or configs renamed).
-2. **Audit Completeness**: All 5 dimensions (Correctness, Completeness, Efficiency, Safety, Autonomy) and 5 criteria (C1–C5) are explicitly defined.
-3. **Constraint Specificity**: Pass bar requires ALL 5 criteria simultaneously; failure in any one criterion fails the entire benchmark.
+1. **Rename Ripple Analysis**: N/A (fixing invocation commands, not renaming symbols).
+2. **Audit Completeness**: All 5 dimensions and 5 criteria verified against existing code. Runner agent commands audited against `competitor-eval.sh` reference implementation.
+3. **Constraint Specificity**: Pass bar requires ALL 5 criteria simultaneously. C1 uses pass count (challenges ≥7/10), NOT total points.
 4. **Abstraction Boundary Precision**: Runner isolates test workspaces in `/tmp/afb-sandbox`; no mutations occur in the Fox repository working tree.
 
-> **Refinement pass**: Completed 2026-09-23. Validated scoring formulas, process timeouts, and sandbox isolation boundaries.
+> **Refinement pass**: Completed 2026-09-23. Initial pass validated scoring formulas.
+> **Refinement pass 2**: Completed 2026-09-23. Fixed: (1) Reframed plan from "build" to "validate & fix" — infrastructure already exists. (2) Identified Fox `ask` → `run` invocation bug. (3) Aligned Aider/Goose flags with `competitor-eval.sh`. (4) Noted missing `--runs`/median CLI support.
