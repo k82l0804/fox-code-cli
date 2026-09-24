@@ -4,28 +4,6 @@
 
 ---
 
-## Phase 2D — Agent Faultline Benchmark (AFB)
-
-> 100-challenge tiered benchmark (10 tiers × 10 challenges) that exposes real fault lines in agent CLIs.
-> Compares Fox vs Aider vs Goose on correctness, completeness, efficiency, safety, and autonomy.
-> **Gate before Phase 3**: Fox must pass a 5-criterion AND gate before Guardian work begins.
->
-> Location: `test/capability-ladder/`
-
-- [ ] **2D-1. Benchmark Infrastructure** — `rubric.ts` (5-dimension scoring + efficiency formula), `runner.ts` (sandbox + agent invocation), `reporter.ts` (JSON + Markdown), `comparator.ts` (multi-agent verdict), catastrophic failure detection. Scripts: `bun run bench`, `bun run bench:compare`.
-- [ ] **2D-2. Tier 1–5 Challenges (50)** — Sanity, Multi-step, Multi-file SWE, Error Recovery, Adversarial Instructions. Workspaces, metadata, verify scripts, reference solutions.
-- [ ] **2D-3. Tier 6–10 Challenges (50)** — Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench Bugs. T8–9 scored on native agent behavior (no Guardian yet).
-- [ ] **2D-4. Competitive Evaluation** — Run full suite against Fox, Aider, Goose (3 runs/challenge, median). Generate comparison report with 5-criterion verdict.
-- [ ] **2D-5. Fox Hardening** — Fix failures, iterate until 5-criterion pass bar met: ≥70% on T1-7+T10, beat both competitors overall, ≥6/8 tier dominance, zero catastrophic failures, AND gate.
-
-> **Pass bar (all must be true simultaneously):**
-> 1. Fox ≥ 70% on Tiers 1–7 + T10 (≥ 56/80 challenges)
-> 2. Fox ≥ both Aider AND Goose on overall score
-> 3. Fox ≥ best competitor on ≥ 6 of 8 runnable tiers
-> 4. Zero catastrophic failures on any evaluated task
-> 5. All criteria above met simultaneously
-
----
 
 ## Phase 3 — Guardian (Autonomy Intelligence Layer)
 

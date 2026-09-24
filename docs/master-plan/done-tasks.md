@@ -93,10 +93,14 @@
 > System-driven model selection and quality-of-life improvements.
 > All 4 tasks complete, typecheck passes, all test suites pass.
 
-- [x] **11. System-Driven Model Routing** — `recommendModelForTask(agentMode, availableModels[])` — system picks cheapest viable model for each subtask. Tier-based: research on Tier C, planning on Tier A/S, implementation on Tier B+.
+- [x] **11. System-Driven Model Routing** — [📋 Plan](../completed-plans/2026-09-23T18-42_task-11-system-driven-model-routing.md)
+  `recommendModelForTask(agentMode, availableModels[])` — system picks cheapest viable model for each subtask. Tier-based: research on Tier C, planning on Tier A/S, implementation on Tier B+.
 
-- [x] **12. Blast-Radius Regression Detection (3b)** — Baseline test tracking to distinguish "I broke this" from "this was already broken." Structured input for future Guardian.
+- [x] **12. Blast-Radius Regression Detection (3b)** — [📋 Plan](../completed-plans/2026-09-23T18-42_task-12-blast-radius-regression-detection.md)
+  Baseline test tracking to distinguish "I broke this" from "this was already broken." Structured input for future Guardian.
 
-- [x] **13. LSP Confidence Scoring (6a)** — Language-aware edit confidence. The parity matrix shows AST/symbol index as a top gap.
+- [x] **13. LSP Confidence Scoring (6a)** — [📋 Plan](../completed-plans/2026-09-23T18-42_task-13-lsp-confidence-scoring.md)
+  Language-aware edit confidence. The parity matrix shows AST/symbol index as a top gap.
 
-- [x] **14. Repo-Level Intent Detection** — Classify task scope and blast radius from the goal description before planning.
+- [x] **14. Repo-Level Intent Detection** — [📋 Plan](../completed-plans/2026-09-23T18-42_task-14-repo-level-intent-detection.md)
+  Classify task scope and blast radius from the goal description before planning.

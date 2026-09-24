@@ -1,14 +1,15 @@
-# Current Plans — Phase 2C: Routing & Refinement
+# Current Plans — Phase 2D: Agent Faultline Benchmark (AFB)
 
 Implementation plans for each task in [current-tasks.md](../master-plan/current-tasks.md).
 
 **Target implementer**: Gemini Flash 3.8 High
 
-**Recommended execution order**: 11 → 14 → 12 → 13
+**Recommended execution order**: 2D-1 → 2D-2 → 2D-3 → 2D-4 → 2D-5
 
 | Plan | Task | Status |
 |------|------|--------|
-| [Task 11: System-Driven Model Routing](2026-09-23T18-42_task-11-system-driven-model-routing.md) | `recommendModelForTask` — system picks cheapest viable model per subtask | ✅ Implemented |
-| [Task 14: Repo-Level Intent Detection](2026-09-23T18-42_task-14-repo-level-intent-detection.md) | Classify task scope and blast radius from goal description | ✅ Implemented |
-| [Task 12: Blast-Radius Regression Detection](2026-09-23T18-42_task-12-blast-radius-regression-detection.md) | Baseline test tracking: "I broke this" vs "already broken" | ✅ Implemented |
-| [Task 13: LSP Confidence Scoring](2026-09-23T18-42_task-13-lsp-confidence-scoring.md) | Language-aware edit confidence from LSP diagnostic deltas | ✅ Implemented |
+| [Task 2D-1: Benchmark Infrastructure](2026-09-23T22-09_task-2d-1-benchmark-infrastructure.md) | `rubric.ts`, `runner.ts`, `reporter.ts`, `comparator.ts`, catastrophic failure detection, scripts | ⏳ Pending |
+| [Task 2D-2: Tier 1–5 Challenges](2026-09-23T22-09_task-2d-2-tier-1-5-challenges.md) | 50 challenges (Sanity, Multi-step, Multi-file, Error Recovery, Adversarial) | ⏳ Pending |
+| [Task 2D-3: Tier 6–10 Challenges](2026-09-23T22-09_task-2d-3-tier-6-10-challenges.md) | 50 challenges (Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench) | ⏳ Pending |
+| [Task 2D-4: Competitive Evaluation](2026-09-23T22-09_task-2d-4-competitive-evaluation.md) | Multi-agent benchmarking (Fox, Aider, Goose) + reporting | ⏳ Pending |
+| [Task 2D-5: Fox Hardening](2026-09-23T22-09_task-2d-5-fox-hardening.md) | Defect resolution, pass bar iteration (≥70%, beats competitors, zero catastrophic) | ⏳ Pending |
