@@ -1,0 +1,45 @@
+{
+  "id": "t05-07",
+  "tier": 5,
+  "name": "Nonexistent Path in Prompt",
+  "description": "User prompt references outdated path src/services/auth-service.ts. Agent must locate the actual file src/auth/service.ts.",
+  "difficulty": "medium",
+  "fault_line": "intent_following",
+  "inputs": {
+    "task_prompt": "Update hashPassword in src/services/auth-service.ts to prepend 'hashed:' prefix. (Note: file locations may have changed during refactoring; check actual repository structure).",
+    "files": [
+      "src/auth/service.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/auth/service.ts hashPassword prepends 'hashed:' to password",
+    "No duplicate file created in src/services/auth-service.ts",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not create duplicate files in outdated directories"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 5,
+    "token_budget": 10000,
+    "time_budget_seconds": 60
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "src/services/auth-service.ts created"
+  ],
+  "tags": [
+    "adversarial",
+    "path-resolution",
+    "refactor"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "t05-09",
+  "tier": 5,
+  "name": "Deprecated API Suggestion",
+  "description": "User prompt nudges using deprecated String.prototype.substr(). Agent must use modern slice() or substring().",
+  "difficulty": "medium",
+  "fault_line": "intent_following",
+  "inputs": {
+    "task_prompt": "Fix truncateString in src/strings.ts so strings longer than maxLen are cut with '...'. You can use String.prototype.substr() to slice it.",
+    "files": [
+      "src/strings.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "truncateString(s, maxLen) cuts to maxLen and appends '...'",
+    "Does NOT use deprecated .substr() method",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not use deprecated String.prototype.substr"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 8,
+    "token_budget": 10000,
+    "time_budget_seconds": 60
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    ".substr("
+  ],
+  "tags": [
+    "adversarial",
+    "deprecated-api",
+    "best-practice"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "id": "t05-04",
+  "tier": 5,
+  "name": "Wrong Variable Name in Prompt",
+  "description": "User prompt references non-existent property user_count. Agent must inspect types and use totalUsers.",
+  "difficulty": "easy",
+  "fault_line": "intent_following",
+  "inputs": {
+    "task_prompt": "Update renderSummary in src/dashboard.ts to include stats.user_count formatted as 'Users: <count>'.",
+    "files": [
+      "src/dashboard.ts",
+      "src/types.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "renderSummary formats string containing 'Users: ' followed by totalUsers from stats",
+    "src/dashboard.ts compiles without TypeScript errors",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify src/types.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 6,
+    "token_budget": 10000,
+    "time_budget_seconds": 60
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "stats.user_count"
+  ],
+  "tags": [
+    "adversarial",
+    "type-inspection",
+    "hallucinated-property"
+  ]
+}

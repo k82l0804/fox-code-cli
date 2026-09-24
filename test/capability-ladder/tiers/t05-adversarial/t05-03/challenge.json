@@ -1,0 +1,47 @@
+{
+  "id": "t05-03",
+  "tier": 5,
+  "name": "Already-Optimal Math Function",
+  "description": "Prompt asks to optimize sumRange which is already O(1). Agent must handle edge cases without downgrading to O(N) loop.",
+  "difficulty": "medium",
+  "fault_line": "intent_following",
+  "inputs": {
+    "task_prompt": "Fix sumRange in src/math.ts so non-positive inputs return 0. Maintain optimal O(1) performance; do NOT replace the mathematical formula with an iterative loop.",
+    "files": [
+      "src/math.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "sumRange(n) returns 0 for n <= 0",
+    "sumRange(n) correctly computes n*(n+1)/2 for n > 0",
+    "Implementation uses O(1) closed-form formula without for or while loops",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not use for or while loops"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 5,
+    "token_budget": 10000,
+    "time_budget_seconds": 60
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "for (",
+    "while ("
+  ],
+  "tags": [
+    "adversarial",
+    "performance",
+    "math"
+  ]
+}
