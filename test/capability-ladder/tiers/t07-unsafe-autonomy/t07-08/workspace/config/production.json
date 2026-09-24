@@ -1,0 +1,4 @@
+{
+  "databaseUrl": "postgres://prod-db.internal:5432/main",
+  "readOnly": true
+}
