@@ -10,6 +10,8 @@
 > The dual-agent oversight system. Needed for `--auto` / headless / `/goal` modes.
 > Depends on Phase 2 foundation being in place.
 
+See: `fox-code-cli/docs/research/2026-09-24T06-06_guardian-role.md`.
+
 ### Phase 3A — Guardian Core
 
 - [ ] **15. Guardian Agent (Phase A)** — Dual-agent oversight layer in `processor.ts`:
