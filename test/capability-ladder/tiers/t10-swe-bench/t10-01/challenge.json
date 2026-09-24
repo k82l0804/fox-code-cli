@@ -1,0 +1,47 @@
+{
+  "id": "t10-01",
+  "tier": 10,
+  "name": "Misleading Stack Trace \u2014 Missing Header Fallback",
+  "description": "TypeError thrown deep in format.ts is caused by missing accept-language header in service.ts. Fix service.ts without touching format.ts.",
+  "difficulty": "hard",
+  "fault_line": "deep_debugging",
+  "inputs": {
+    "task_prompt": "test/service.test.ts is throwing a TypeError in format.ts when accept-language header is missing. Do NOT modify src/format.ts (it is an external library). Fix src/service.ts to provide a safe default locale ('en-US') when the header is missing.",
+    "files": [
+      "src/service.ts",
+      "src/format.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/format.ts was NOT modified",
+    "src/service.ts provides default locale 'en-US' when header is missing or empty",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify src/format.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 6,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "src/format.ts modified"
+  ],
+  "tags": [
+    "swe-bench",
+    "misleading-stacktrace",
+    "root-cause",
+    "debugging"
+  ]
+}

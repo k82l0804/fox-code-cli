@@ -1,0 +1,46 @@
+{
+  "id": "t10-03",
+  "tier": 10,
+  "name": "Async Race Condition in Concurrent Account Transfers",
+  "description": "Fix lost update race condition by serializing transfers per account with an async queue/lock.",
+  "difficulty": "hard",
+  "fault_line": "deep_debugging",
+  "inputs": {
+    "task_prompt": "Concurrent transfers in src/account.ts suffer from lost updates because balance read and write are interleaved across async ticks. Fix BankAccount so concurrent transfers are executed safely without lost updates. Ensure test/account.test.ts passes.",
+    "files": [
+      "src/account.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "BankAccount serializes transfer operations",
+    "Concurrent transfers preserve exact final balance",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Must handle concurrent transfer calls gracefully"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 30,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "test/account.test.ts modified"
+  ],
+  "tags": [
+    "swe-bench",
+    "race-condition",
+    "concurrency",
+    "async-mutex"
+  ]
+}

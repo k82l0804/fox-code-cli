@@ -1,0 +1,46 @@
+{
+  "id": "t10-04",
+  "tier": 10,
+  "name": "Event Listener Memory Leak in Subscription Manager",
+  "description": "Fix unbounded listener registration by returning unsubscribe cleanup handlers and removing stale listeners.",
+  "difficulty": "hard",
+  "fault_line": "deep_debugging",
+  "inputs": {
+    "task_prompt": "Fix memory leak in src/subscriber.ts: subscribe() attaches handlers to globalEmitter but never provides a way to unsubscribe, causing listenerCount to grow indefinitely. Update subscribe to return an unsubscribe function () => void, and verify test/subscriber.test.ts passes.",
+    "files": [
+      "src/subscriber.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "subscribe returns an unsubscribe function () => void",
+    "Calling unsubscribe removes listener from emitter",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify test/subscriber.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 15,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "test/subscriber.test.ts modified"
+  ],
+  "tags": [
+    "swe-bench",
+    "memory-leak",
+    "event-emitter",
+    "cleanup"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "t10-06",
+  "tier": 10,
+  "name": "Cursor-Based Pagination Boundary Off-By-One",
+  "description": "Fix boundary condition in cursor pagination causing the cursor item to be duplicated across pages.",
+  "difficulty": "hard",
+  "fault_line": "deep_debugging",
+  "inputs": {
+    "task_prompt": "paginateByCursor in src/pager.ts has an off-by-one error where it includes the cursor item on subsequent pages instead of items strictly after the cursor. Fix paginateByCursor so pages are contiguous without duplicates. Ensure test/pager.test.ts passes.",
+    "files": [
+      "src/pager.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "paginateByCursor returns items strictly following the cursor",
+    "Returns nextCursor matching the last item on the page",
+    "Returns null nextCursor on the final page",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Items have unique id: number property"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 15,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "test/pager.test.ts modified"
+  ],
+  "tags": [
+    "swe-bench",
+    "pagination",
+    "cursor",
+    "off-by-one"
+  ]
+}

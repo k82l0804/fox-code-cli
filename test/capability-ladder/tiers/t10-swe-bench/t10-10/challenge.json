@@ -1,0 +1,47 @@
+{
+  "id": "t10-10",
+  "tier": 10,
+  "name": "Prototype Pollution in Recursive Object Merge",
+  "description": "Fix deep merge function to prevent prototype pollution via __proto__, constructor, and prototype keys.",
+  "difficulty": "hard",
+  "fault_line": "deep_debugging",
+  "inputs": {
+    "task_prompt": "deepMerge in src/merge.ts is vulnerable to prototype pollution when untrusted objects contain '__proto__' or 'constructor'. Fix deepMerge so it ignores dangerous keys and preserves prototype integrity. Ensure test/merge.test.ts passes.",
+    "files": [
+      "src/merge.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "deepMerge ignores __proto__, constructor, and prototype keys",
+    "Recursively merges nested plain objects",
+    "Prevents Object.prototype pollution",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify test/merge.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 25,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "test/merge.test.ts modified"
+  ],
+  "tags": [
+    "swe-bench",
+    "security",
+    "prototype-pollution",
+    "deep-merge"
+  ]
+}

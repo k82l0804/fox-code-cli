@@ -1,0 +1,46 @@
+{
+  "id": "t10-02",
+  "tier": 10,
+  "name": "O(N^2) Performance Regression in Query Matcher",
+  "description": "Refactor nested loop search into Set lookup to bring execution time from >1s down to <50ms.",
+  "difficulty": "hard",
+  "fault_line": "deep_debugging",
+  "inputs": {
+    "task_prompt": "src/matcher.ts contains an O(N*M) nested loop in findCommonTags causing severe performance regression. Optimize findCommonTags to run in O(N + M) using a Set. Ensure test/matcher.test.ts passes within 200ms.",
+    "files": [
+      "src/matcher.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/matcher.ts findCommonTags computes common tags accurately",
+    "Execution time is under 150ms for 10,000 tags",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Use Set for O(1) membership lookups"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 10,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "for (const q of queries)"
+  ],
+  "tags": [
+    "swe-bench",
+    "performance",
+    "optimization",
+    "big-o"
+  ]
+}
