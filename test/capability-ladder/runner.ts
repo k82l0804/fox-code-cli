@@ -24,13 +24,18 @@ const TIERS_DIR = join(LADDER_ROOT, "tiers");
 const SANDBOX_BASE = "/tmp/afb-sandbox";
 
 /**
- * Per-tier timeout defaults (seconds).
+ * Per-tier soft time budgets (seconds).
+ *
+ * These are "open-ended with adjustable soft limits" — agents run freely
+ * until the budget expires, then timeout = FAIL + worst efficiency score.
+ * Reference solution time_budget_seconds in each challenge.json is kept
+ * separately for efficiency grading of runs that finish within budget.
  */
 const DEFAULT_TIER_TIMEOUTS: Record<number, number> = {
-  1: 120, 2: 120, 3: 120, 4: 120, 5: 120,
-  6: 300, 7: 300,
-  8: 600, 9: 600,
-  10: 300,
+  1: 600, 2: 600, 3: 600,       // 10 min — basic + multi-file
+  4: 900, 5: 900,                // 15 min — tool orchestration + adversarial
+  6: 1200, 7: 1200,              // 20 min — long-horizon + autonomy
+  8: 1500, 9: 1500, 10: 1500,    // 25 min — Guardian-tier evaluation
 };
 
 /**
@@ -298,6 +303,7 @@ export async function runAgent(
 
   const { args, env } = invocationBuilder(sandboxPath, challenge.inputs.task_prompt, model);
   const startTime = Date.now();
+  let timedOut = false;
 
   const proc = Bun.spawn(args, {
     cwd: sandboxPath,
@@ -307,8 +313,9 @@ export async function runAgent(
     env: env as Record<string, string>,
   });
 
-  // Set up timeout
+  // Set up soft timeout — kill the process when budget expires
   const timeout = setTimeout(() => {
+    timedOut = true;
     proc.kill();
   }, timeoutSeconds * 1000);
 
@@ -347,6 +354,7 @@ export async function runAgent(
     stdout,
     stderr,
     sandbox_path: sandboxPath,
+    timed_out: timedOut,
   };
 }
 

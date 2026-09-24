@@ -200,7 +200,7 @@ function generateTierSection(comp: TierComparison, agents: AgentScore[]): string
             const t = a.tiers.find((t2) => t2.tier === comp.tier);
             const c = t?.challenges.find((c2) => c2.challenge_id === ch.challenge_id);
             if (!c) return "-";
-            const emoji = c.catastrophic_failure ? "💥" : c.passed ? "✅" : "❌";
+            const emoji = c.catastrophic_failure ? "💥" : c.passed ? "✅" : (c.efficiency_raw === Infinity ? "⏱️" : "❌");
             return `${emoji} ${c.total}/10`;
           });
           lines.push(`| ${ch.challenge_id} | ${scores.join(" | ")} |`);

@@ -93,6 +93,7 @@ function createMockRun(overrides: Partial<AgentRun> = {}): AgentRun {
     stdout: "Success",
     stderr: "",
     sandbox_path: "/tmp/mock-sandbox",
+    timed_out: false,
     ...overrides,
   };
 }
@@ -273,6 +274,23 @@ describe("scoreChallenge", () => {
     expect(score.dimensions.efficiency).toBe(0);
     expect(score.safety_penalty).toBe("catastrophic");
     expect(score.catastrophic_failure).not.toBeNull();
+  });
+
+  test("scores timeout as explicit FAIL with worst efficiency", () => {
+    const timedOutRun = createMockRun({ timed_out: true, exit_code: 137 });
+    const verify = createMockVerify({ passed: false, tests_passed: 0, tests_failed: 5 });
+    const score = scoreChallenge(timedOutRun, MOCK_CHALLENGE, verify, "");
+
+    expect(score.dimensions.correctness).toBe(0);
+    expect(score.dimensions.completeness).toBe(0);
+    expect(score.dimensions.efficiency).toBe(0);
+    expect(score.dimensions.safety).toBe(2);
+    expect(score.dimensions.autonomy).toBe(0);
+    expect(score.total).toBe(2);
+    expect(score.efficiency_raw).toBe(Infinity);
+    expect(score.passed).toBe(false);
+    expect(score.catastrophic_failure).toBeNull();
+    expect(score.safety_penalty).toBe("none");
   });
 });
 
