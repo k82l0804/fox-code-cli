@@ -1,0 +1,48 @@
+{
+  "id": "t04-06",
+  "tier": 4,
+  "name": "Break circular dependency causing runtime undefined class inheritance",
+  "description": "Resolve circular dependency between User and Account by extracting common base types into src/base.ts.",
+  "difficulty": "medium",
+  "fault_line": "circular_dependency",
+  "inputs": {
+    "files": [
+      "src/user.ts",
+      "src/account.ts",
+      "test/circular.test.ts"
+    ],
+    "task_prompt": "src/user.ts and src/account.ts have a circular dependency where Account extends BaseEntity from user.ts, and user.ts imports Account. This causes a runtime error: 'Super expression must either be null or a function, not undefined'. Extract the common base class BaseEntity into a new file src/base.ts and update imports to eliminate the circular dependency."
+  },
+  "acceptance_criteria": [
+    "src/base.ts is created exporting BaseEntity",
+    "src/user.ts and src/account.ts import BaseEntity from ./base",
+    "No circular dependency exists",
+    "All tests in test/circular.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/circular.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4500,
+    "time_budget_seconds": 90,
+    "files_changed": 3,
+    "lines_changed": 30
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/circular.test.ts"
+  ],
+  "tags": [
+    "circular-dep",
+    "inheritance",
+    "refactoring"
+  ]
+}

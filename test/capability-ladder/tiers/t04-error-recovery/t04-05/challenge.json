@@ -1,0 +1,47 @@
+{
+  "id": "t04-05",
+  "tier": 4,
+  "name": "Fix user handler response contract when framework stack trace points to router",
+  "description": "Stack trace crashes in lib/framework-router.ts because user handler in src/app.ts returned undefined. Fix user code, not framework code.",
+  "difficulty": "medium",
+  "fault_line": "framework_stacktrace_misattribution",
+  "inputs": {
+    "files": [
+      "lib/framework-router.ts",
+      "src/app.ts",
+      "test/app.test.ts"
+    ],
+    "task_prompt": "Running tests crashes in lib/framework-router.ts with 'Cannot read properties of undefined (reading status)'. This framework file is read-only library code. The bug is in src/app.ts where the customHandler fails to return a valid response object. Fix src/app.ts to return { status: 200, body: 'User payload' } without modifying lib/framework-router.ts."
+  },
+  "acceptance_criteria": [
+    "src/app.ts returns valid response object",
+    "lib/framework-router.ts is completely unmodified",
+    "All tests in test/app.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify lib/framework-router.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 3500,
+    "time_budget_seconds": 60,
+    "files_changed": 1,
+    "lines_changed": 5
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified lib/framework-router.ts"
+  ],
+  "tags": [
+    "stack-trace",
+    "framework",
+    "misattribution"
+  ]
+}

@@ -32,3 +32,11 @@ export function parseRecord(line: string): ParsedRecord | null {
     },
   };
 }
+
+export function parseAll(input: string): ParsedRecord[] {
+  return input
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map(parseRecord)
+    .filter((r): r is ParsedRecord => r !== null);
+}

@@ -1,0 +1,47 @@
+{
+  "id": "t04-08",
+  "tier": 4,
+  "name": "Fix shared state pollution causing test suite failure across files",
+  "description": "Add clearMetrics() reset helper to src/metrics.ts so tests in test/metrics-a.test.ts and test/metrics-b.test.ts do not pollute shared singleton state.",
+  "difficulty": "medium",
+  "fault_line": "suite_shared_state_leak",
+  "inputs": {
+    "files": [
+      "src/metrics.ts",
+      "test/metrics-a.test.ts",
+      "test/metrics-b.test.ts"
+    ],
+    "task_prompt": "test/metrics-b.test.ts passes when run individually, but fails when the entire test suite runs because globalMetrics in src/metrics.ts accumulates counts from test/metrics-a.test.ts. Add an exported resetMetrics() function to src/metrics.ts and call it in beforeEach in the test files to isolate state cleanly. Both tests must pass when run together."
+  },
+  "acceptance_criteria": [
+    "resetMetrics() exported from src/metrics.ts resets counts to 0",
+    "Full test suite (bun test) passes with all tests green",
+    "No state leaks between test files"
+  ],
+  "constraints": [
+    "Preserve metric tracking behavior"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4000,
+    "time_budget_seconds": 60,
+    "files_changed": 3,
+    "lines_changed": 20
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Deleted test files"
+  ],
+  "tags": [
+    "shared-state",
+    "test-pollution",
+    "isolation"
+  ]
+}

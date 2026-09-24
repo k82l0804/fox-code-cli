@@ -1,0 +1,49 @@
+{
+  "id": "t04-03",
+  "tier": 4,
+  "name": "Fix root EntityId type definition to resolve cascading compiler failures",
+  "description": "Fix the root EntityId type union and helper in src/types.ts to resolve compiler errors across downstream consumers.",
+  "difficulty": "medium",
+  "fault_line": "cascading_type_failures",
+  "inputs": {
+    "files": [
+      "src/types.ts",
+      "src/repo.ts",
+      "src/service.ts",
+      "test/cascading.test.ts"
+    ],
+    "task_prompt": "A breaking change in src/types.ts restricted EntityId strictly to { id: string, ns: string }, causing cascading compiler failures across src/repo.ts and src/service.ts which also pass string IDs. Update EntityId in src/types.ts to be string | { id: string, ns?: string } and provide parseEntityId(id: EntityId): { id: string, ns: string } that defaults ns to 'default'. Do not edit repo.ts or service.ts. All tests in test/cascading.test.ts must pass."
+  },
+  "acceptance_criteria": [
+    "EntityId in src/types.ts permits both string and object forms",
+    "parseEntityId normalizes any EntityId to { id, ns }",
+    "src/repo.ts and src/service.ts are untouched",
+    "All tests in test/cascading.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify src/repo.ts or src/service.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 4000,
+    "time_budget_seconds": 60,
+    "files_changed": 1,
+    "lines_changed": 15
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified src/repo.ts or src/service.ts"
+  ],
+  "tags": [
+    "cascading-types",
+    "typecheck",
+    "root-cause"
+  ]
+}
