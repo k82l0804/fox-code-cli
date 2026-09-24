@@ -1,9 +1,10 @@
 # Implementation Plan — Task 2D-2: Tier 1–5 Challenges
 
 > **Task**: 2D-2. Tier 1–5 Challenges (50 Challenges)  
-> **Status**: Pending  
+> **Status**: Completed ✅  
 > **Depends on**: Task 2D-1  
 > **Target**: Gemini Flash 3.8 High  
+> **Completed At**: 2026-09-24T04:47:00-04:00
 
 ---
 
@@ -16,11 +17,13 @@ Design, implement, and validate the first 50 benchmark challenges across Tiers 1
 - **Tier 4 (Tool Orchestration & Error Recovery)**: 10 challenges with misleading stack traces, flaky tests, root-cause separation from symptoms, and circular dependencies.
 - **Tier 5 (Adversarial Instructions)**: 10 challenges with conflicting requirements, hidden constraints, misleading TODO comments, non-existent path references, and security bait.
 
-### Current State: 2 of 50 challenges exist
-- **`t01-sanity/t01-01`** — Off-by-one fix (complete: workspace, challenge.json, verify.ts, solution)
-- **`t04-error-recovery/t04-02`** — Misleading error trace (complete: workspace, challenge.json, verify.ts, solution)
-- Tier directories exist for all 5 tiers but contain only `tier.json` metadata.
-- **48 challenges must be authored from scratch**, each requiring a self-contained TypeScript workspace, calibrated metadata, deterministic verification, and a reference solution.
+### Status: 50 of 50 challenges complete & verified
+- **`t01-sanity/`** — 10/10 challenges (`t01-01` through `t01-10`) verified bidirectional pass (10/10 points each).
+- **`t02-multistep/`** — 10/10 challenges (`t02-01` through `t02-10`) verified bidirectional pass (10/10 points each).
+- **`t03-multifile/`** — 10/10 challenges (`t03-01` through `t03-10`) verified bidirectional pass (10/10 points each).
+- **`t04-error-recovery/`** — 10/10 challenges (`t04-01` through `t04-10`) verified bidirectional pass (10/10 points each).
+- **`t05-adversarial/`** — 10/10 challenges (`t05-01` through `t05-10`) verified bidirectional pass (10/10 points each).
+- Total: 50/50 challenges authored, tested, typechecked, and committed.
 
 ### Pragmatic Authoring Strategy
 Author challenges **tier-by-tier, not all 50 at once**:

@@ -10,9 +10,9 @@
 
 ---
 
-- [ ] **2D-1. Benchmark Infrastructure** — `rubric.ts` (5-dimension scoring + efficiency formula), `runner.ts` (sandbox + agent invocation + token/time capture), `reporter.ts` (JSON + Markdown), `comparator.ts` (multi-agent verdict + 5-criterion pass bar), catastrophic failure detection. Scripts: `bun run bench`, `bun run bench:compare`.
+- [x] **2D-1. Benchmark Infrastructure** — `rubric.ts` (5-dimension scoring + efficiency formula), `runner.ts` (sandbox + agent invocation + token/time capture), `reporter.ts` (JSON + Markdown), `comparator.ts` (multi-agent verdict + 5-criterion pass bar), catastrophic failure detection. Scripts: `bun run bench`, `bun run bench:compare`.
 
-- [ ] **2D-2. Tier 1–5 Challenges (50)** — Sanity, Multi-step, Multi-file SWE, Error Recovery, Adversarial Instructions. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`, reference solutions. Run Fox against T1–5, fix failures.
+- [x] **2D-2. Tier 1–5 Challenges (50)** — Sanity, Multi-step, Multi-file SWE, Error Recovery, Adversarial Instructions. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`, reference solutions. Run Fox against T1–5, fix failures.
 
 - [ ] **2D-3. Tier 6–10 Challenges (50)** — Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench Bugs. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`. T8–9 scored on native agent behavior (no Guardian yet).
 
