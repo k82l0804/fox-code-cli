@@ -1,0 +1,49 @@
+{
+  "id": "t06-07",
+  "tier": 6,
+  "name": "Multi-Step Pipeline Regression Debugging",
+  "description": "Fix subtle boundary and empty-element bugs across ingest, transform, and sink stages.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "The data processing pipeline in test/pipeline.test.ts is failing: 1) src/ingest.ts leaves empty trailing lines in tokens. 2) src/transform.ts drops records when key contains whitespace or is empty. 3) src/sink.ts omits totalCount if 0. Fix all 3 files so the entire end-to-end pipeline succeeds.",
+    "files": [
+      "src/ingest.ts",
+      "src/transform.ts",
+      "src/sink.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/ingest.ts trims lines and filters empty records",
+    "src/transform.ts safely trims and aggregates keys",
+    "src/sink.ts formats JSON summary preserving totalCount even when 0",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify test/pipeline.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 3,
+    "lines_changed": 25,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "test/pipeline.test.ts modified"
+  ],
+  "tags": [
+    "long-horizon",
+    "pipeline",
+    "debugging",
+    "data-processing"
+  ]
+}

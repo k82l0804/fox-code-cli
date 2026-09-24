@@ -1,0 +1,49 @@
+{
+  "id": "t06-06",
+  "tier": 6,
+  "name": "Sub-Package Scaffolding \u2014 Internal Logger Package",
+  "description": "Create sub-package packages/logger with package.json, Logger class, and wire into src/app.ts.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Scaffold internal logger package: 1) In packages/logger/package.json create package '@app/logger'. 2) In packages/logger/src/index.ts implement Logger class with info, warn, error methods and formatLog(level, msg): string returning '[LEVEL] msg'. 3) In src/app.ts import Logger from '../packages/logger/src/index' and export startApp() which logs an info message. Ensure test/logger.test.ts passes.",
+    "files": [
+      "packages/logger/package.json",
+      "packages/logger/src/index.ts",
+      "src/app.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "packages/logger/package.json exists with name @app/logger",
+    "packages/logger/src/index.ts exports Logger class",
+    "src/app.ts starts app and logs initialization message",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "formatLog must return uppercase level in brackets: '[INFO] ...'"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 3,
+    "lines_changed": 40,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "test/logger.test.ts modified"
+  ],
+  "tags": [
+    "long-horizon",
+    "monorepo",
+    "package-scaffolding",
+    "logger"
+  ]
+}

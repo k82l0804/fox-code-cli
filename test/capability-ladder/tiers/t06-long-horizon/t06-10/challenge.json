@@ -1,0 +1,48 @@
+{
+  "id": "t06-10",
+  "tier": 6,
+  "name": "Typed Async Event Bus with Error Isolation",
+  "description": "Implement AsyncEventBus supporting on, once, off, and emit with Promise awaiting and error isolation.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Implement AsyncEventBus in src/event-bus.ts: 1) Methods: on(event, handler), once(event, handler), off(event, handler), and emit(event, payload): Promise<void>. 2) Handlers may be async. emit awaits all handlers. 3) If any handler throws, collect errors and throw an AggregateError after all other handlers complete. 4) once() handlers must execute only once. Ensure test/event-bus.test.ts passes.",
+    "files": [
+      "src/event-bus.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/event-bus.ts exports AsyncEventBus class",
+    "emit awaits all registered handlers",
+    "once executes only on the first event emission",
+    "Failing handler does not abort subsequent handlers; throws AggregateError at end",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify test/event-bus.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 60,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "throw new Error('Not implemented')"
+  ],
+  "tags": [
+    "long-horizon",
+    "async",
+    "event-bus",
+    "error-isolation"
+  ]
+}

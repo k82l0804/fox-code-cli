@@ -1,0 +1,48 @@
+{
+  "id": "t06-09",
+  "tier": 6,
+  "name": "Role-Based Access Control (RBAC) Middleware & Route Guards",
+  "description": "Implement RBAC hierarchy (admin > editor > viewer) and createRouteGuard middleware.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Implement RBAC security guards: 1) In src/rbac.ts, define Role = 'admin' | 'editor' | 'viewer' with hierarchy admin > editor > viewer. 2) Implement hasPermission(userRole: Role, requiredRole: Role): boolean. 3) Implement createRouteGuard(requiredRole: Role) middleware: accepts user object { role?: Role }, returns { allowed: boolean, statusCode: number, error?: string }. If no user or no role, return statusCode 401. If insufficient role, return statusCode 403. If allowed, return statusCode 200. Ensure test/rbac.test.ts passes.",
+    "files": [
+      "src/rbac.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/rbac.ts exports Role type and hasPermission function",
+    "src/rbac.ts exports createRouteGuard middleware function",
+    "Returns 401 for unauthenticated requests",
+    "Returns 403 for unauthorized requests",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Admin can access editor and viewer routes; editor can access viewer routes"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 45,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "test/rbac.test.ts modified"
+  ],
+  "tags": [
+    "long-horizon",
+    "security",
+    "rbac",
+    "middleware"
+  ]
+}

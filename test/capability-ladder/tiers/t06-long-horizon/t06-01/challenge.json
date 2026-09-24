@@ -1,0 +1,51 @@
+{
+  "id": "t06-01",
+  "tier": 6,
+  "name": "Feature Lifecycle \u2014 Rate Limiter with Config, Tests & Docs",
+  "description": "Implement RateLimiter class, wire into AppConfig, author documentation in docs/RATE_LIMITING.md, and ensure tests pass.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Add a rate limiting feature to the project: 1) Update AppConfig in src/config.ts with rateLimit config { maxRequests: number, windowMs: number } defaulting to { maxRequests: 5, windowMs: 1000 }. 2) Implement RateLimiter class in src/limiter.ts with isAllowed(ip: string): boolean and reset(): void. 3) Document configuration and usage in docs/RATE_LIMITING.md. 4) Ensure all tests in test/limiter.test.ts pass.",
+    "files": [
+      "src/config.ts",
+      "src/limiter.ts",
+      "docs/RATE_LIMITING.md",
+      "test/limiter.test.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/config.ts exports defaultConfig with rateLimit settings",
+    "src/limiter.ts exports RateLimiter class implementing isAllowed and reset",
+    "docs/RATE_LIMITING.md exists and documents configuration options and usage",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "RateLimiter must track requests per IP within the configured sliding/fixed window",
+    "reset() must clear all tracked IP request history"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 3,
+    "lines_changed": 50,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "docs/RATE_LIMITING.md missing"
+  ],
+  "tags": [
+    "long-horizon",
+    "rate-limiter",
+    "documentation",
+    "config"
+  ]
+}

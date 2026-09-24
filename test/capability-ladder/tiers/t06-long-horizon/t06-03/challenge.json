@@ -1,0 +1,49 @@
+{
+  "id": "t06-03",
+  "tier": 6,
+  "name": "Complete REST CRUD Resource \u2014 Product Store & Router",
+  "description": "Implement Product types, ProductStore in-memory repository, and HTTP router for full CRUD lifecycle.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Build a complete Product CRUD resource: 1) Define Product { id: string, name: string, price: number, inStock: boolean } and DTOs in src/types.ts. 2) Implement ProductStore in src/store.ts with create, get, list(filter?: { inStock?: boolean }), update, delete. 3) Implement handleRequest in src/router.ts supporting GET /products, GET /products/:id, POST /products, PATCH /products/:id, DELETE /products/:id. Ensure test/crud.test.ts passes.",
+    "files": [
+      "src/types.ts",
+      "src/store.ts",
+      "src/router.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/types.ts defines Product, CreateProductDTO, UpdateProductDTO",
+    "src/store.ts ProductStore implements CRUD and filtering",
+    "src/router.ts handleRequest handles HTTP methods, status codes (200, 201, 204, 404), and JSON bodies",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "handleRequest must return { status: number, body?: any }"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 3,
+    "lines_changed": 95,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "throw new Error('Not implemented')"
+  ],
+  "tags": [
+    "long-horizon",
+    "crud",
+    "rest-api",
+    "store"
+  ]
+}

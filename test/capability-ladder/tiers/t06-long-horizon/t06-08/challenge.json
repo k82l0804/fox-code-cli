@@ -1,0 +1,47 @@
+{
+  "id": "t06-08",
+  "tier": 6,
+  "name": "LRU Cache with Time-To-Live (TTL) Eviction",
+  "description": "Implement LRUCache with capacity limits and TTL expiration support.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Implement LRUCache<K, V> in src/lru-cache.ts: 1) Constructor accepts capacity: number and defaultTtlMs?: number. 2) Methods: set(key, value, ttlMs?), get(key), has(key), delete(key), size(), clear(). 3) When capacity is exceeded, evict the least recently used item. 4) When an item's TTL expires, get/has must return undefined/false and remove it. Ensure test/lru-cache.test.ts passes.",
+    "files": [
+      "src/lru-cache.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/lru-cache.ts exports LRUCache class",
+    "Evicts least recently used items on capacity overflow",
+    "Respects TTL expiration on items",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "get() operation must mark accessed item as most recently used"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 65,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "throw new Error('Not implemented')"
+  ],
+  "tags": [
+    "long-horizon",
+    "data-structures",
+    "lru-cache",
+    "ttl"
+  ]
+}

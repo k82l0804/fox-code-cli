@@ -1,0 +1,52 @@
+{
+  "id": "t06-02",
+  "tier": 6,
+  "name": "API Migration Across 4 Architectural Layers",
+  "description": "Migrate UserV1 (number id, full_name) to UserV2 (string id, firstName, lastName, active) across types, db, service, and api.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Migrate the codebase from UserV1 to UserV2: 1) In src/types.ts, define UserV2 { id: string, firstName: string, lastName: string, active: boolean }. 2) In src/db.ts, update UserDB to store and retrieve UserV2. 3) In src/service.ts, update UserService to create and query UserV2. 4) In src/api.ts, update formatUserResponse for UserV2. Ensure test/migration.test.ts passes.",
+    "files": [
+      "src/types.ts",
+      "src/db.ts",
+      "src/service.ts",
+      "src/api.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/types.ts exports UserV2 interface",
+    "src/db.ts UserDB stores and retrieves UserV2 records",
+    "src/service.ts UserService creates users with string id, firstName, lastName, active: true",
+    "src/api.ts formatUserResponse returns { userId: id, displayName: 'firstName lastName', active }",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "All 4 layers must cleanly use UserV2 without type errors"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 4,
+    "lines_changed": 45,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "full_name",
+    "UserV1"
+  ],
+  "tags": [
+    "long-horizon",
+    "refactoring",
+    "multi-layer",
+    "data-model"
+  ]
+}

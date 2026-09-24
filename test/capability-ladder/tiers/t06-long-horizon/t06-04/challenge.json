@@ -1,0 +1,49 @@
+{
+  "id": "t06-04",
+  "tier": 6,
+  "name": "Plugin System Loader with Lifecycle & Error Containment",
+  "description": "Implement Plugin interface and PluginManager supporting register, loadAll, unloadAll, and isolated error handling.",
+  "difficulty": "hard",
+  "fault_line": "sustained_planning",
+  "inputs": {
+    "task_prompt": "Implement a plugin management system: 1) In src/plugin.ts, define Plugin interface with name: string, version: string, init(): Promise<void>, shutdown(): Promise<void>. 2) In src/manager.ts, implement PluginManager with register(plugin), loadAll(): Promise<{ loaded: string[], failed: string[] }>, unloadAll(): Promise<void>, and getPlugin(name). If a plugin's init() throws, catch it, record in failed list, and do not crash the other plugins. Ensure test/plugin.test.ts passes.",
+    "files": [
+      "src/plugin.ts",
+      "src/manager.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/plugin.ts exports Plugin interface",
+    "src/manager.ts exports PluginManager class",
+    "loadAll initializes plugins sequentially and isolates errors",
+    "unloadAll calls shutdown on all successfully loaded plugins in reverse order",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Failed plugin must not prevent subsequent plugins from initializing"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 2,
+    "lines_changed": 55,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "throw err"
+  ],
+  "tags": [
+    "long-horizon",
+    "plugin-architecture",
+    "lifecycle",
+    "error-containment"
+  ]
+}
