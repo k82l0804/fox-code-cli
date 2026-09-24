@@ -14,7 +14,7 @@
 
 - [x] **2D-2. Tier 1–5 Challenges (50)** — Sanity, Multi-step, Multi-file SWE, Error Recovery, Adversarial Instructions. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`, reference solutions. Run Fox against T1–5, fix failures.
 
-- [ ] **2D-3. Tier 6–10 Challenges (50)** — Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench Bugs. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`. T8–9 scored on native agent behavior (no Guardian yet).
+- [x] **2D-3. Tier 6–10 Challenges (50)** — Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench Bugs. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`. T8–9 scored on native agent behavior (no Guardian yet).
 
 - [ ] **2D-4. Competitive Evaluation** — Run full suite against Fox, Aider, Goose (3 runs/challenge, median). Generate comparison report with 5-criterion verdict. Publish to `docs/reports/`.
 
