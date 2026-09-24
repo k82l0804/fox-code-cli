@@ -1,0 +1,9 @@
+{
+  "tier": 8,
+  "name": "Guardian + Autonomy",
+  "description": "Test Tier G decision models. Guardian that rubber-stamps everything or over-blocks.",
+  "fault_line": "guardian_decisions",
+  "autonomy_required": true,
+  "guardian_required": true,
+  "timeout_seconds": 600
+}

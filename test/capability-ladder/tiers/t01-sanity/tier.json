@@ -1,0 +1,9 @@
+{
+  "tier": 1,
+  "name": "Sanity & Wiring",
+  "description": "Confirm CLI + tools + basic reasoning work. No fault lines — just 'does it run?'",
+  "fault_line": "basic_functionality",
+  "autonomy_required": false,
+  "guardian_required": false,
+  "timeout_seconds": 120
+}

@@ -1,0 +1,9 @@
+{
+  "tier": 2,
+  "name": "Simple Multi-step",
+  "description": "Test basic planning + iterative tool use. Agents that don't plan or don't re-run tests after edits will fail.",
+  "fault_line": "planning_iteration",
+  "autonomy_required": false,
+  "guardian_required": false,
+  "timeout_seconds": 120
+}

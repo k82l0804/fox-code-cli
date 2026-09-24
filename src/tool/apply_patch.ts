@@ -18,6 +18,7 @@ import * as EncodedIO from "../foxcode/tool/encoded-io"
 import { Format } from "../format"
 import * as Bom from "@/util/bom"
 import { assertMutablePath } from "../foxcode/agent-manager/protection"
+import { computeConfidence, type ConfidenceResult } from "@/foxcode/lsp-confidence"
 export const Parameters = Schema.Struct({
   patchText: Schema.String.annotate({ description: "The full patch text that describes all changes to be made" }),
 })
@@ -233,6 +234,14 @@ export const ApplyPatchTool = Tool.define(
         },
       })
 
+      // Capture diagnostics before changes
+      for (const change of fileChanges) {
+        if (change.type !== "add") {
+          yield* lsp.touchFile(change.filePath, "document")
+        }
+      }
+      const diagnosticsBefore = yield* lsp.diagnostics()
+
       // Apply the changes
       const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []
 
@@ -287,6 +296,23 @@ export const ApplyPatchTool = Tool.define(
       }
       const diagnostics = yield* lsp.diagnostics()
 
+      // Compute confidence across all changed files (report worst score)
+      let worstConfidence: ConfidenceResult | undefined
+      for (const change of fileChanges) {
+        if (change.type === "delete") continue
+        const target = change.movePath ?? change.filePath
+        const norm = FSUtil.normalizePath(target)
+        const beforeNorm = FSUtil.normalizePath(change.filePath)
+        const conf = computeConfidence({
+          before: change.type === "add" ? [] : (diagnosticsBefore[beforeNorm] ?? []),
+          after: diagnostics[norm] ?? [],
+          filePath: target,
+        })
+        if (!worstConfidence || conf.score < worstConfidence.score) {
+          worstConfidence = conf
+        }
+      }
+
       // Generate output summary
       const summaryLines = fileChanges.map((change) => {
         if (change.type === "add") {
@@ -310,6 +336,9 @@ export const ApplyPatchTool = Tool.define(
         const rel = path.relative(instance.worktree, target).replaceAll("\\", "/")
         output += `\n\nLSP errors detected in ${rel}, please fix:\n${block}`
       }
+      if (worstConfidence && (worstConfidence.score < 1.0 || worstConfidence.fixedErrors > 0)) {
+        output += `\n\n${worstConfidence.summary}`
+      }
       for (const changed of fileChanges) {
         if (changed.type === "delete") continue
         output += yield* Effect.promise(() => ConfigValidation.check(changed.movePath ?? changed.filePath))
@@ -320,6 +349,15 @@ export const ApplyPatchTool = Tool.define(
           diff: totalDiff,
           files,
           diagnostics: filterDiagnostics(diagnostics, changedPaths),
+          ...(worstConfidence
+            ? {
+                confidence: {
+                  score: worstConfidence.score,
+                  label: worstConfidence.label,
+                  newErrors: worstConfidence.newErrors,
+                },
+              }
+            : {}),
         },
         output,
       }

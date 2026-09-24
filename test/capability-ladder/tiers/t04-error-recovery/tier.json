@@ -1,0 +1,9 @@
+{
+  "tier": 4,
+  "name": "Tool Orchestration & Error Recovery",
+  "description": "Stress test tool loops, flaky environments, misleading output. Agents that panic on errors or trust first output will fail.",
+  "fault_line": "error_recovery",
+  "autonomy_required": false,
+  "guardian_required": false,
+  "timeout_seconds": 120
+}

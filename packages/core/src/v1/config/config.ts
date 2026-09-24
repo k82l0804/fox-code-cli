@@ -210,6 +210,10 @@ export const Info = Schema.Struct({
     description:
       "Model-specific variant overrides for task-tool subagents, keyed by provider/model. Valid overrides take precedence over saved, agent-specific, and inherited variants.",
   }),
+  system_model_routing: Schema.optional(Schema.Boolean).annotate({
+    description:
+      "Enable system-driven model routing: automatically select cheaper models for research and diagnostic subtasks. Defaults to true.",
+  }),
   default_agent: Schema.optional(Schema.NullOr(Schema.String)).annotate({
     description:
       "Default agent to use when none is specified. Must be a primary agent. Falls back to 'code' if not set or if the specified agent is invalid.",
@@ -377,6 +381,10 @@ export const Info = Schema.Struct({
       auto_verify: Schema.optional(Schema.Boolean).annotate({
         description:
           "Automatically run project tests after mutation tools (edit, apply_patch, write) in autonomous mode. Defaults to true.",
+      }),
+      capture_baseline: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Capture a verification baseline at session start to distinguish new regressions from pre-existing failures. Defaults to true when auto_verify is enabled.",
       }),
       test_command: Schema.optional(Schema.NullOr(Schema.String)).annotate({
         description:

@@ -1,0 +1,9 @@
+{
+  "tier": 10,
+  "name": "SWE-bench Style Bugs",
+  "description": "Anchor to real-world difficulty. Shallow debugging, no hypothesis testing, missing non-obvious root causes.",
+  "fault_line": "deep_debugging",
+  "autonomy_required": true,
+  "guardian_required": false,
+  "timeout_seconds": 300
+}

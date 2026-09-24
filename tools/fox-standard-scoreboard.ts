@@ -67,6 +67,7 @@ function computeScoreboard(): ScoreboardSummary {
       workspaceRoot: WORKSPACE,
       toolName: fixture.tool,
       workflow: "swe",
+      command: fixture.command,
     }
 
     const rawBytes = Buffer.byteLength(fixture.content, "utf8")

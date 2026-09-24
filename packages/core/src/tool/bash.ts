@@ -121,8 +121,8 @@ const layer = Layer.effectDiscard(
             ...(output.exit === undefined ? {} : { exit: output.exit }),
             ...(output.timeout === undefined ? {} : { timeout: output.timeout }),
           }),
-          toModelOutput: ({ output }) => {
-            const ctx = { workspaceRoot: location.directory, toolName: name }
+          toModelOutput: ({ input, output }) => {
+            const ctx = { workspaceRoot: location.directory, toolName: name, command: input.command }
             return [
               { type: "text", text: ToolOutputCompressor.process(output.output, ctx) },
               { type: "text", text: ToolOutputCompressor.process(modelOutput(output), ctx) },

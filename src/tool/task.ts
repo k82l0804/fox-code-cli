@@ -181,6 +181,7 @@ export const TaskTool = Tool.define(
         enabled: selection,
         selection: { model: params.model, provider: params.provider, variant: params.variant },
         resume: session?.model,
+        taskDescription: params.description ?? params.prompt,
       })
       const model = selected.model
       const variant = selected.variant

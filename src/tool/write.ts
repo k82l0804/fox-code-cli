@@ -18,6 +18,8 @@ import { ConfigValidation } from "../foxcode/config-validation"
 import * as EncodedIO from "../foxcode/tool/encoded-io"
 import { assertMutablePath } from "../foxcode/agent-manager/protection"
 import * as Bom from "@/util/bom"
+import { computeConfidence } from "@/foxcode/lsp-confidence"
+import type { Diagnostic } from "vscode-languageserver-types"
 
 const MAX_PROJECT_DIAGNOSTICS_FILES = 5
 
@@ -70,6 +72,13 @@ export const WriteTool = Tool.define(
             },
           })
 
+          let beforeDiags: Diagnostic[] = []
+          if (exists) {
+            yield* lsp.touchFile(filepath, "document")
+            const diagnosticsBefore = yield* lsp.diagnostics()
+            beforeDiags = diagnosticsBefore[FSUtil.normalizePath(filepath)] ?? []
+          }
+
           yield* EncodedIO.write(fs, filepath, Bom.join(contentNew, desiredBom), source.encoding)
           if (yield* format.file(filepath)) {
             yield* EncodedIO.sync(fs, filepath, desiredBom, source.encoding)
@@ -84,6 +93,12 @@ export const WriteTool = Tool.define(
           yield* lsp.touchFile(filepath, "document")
           const diagnostics = yield* lsp.diagnostics()
           const normalizedFilepath = FSUtil.normalizePath(filepath)
+          const afterDiags = diagnostics[normalizedFilepath] ?? []
+          const confidence = computeConfidence({
+            before: beforeDiags,
+            after: afterDiags,
+            filePath: filepath,
+          })
           let projectDiagnosticsCount = 0
           for (const [file, issues] of Object.entries(diagnostics)) {
             const current = file === normalizedFilepath
@@ -97,6 +112,9 @@ export const WriteTool = Tool.define(
             projectDiagnosticsCount++
             output += `\n\nLSP errors detected in other files:\n${block}`
           }
+          if (confidence.score < 1.0 || confidence.fixedErrors > 0) {
+            output += `\n\n${confidence.summary}`
+          }
           output += yield* Effect.promise(() => ConfigValidation.check(filepath))
           return {
             title: path.relative(instance.worktree, filepath),
@@ -106,6 +124,11 @@ export const WriteTool = Tool.define(
               exists: exists,
               diff,
               filediff,
+              confidence: {
+                score: confidence.score,
+                label: confidence.label,
+                newErrors: confidence.newErrors,
+              },
             },
             output,
           }

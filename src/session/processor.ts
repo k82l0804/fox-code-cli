@@ -36,6 +36,7 @@ import { CompressionMetrics } from "@opencode-ai/core/tool/compression-metrics"
 import { Oscillation } from "@opencode-ai/core/oscillation"
 import { RepairBudgetTracker } from "@opencode-ai/core/repair-budget"
 import { Verification } from "@opencode-ai/core/verification"
+import { VerificationBaseline } from "@opencode-ai/core/verification-baseline"
 
 
 export const DOOM_LOOP_THRESHOLD = 3
@@ -194,6 +195,7 @@ const layer = Layer.effect(
     // --- Autonomous Verification Layer: session-scoped state ---
     const oscillationTrackers = new Map<SessionID, Oscillation.OscillationTracker>()
     const repairBudgets = new Map<SessionID, RepairBudgetTracker.RepairBudget>()
+    const verificationBaselines = new Map<SessionID, VerificationBaseline.BaselineSnapshot>()
     /** Monotonically increasing turn counter per session for oscillation tracking. */
     const turnCounters = new Map<SessionID, number>()
 
@@ -228,6 +230,38 @@ const layer = Layer.effect(
         messageID: input.assistantMessage.id,
         snapshotInitialization: input.snapshotInitialization,
       })
+
+      // Capture verification baseline at session start if capture_baseline is enabled
+      const cfg = yield* config.get()
+      const autonomousCfg = cfg.autonomous
+      if (
+        autonomousCfg?.auto_verify !== false &&
+        autonomousCfg?.capture_baseline !== false &&
+        !verificationBaselines.has(input.sessionID)
+      ) {
+        const dirs = yield* config.directories()
+        const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+        const scripts = yield* Effect.promise(() => Verification.readPackageScripts(projectDir))
+        const pipeline = Verification.detectCommandPipeline(scripts, {
+          test_command: autonomousCfg?.test_command,
+          typecheck_command: autonomousCfg?.typecheck_command,
+          lint_command: autonomousCfg?.lint_command,
+          verification_strategy: autonomousCfg?.verification_strategy,
+        })
+        if (pipeline.commands.length > 0) {
+          const timeoutMs = autonomousCfg?.test_timeout ?? Verification.DEFAULT_VERIFICATION_TIMEOUT_MS
+          const baselineResult = yield* Effect.promise(() =>
+            Verification.executePipeline(pipeline, {
+              cwd: projectDir,
+              timeoutMs,
+            }),
+          )
+          verificationBaselines.set(
+            input.sessionID,
+            VerificationBaseline.captureBaseline(baselineResult),
+          )
+        }
+      }
       const ctx: ProcessorContext = {
         assistantMessage: input.assistantMessage,
         sessionID: input.sessionID,
@@ -656,16 +690,29 @@ const layer = Layer.effect(
                   const feedback = Verification.formatPipelineFeedback(pipelineResult)
                   outputText = `${outputText}\n\n${feedback}`
 
-                  // Update repair budget based on verification outcome
+                  // Regression analysis against baseline
+                  const baseline = verificationBaselines.get(ctx.sessionID)
+                  let hasNewRegressions = false
+                  if (baseline) {
+                    const analysis = VerificationBaseline.analyzeRegressions(baseline, pipelineResult)
+                    const regressionFeedback = VerificationBaseline.formatRegressionFeedback(analysis)
+                    if (regressionFeedback) {
+                      outputText = `${outputText}\n\n${regressionFeedback}`
+                    }
+                    hasNewRegressions = analysis.hasNewRegressions
+                  }
+
+                  // Update repair budget based on verification outcome:
+                  // Only count new regressions against repair budget (not pre-existing failures)
                   const maxRepairTurns = autonomousCfg?.max_repair_turns ?? 3
                   const budget = getRepairBudget(ctx.sessionID, maxRepairTurns)
-                  if (!pipelineResult.allPassed) {
+                  if (baseline ? hasNewRegressions : !pipelineResult.allPassed) {
                     const budgetResult = RepairBudgetTracker.recordFailure(budget)
                     const warning = RepairBudgetTracker.RepairBudgetWarning.format(budget)
                     if (budgetResult.exhausted && warning) {
                       outputText = `${outputText}\n\n${warning}`
                     }
-                  } else {
+                  } else if (pipelineResult.allPassed) {
                     RepairBudgetTracker.recordSuccess(budget)
                   }
                 }

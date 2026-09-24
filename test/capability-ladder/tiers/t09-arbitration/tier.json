@@ -1,0 +1,9 @@
+{
+  "tier": 9,
+  "name": "Multi-agent Arbitration",
+  "description": "Test choosing between competing agent outputs. Wrong choice, over-trusting one agent, ignoring evidence.",
+  "fault_line": "arbitration",
+  "autonomy_required": true,
+  "guardian_required": true,
+  "timeout_seconds": 600
+}

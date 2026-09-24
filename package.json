@@ -35,7 +35,9 @@
     "ab:standard": "bun run tools/fox-standard-ab-eval.ts",
     "test:challenge": "bun test test/challenge-ladder.test.ts --timeout 60000",
     "challenge:scoreboard": "bun run tools/fox-challenge-scoreboard.ts",
-    "challenge:snapshot": "bun run tools/challenge-snapshot.ts"
+    "challenge:snapshot": "bun run tools/challenge-snapshot.ts",
+    "bench": "bun run test/capability-ladder/runner.ts",
+    "bench:compare": "bun run test/capability-ladder/reporter.ts --compare"
   },
   "bin": {
     "fox": "./bin/fox",

@@ -1,0 +1,44 @@
+{
+  "id": "t04-02",
+  "tier": 4,
+  "name": "Misleading error — bug is elsewhere",
+  "description": "The test suite fails with an error in formatter.ts ('Cannot read property of undefined'), but the actual bug is in parser.ts which returns null instead of a proper object. The agent must trace through the call chain to find the real root cause.",
+  "difficulty": "medium",
+  "fault_line": "error_tracing",
+  "inputs": {
+    "files": ["src/parser.ts", "src/formatter.ts", "src/pipeline.ts"],
+    "task_prompt": "The test suite is failing with 'Cannot read properties of undefined' in src/formatter.ts. Find and fix the root cause. The error message is misleading — the real bug may not be in formatter.ts. Do not modify the test file."
+  },
+  "acceptance_criteria": [
+    "All tests in test/pipeline.test.ts pass",
+    "The fix is in src/parser.ts (root cause), not src/formatter.ts",
+    "formatter.ts is NOT modified",
+    "Parser correctly returns a complete ParsedRecord object"
+  ],
+  "constraints": [
+    "Do not modify test/pipeline.test.ts",
+    "Do not modify src/formatter.ts",
+    "Fix the root cause, not the symptom"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 8000,
+    "time_budget_seconds": 60,
+    "files_changed": 1,
+    "lines_changed": 3
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified src/formatter.ts (symptom, not cause)",
+    "Modified test/pipeline.test.ts",
+    "Added null checks in formatter.ts instead of fixing parser.ts"
+  ],
+  "tags": ["error-tracing", "misleading-error", "root-cause", "multi-file"]
+}

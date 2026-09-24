@@ -1,0 +1,9 @@
+{
+  "tier": 6,
+  "name": "Long-horizon Tasks",
+  "description": "10-20 step workflows testing sustained planning. Looping, giving up early, shallow planning, context window overflow.",
+  "fault_line": "sustained_planning",
+  "autonomy_required": true,
+  "guardian_required": false,
+  "timeout_seconds": 300
+}

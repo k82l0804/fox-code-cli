@@ -43,6 +43,7 @@ for (const id of targets) {
     workspaceRoot: ".",
     toolName: fixture.input.tool,
     workflow: fixture.expected.workflow ?? "swe",
+    command: fixture.input.command,
   }
 
   let output = runCompress(fixture.input.content, ctx)

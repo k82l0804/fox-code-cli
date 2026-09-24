@@ -23,6 +23,8 @@ import { ConfigValidation } from "../foxcode/config-validation"
 import * as EncodedIO from "../foxcode/tool/encoded-io"
 import * as Encoding from "../foxcode/encoding"
 import { assertMutablePath } from "../foxcode/agent-manager/protection"
+import { computeConfidence } from "@/foxcode/lsp-confidence"
+import type { Diagnostic } from "vscode-languageserver-types"
 const MAX_DIFF_CONTENT = 500_000
 export function buildFileDiff(file: string, before: string, after: string): Snapshot.FileDiff {
   const tooLarge = before.length > MAX_DIFF_CONTENT || after.length > MAX_DIFF_CONTENT
@@ -109,6 +111,7 @@ export const EditTool = Tool.define(
           let contentOld = ""
           let contentNew = ""
           let cachedFilediff: Snapshot.FileDiff | undefined
+          let beforeDiags: Diagnostic[] = []
           yield* lock(filePath).withPermits(1)(
             Effect.gen(function* () {
               if (params.oldString === "") {
@@ -182,6 +185,10 @@ export const EditTool = Tool.define(
                 },
               })
 
+              yield* lsp.touchFile(filePath, "document")
+              const diagnosticsBefore = yield* lsp.diagnostics()
+              beforeDiags = diagnosticsBefore[FSUtil.normalizePath(filePath)] ?? []
+
               yield* EncodedIO.write(afs, filePath, Bom.join(contentNew, desiredBom), source.encoding)
               if (yield* format.file(filePath)) {
                 contentNew = yield* EncodedIO.sync(afs, filePath, desiredBom, source.encoding)
@@ -215,14 +222,28 @@ export const EditTool = Tool.define(
           yield* lsp.touchFile(filePath, "document")
           const diagnostics = yield* lsp.diagnostics()
           const normalizedFilePath = FSUtil.normalizePath(filePath)
-          const block = LSP.Diagnostic.report(filePath, diagnostics[normalizedFilePath] ?? [])
+          const afterDiags = diagnostics[normalizedFilePath] ?? []
+          const confidence = computeConfidence({
+            before: beforeDiags,
+            after: afterDiags,
+            filePath,
+          })
+          const block = LSP.Diagnostic.report(filePath, afterDiags)
           if (block) output += `\n\nLSP errors detected in this file, please fix:\n${block}`
+          if (confidence.score < 1.0 || confidence.fixedErrors > 0) {
+            output += `\n\n${confidence.summary}`
+          }
           output += yield* Effect.promise(() => ConfigValidation.check(filePath))
           return {
             metadata: {
               diagnostics: filterDiagnostics(diagnostics, [normalizedFilePath]),
               diff,
               filediff,
+              confidence: {
+                score: confidence.score,
+                label: confidence.label,
+                newErrors: confidence.newErrors,
+              },
             },
             title: `${path.relative(instance.worktree, filePath)}`,
             output,

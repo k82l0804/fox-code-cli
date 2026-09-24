@@ -15,6 +15,9 @@ import type { Config } from "../../config/config"
 import { Provider } from "../../provider/provider"
 import z from "zod"
 import { selectModel } from "./model-selection"
+import { recommendModelForTask } from "../model-routing"
+import { resolveTier, type ModelTier, type TierInfo } from "../model-tier"
+import { classifyIntent } from "../intent"
 
 const log = Log.create({ service: "foxcode-task-model" })
 
@@ -200,12 +203,13 @@ export namespace FoxTask {
 
   const defaults = Effect.fn("FoxTask.defaultModel")(function* (input: {
     name: string
-    agent: Pick<Agent.Info, "model" | "variant">
-    config: Pick<Config.Info, "subagent_model" | "subagent_variant" | "subagent_variant_overrides">
+    agent: Pick<Agent.Info, "model" | "variant" | "workflow">
+    config: Pick<Config.Info, "subagent_model" | "subagent_variant" | "subagent_variant_overrides" | "system_model_routing">
     parent: Model
     variant?: string
     workflow?: Workflow
     provider: Provider.Interface
+    taskDescription?: string
   }) {
     const state = yield* saved(input.name)
     const cfg = parse(input.config.subagent_model)
@@ -251,6 +255,65 @@ export namespace FoxTask {
       return {
         model: choice.sticky && variant ? { ...choice.model, variant } : choice.model,
         variant,
+      }
+    }
+
+    if (input.config.system_model_routing !== false && input.agent.workflow) {
+      const providers = yield* input.provider.list()
+      const availableModels: Array<{
+        providerID: string
+        modelID: string
+        tier: ModelTier
+        tierInfo: TierInfo
+      }> = []
+      for (const provider of Object.values(providers)) {
+        for (const model of Object.values(provider.models)) {
+          const tierInfo = resolveTier({ modelId: model.id, providerId: provider.id })
+          availableModels.push({
+            providerID: provider.id,
+            modelID: model.id,
+            tier: tierInfo.tier,
+            tierInfo,
+          })
+        }
+      }
+      const parentTierInfo = resolveTier({
+        modelId: input.parent.modelID,
+        providerId: input.parent.providerID,
+      })
+      let suggestedMinTier: ModelTier | undefined
+      if (input.taskDescription) {
+        const intentClass = classifyIntent({ message: input.taskDescription })
+        suggestedMinTier = intentClass.suggestedMinTier
+      }
+      const recommendation = recommendModelForTask({
+        workflow: input.agent.workflow,
+        suggestedMinTier,
+        availableModels,
+        parentModel: {
+          providerID: input.parent.providerID,
+          modelID: input.parent.modelID,
+          tier: parentTierInfo.tier,
+        },
+      })
+      if (recommendation.routed) {
+        log.info("System model routing applied", {
+          agent: input.name,
+          workflow: input.agent.workflow,
+          parent: `${input.parent.providerID}/${input.parent.modelID}`,
+          routed: `${recommendation.model.providerID}/${recommendation.model.modelID}`,
+          reason: recommendation.reason,
+        })
+        const routedModel = {
+          providerID: ProviderV2.ID.make(recommendation.model.providerID),
+          modelID: ModelV2.ID.make(recommendation.model.modelID),
+        }
+        const val = override(routedModel)
+        const full = yield* input.provider
+          .getModel(routedModel.providerID, routedModel.modelID)
+          .pipe(Effect.catchTag("ProviderModelNotFoundError", () => Effect.succeed(undefined)))
+        const variant = full?.variants?.[val ?? ""] ? val : undefined
+        return { model: routedModel, variant }
       }
     }
 

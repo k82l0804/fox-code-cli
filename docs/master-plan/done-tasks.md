@@ -85,3 +85,18 @@
 
 - [x] **10. Specialized Subagents** — [📋 Plan](../completed-plans/2026-09-23T16-38_task-10-specialized-subagents.md)
   Add `scout` (read-only research), `runner` (test/build execution), `scribe` (file writing) subagents. Rename experimental scout to `reference`.
+
+---
+
+## Phase 2C — Routing & Refinement (2026-09-23) ✅
+
+> System-driven model selection and quality-of-life improvements.
+> All 4 tasks complete, typecheck passes, all test suites pass.
+
+- [x] **11. System-Driven Model Routing** — `recommendModelForTask(agentMode, availableModels[])` — system picks cheapest viable model for each subtask. Tier-based: research on Tier C, planning on Tier A/S, implementation on Tier B+.
+
+- [x] **12. Blast-Radius Regression Detection (3b)** — Baseline test tracking to distinguish "I broke this" from "this was already broken." Structured input for future Guardian.
+
+- [x] **13. LSP Confidence Scoring (6a)** — Language-aware edit confidence. The parity matrix shows AST/symbol index as a top gap.
+
+- [x] **14. Repo-Level Intent Detection** — Classify task scope and blast radius from the goal description before planning.

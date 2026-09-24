@@ -1,0 +1,9 @@
+{
+  "tier": 3,
+  "name": "Multi-file SWE",
+  "description": "Force cross-file reasoning and coordinated edits. Agents that only think locally will fail.",
+  "fault_line": "cross_file_reasoning",
+  "autonomy_required": false,
+  "guardian_required": false,
+  "timeout_seconds": 120
+}

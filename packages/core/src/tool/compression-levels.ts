@@ -82,8 +82,8 @@ export function classifyContent(
   let risk: RiskProfile = "safe"
   let confidence = 0.8
 
-  // Escape hatch: # no-truncate means the user explicitly asked for full fidelity
-  if (command?.includes("# no-truncate") || text.includes("# no-truncate")) {
+  // Escape hatch: # no-truncate or --full-output means the user explicitly asked for full fidelity
+  if (command?.includes("# no-truncate") || text.includes("# no-truncate") || command?.includes("--full-output")) {
     return { level: 0, risk: "critical", contentType: "escape-hatch", confidence: 1.0, hints: ["no-truncate-escape-hatch"] }
   }
 

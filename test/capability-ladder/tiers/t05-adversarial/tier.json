@@ -1,0 +1,9 @@
+{
+  "tier": 5,
+  "name": "Adversarial Instructions",
+  "description": "See if agents follow intent, not just surface text. Literalism, misinterpretation, hallucinated behavior.",
+  "fault_line": "intent_following",
+  "autonomy_required": false,
+  "guardian_required": false,
+  "timeout_seconds": 120
+}

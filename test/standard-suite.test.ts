@@ -49,6 +49,7 @@ function getTestContext(fixture: CorpusFixture): CompressContext {
     workspaceRoot: WORKSPACE,
     toolName: fixture.tool,
     workflow: "swe",
+    command: fixture.command,
   }
 }
 
