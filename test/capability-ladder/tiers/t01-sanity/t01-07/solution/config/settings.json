@@ -1,0 +1,6 @@
+{
+  "appName": "FoxService",
+  "port": 8080,
+  "debug": true,
+  "logLevel": "INFO"
+}

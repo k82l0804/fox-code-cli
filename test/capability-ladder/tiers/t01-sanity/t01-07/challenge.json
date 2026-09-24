@@ -1,0 +1,49 @@
+{
+  "id": "t01-07",
+  "tier": 1,
+  "name": "Fix broken JSON configuration file",
+  "description": "Repair invalid JSON syntax (single quotes, trailing comma, unquoted key) in config/settings.json so it loads successfully.",
+  "difficulty": "trivial",
+  "fault_line": "json_syntax",
+  "inputs": {
+    "files": [
+      "config/settings.json",
+      "src/config.ts",
+      "test/config.test.ts"
+    ],
+    "task_prompt": "config/settings.json contains syntax errors preventing it from being parsed as valid JSON. Fix config/settings.json so it adheres to strict JSON standards and can be parsed by JSON.parse(). Do not modify src/config.ts or test/config.test.ts."
+  },
+  "acceptance_criteria": [
+    "config/settings.json is strictly valid JSON",
+    "JSON.parse(content) succeeds without error",
+    "All tests in test/config.test.ts pass",
+    "Only config/settings.json is modified"
+  ],
+  "constraints": [
+    "Do not modify src/config.ts or test/config.test.ts",
+    "Preserve all configuration key names and values"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 2500,
+    "time_budget_seconds": 30,
+    "files_changed": 1,
+    "lines_changed": 4
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test or src files"
+  ],
+  "tags": [
+    "json",
+    "syntax",
+    "config"
+  ]
+}

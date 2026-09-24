@@ -153,7 +153,7 @@ describe("AFB Sandbox & Git Baseline", () => {
     const sandboxPath = createSandbox("t01-sanity", "t01-01");
 
     // Copy solution to sandbox
-    const solutionFile = join(import.meta.dir, "tiers/t01-sanity/t01-01/solution/utils.ts");
+    const solutionFile = join(import.meta.dir, "tiers/t01-sanity/t01-01/solution/src/utils.ts");
     const destFile = join(sandboxPath, "src/utils.ts");
     const solutionContent = await Bun.file(solutionFile).text();
     await Bun.write(destFile, solutionContent);

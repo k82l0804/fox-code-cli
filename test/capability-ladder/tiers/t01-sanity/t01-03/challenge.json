@@ -1,0 +1,49 @@
+{
+  "id": "t01-03",
+  "tier": 1,
+  "name": "Rename a function and update call sites",
+  "description": "Rename calculateTotal to computeOrderTotal in src/calc.ts and update all callers in src/checkout.ts and src/invoice.ts.",
+  "difficulty": "trivial",
+  "fault_line": "refactoring",
+  "inputs": {
+    "files": [
+      "src/calc.ts",
+      "src/checkout.ts",
+      "src/invoice.ts",
+      "test/calc.test.ts"
+    ],
+    "task_prompt": "Rename the function calculateTotal to computeOrderTotal in src/calc.ts. Update the callers in src/checkout.ts and src/invoice.ts, as well as test/calc.test.ts. Ensure all tests pass."
+  },
+  "acceptance_criteria": [
+    "src/calc.ts exports computeOrderTotal",
+    "calculateTotal is no longer used or exported",
+    "src/checkout.ts and src/invoice.ts call computeOrderTotal",
+    "All tests in test/calc.test.ts pass"
+  ],
+  "constraints": [
+    "Preserve exact calculation behavior and rounding"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 3500,
+    "time_budget_seconds": 30,
+    "files_changed": 4,
+    "lines_changed": 8
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Deleted files not in inputs"
+  ],
+  "tags": [
+    "rename",
+    "refactoring",
+    "callsites"
+  ]
+}

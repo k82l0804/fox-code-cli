@@ -1,0 +1,48 @@
+{
+  "id": "t01-09",
+  "tier": 1,
+  "name": "Convert callback to async/await Promise API",
+  "description": "Modernize readFileCallback into an async/await Promise function readTextFileAsync in src/reader.ts.",
+  "difficulty": "trivial",
+  "fault_line": "async_modernization",
+  "inputs": {
+    "files": [
+      "src/reader.ts",
+      "test/reader.test.ts"
+    ],
+    "task_prompt": "Modernize the legacy callback API in src/reader.ts by implementing and exporting readTextFileAsync(path: string): Promise<string>. It should return a Promise that resolves with the file content, or rejects with an Error if the path is invalid or empty. Keep the existing callback function for backwards compatibility."
+  },
+  "acceptance_criteria": [
+    "src/reader.ts exports readTextFileAsync",
+    "readTextFileAsync returns a Promise resolving to string",
+    "Rejects with Error when path is empty",
+    "All tests in test/reader.test.ts pass"
+  ],
+  "constraints": [
+    "Use async/await or Promise constructor",
+    "Do not break readFileCallback"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 3000,
+    "time_budget_seconds": 30,
+    "files_changed": 1,
+    "lines_changed": 12
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Removed readFileCallback breaking backwards compatibility"
+  ],
+  "tags": [
+    "async",
+    "callback",
+    "promise"
+  ]
+}

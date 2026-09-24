@@ -1,0 +1,46 @@
+{
+  "id": "t01-05",
+  "tier": 1,
+  "name": "Add JSDoc documentation to exported functions",
+  "description": "Add standardized JSDoc comments to all 3 exported functions in src/string-utils.ts describing parameters and return values.",
+  "difficulty": "trivial",
+  "fault_line": "documentation",
+  "inputs": {
+    "files": [
+      "src/string-utils.ts"
+    ],
+    "task_prompt": "Add JSDoc comments (/** ... */) to all 3 exported functions (capitalize, slugify, truncate) in src/string-utils.ts. Each JSDoc must describe what the function does, include @param tags for all arguments, and a @returns tag. Do not change any function implementations."
+  },
+  "acceptance_criteria": [
+    "All 3 exported functions have JSDoc comments starting with /**",
+    "@param tags are present for all parameters in all 3 functions",
+    "@returns tag is present on all 3 functions",
+    "Existing code and tests in test/string-utils.test.ts pass unmodified"
+  ],
+  "constraints": [
+    "Do not modify implementation logic or tests"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 3000,
+    "time_budget_seconds": 30,
+    "files_changed": 1,
+    "lines_changed": 25
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified implementation logic"
+  ],
+  "tags": [
+    "jsdoc",
+    "documentation",
+    "types"
+  ]
+}

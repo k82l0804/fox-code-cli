@@ -1,0 +1,47 @@
+{
+  "id": "t01-08",
+  "tier": 1,
+  "name": "Add error handling to async fetcher",
+  "description": "Add structured try/catch error handling to fetchUserProfile in src/fetcher.ts to handle network or promise rejections safely.",
+  "difficulty": "trivial",
+  "fault_line": "error_handling",
+  "inputs": {
+    "files": [
+      "src/fetcher.ts",
+      "test/fetcher.test.ts"
+    ],
+    "task_prompt": "Update fetchUserProfile in src/fetcher.ts to safely wrap the async operation in a try/catch block. If the fetch operation succeeds, return { success: true, data: result, error: null }. If it throws or rejects, catch the error and return { success: false, data: null, error: err instanceof Error ? err.message : String(err) }. Do not let errors throw unhandled."
+  },
+  "acceptance_criteria": [
+    "fetchUserProfile returns success: true and data on resolve",
+    "fetchUserProfile returns success: false and error message on reject",
+    "fetchUserProfile never throws an unhandled rejection",
+    "All tests in test/fetcher.test.ts pass"
+  ],
+  "constraints": [
+    "Do not modify test/fetcher.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 3000,
+    "time_budget_seconds": 30,
+    "files_changed": 1,
+    "lines_changed": 10
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Modified test/fetcher.test.ts"
+  ],
+  "tags": [
+    "async",
+    "error-handling",
+    "try-catch"
+  ]
+}

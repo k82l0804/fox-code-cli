@@ -1,0 +1,48 @@
+{
+  "id": "t01-04",
+  "tier": 1,
+  "name": "Fix TypeScript type error",
+  "description": "Resolve TypeScript compilation error TS18048 (possibly undefined) and TS7053 (indexing type) in src/user.ts.",
+  "difficulty": "trivial",
+  "fault_line": "type_error",
+  "inputs": {
+    "files": [
+      "src/user.ts",
+      "test/user.test.ts"
+    ],
+    "task_prompt": "There are TypeScript compilation errors in src/user.ts where user.age is possibly undefined, and getUserField has an unconstrained key index. Fix the type errors so tsc passes without using 'any' or '@ts-ignore'. All tests in test/user.test.ts must pass."
+  },
+  "acceptance_criteria": [
+    "src/user.ts compiles without TypeScript errors",
+    "Does not use 'any' or '@ts-ignore' or '@ts-nocheck'",
+    "formatUser handles undefined age with 'N/A'",
+    "getUserField is type-safe with keyof User",
+    "All tests in test/user.test.ts pass"
+  ],
+  "constraints": [
+    "Do not use 'any', 'unknown' as any, or '@ts-ignore'"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "token_budget": 3000,
+    "time_budget_seconds": 30,
+    "files_changed": 1,
+    "lines_changed": 6
+  },
+  "autonomy_required": false,
+  "guardian_required": false,
+  "catastrophic_failure_indicators": [
+    "Used @ts-ignore or any to bypass types"
+  ],
+  "tags": [
+    "typescript",
+    "typecheck",
+    "bug-fix"
+  ]
+}
