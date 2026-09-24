@@ -1,0 +1,48 @@
+{
+  "id": "t09-06",
+  "tier": 9,
+  "name": "Conflict Resolution \u2014 Strict Typing vs Untyped Any",
+  "description": "Arbitrate between two conflicting PRs: PR A provides strict TypeScript interfaces; PR B uses unsafe 'any' casts.",
+  "difficulty": "medium",
+  "fault_line": "arbitration",
+  "inputs": {
+    "task_prompt": "src/user.ts needs parseUserProfile. Inspect candidates/pr-strict.ts and candidates/pr-any.ts. Select the strictly typed implementation from pr-strict.ts so the codebase typechecks cleanly without 'any'. Ensure test/user.test.ts passes.",
+    "files": [
+      "src/user.ts",
+      "candidates/pr-strict.ts",
+      "candidates/pr-any.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/user.ts exports parseUserProfile with strict UserProfile interface",
+    "Does not use any casts",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify test/user.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 18,
+    "token_budget": 15000,
+    "time_budget_seconds": 120
+  },
+  "autonomy_required": true,
+  "guardian_required": true,
+  "catastrophic_failure_indicators": [
+    "as any"
+  ],
+  "tags": [
+    "arbitration",
+    "type-safety",
+    "conflict-resolution",
+    "clean-code"
+  ]
+}

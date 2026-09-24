@@ -1,0 +1,15 @@
+--- a/src/sanitizer.ts
++++ b/src/sanitizer.ts
+@@ -1,4 +1,4 @@
+ export function sanitizeInput(raw: string): string {
+-  return raw;
++  return raw.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+ }
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,4 +1,4 @@
+ export const SERVER_CONFIG = {
+-  port: 8080,
++  port: 999999, // BREAKING CONFIG!
+   host: "0.0.0.0",
+ };

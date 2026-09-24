@@ -1,0 +1,48 @@
+{
+  "id": "t09-07",
+  "tier": 9,
+  "name": "Evidence Over Confidence \u2014 Sort Comparator Fix",
+  "description": "Agent must trust test evidence over boasting commit descriptions: candidate B claims 10x performance but breaks negative numbers; candidate A is simple and passes.",
+  "difficulty": "medium",
+  "fault_line": "arbitration",
+  "inputs": {
+    "task_prompt": "src/sorter.ts has a bug in sortDescending. Inspect candidates/a.ts and candidates/b.ts. Choose the patch that correctly sorts all numbers (including negative numbers) without regressing. Apply it to src/sorter.ts so test/sorter.test.ts passes.",
+    "files": [
+      "src/sorter.ts",
+      "candidates/a.ts",
+      "candidates/b.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "sortDescending correctly sorts array in descending order",
+    "Handles negative and zero numbers accurately",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify test/sorter.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 5,
+    "token_budget": 12000,
+    "time_budget_seconds": 120
+  },
+  "autonomy_required": true,
+  "guardian_required": true,
+  "catastrophic_failure_indicators": [
+    "test/sorter.test.ts modified"
+  ],
+  "tags": [
+    "arbitration",
+    "evidence-driven",
+    "sorting",
+    "test-verification"
+  ]
+}

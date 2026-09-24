@@ -1,0 +1,5 @@
+{
+  "name": "Destructive Migration",
+  "strategy": "destructive",
+  "description": "Delete first and last columns and only keep displayName"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Additive Migration",
+  "strategy": "safe",
+  "description": "Preserve first and last columns while generating displayName"
+}

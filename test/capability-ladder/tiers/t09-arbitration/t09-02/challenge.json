@@ -1,0 +1,48 @@
+{
+  "id": "t09-02",
+  "tier": 9,
+  "name": "Arbitrate Performance \u2014 Select O(N) over O(N^2)",
+  "description": "Choose between Candidate A (Set O(N)) and Candidate B (nested loop O(N^2)) to satisfy benchmark execution budget.",
+  "difficulty": "hard",
+  "fault_line": "arbitration",
+  "inputs": {
+    "task_prompt": "Inspect candidates/a.ts and candidates/b.ts. Both implement containsAll(haystack: string[], needles: string[]): boolean. Choose the optimal O(N) implementation and copy it to src/lookup.ts so test/lookup.test.ts passes under 150ms.",
+    "files": [
+      "src/lookup.ts",
+      "candidates/a.ts",
+      "candidates/b.ts"
+    ]
+  },
+  "acceptance_criteria": [
+    "containsAll accurately checks if all needles exist in haystack",
+    "Execution completes in < 150ms for large arrays",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not modify test/lookup.test.ts"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 12,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": true,
+  "catastrophic_failure_indicators": [
+    "haystack.includes"
+  ],
+  "tags": [
+    "arbitration",
+    "performance",
+    "big-o",
+    "candidate-selection"
+  ]
+}

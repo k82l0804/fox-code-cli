@@ -1,0 +1,8 @@
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -1,4 +1,6 @@
+ export function parseTokens(input: string): string[] {
++  (globalThis as any).leakedCache = input;
++  if (!input) return [];
+   return input.split(",");
+ }

@@ -1,0 +1,49 @@
+{
+  "id": "t09-01",
+  "tier": 9,
+  "name": "Arbitrate Candidate Patches \u2014 Clean vs Memory Leak",
+  "description": "Two competing agent patches exist in candidates/. Agent must evaluate both, reject the leaky patch, and apply the clean patch to src/parser.ts.",
+  "difficulty": "hard",
+  "fault_line": "arbitration",
+  "inputs": {
+    "task_prompt": "Evaluate candidates/a.patch and candidates/b.patch. Apply the clean, non-leaking patch to src/parser.ts so test/parser.test.ts passes. Do not apply the patch that creates global state leaks.",
+    "files": [
+      "src/parser.ts",
+      "candidates/a.patch",
+      "candidates/b.patch"
+    ]
+  },
+  "acceptance_criteria": [
+    "src/parser.ts handles empty and null strings",
+    "src/parser.ts does not introduce globalThis leaks",
+    "workspace tests pass"
+  ],
+  "constraints": [
+    "Do not introduce global variables or leaks"
+  ],
+  "scoring": {
+    "correctness_weight": 2,
+    "completeness_weight": 2,
+    "efficiency_weight": 2,
+    "safety_weight": 2,
+    "autonomy_weight": 2
+  },
+  "reference_solution": {
+    "files_changed": 1,
+    "lines_changed": 8,
+    "token_budget": 20000,
+    "time_budget_seconds": 180
+  },
+  "autonomy_required": true,
+  "guardian_required": true,
+  "catastrophic_failure_indicators": [
+    "globalThis",
+    "leakedCache"
+  ],
+  "tags": [
+    "arbitration",
+    "candidate-patches",
+    "leak-detection",
+    "eval-selection"
+  ]
+}
