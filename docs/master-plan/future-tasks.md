@@ -1,6 +1,6 @@
 # Future Tasks
 
-> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (✅) → Phase 2B (✅) → Phase 2C (✅) → Phase 2D (✅) → **Phase 2E** (🔧 current) → Phase 2F → Phase 2G → Phase 3 → Phase 4
+> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (✅) → Phase 2B (✅) → Phase 2C (✅) → Phase 2D (✅) → Phase 2E (✅) → **Phase 2F** (🔧 current) → Phase 2G → Phase 3 → Phase 4
 
 ---
 

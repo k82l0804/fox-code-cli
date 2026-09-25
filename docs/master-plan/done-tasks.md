@@ -128,3 +128,25 @@
 
 - [~] **2D-5. Fox Hardening** — Superseded by Phase 2E (SOTA Harness & Localization) which addresses root causes identified in the research.
 
+---
+
+## Phase 2E — SOTA Harness & Localization (2026-09-25) ✅
+
+> SOTA harness loop: exit gate, verification reflection, localization pipeline, tool surface matrix,
+> weak-model fast path, multi-attempt architecture. The harness owns done, context, and the edit contract.
+> 781 tests pass, 0 failures, typecheck clean.
+>
+> 2F-1 (Harness-Owned Commit) and 2F-4 (Unified Control-Plane Table) were pulled forward into PR 1.
+> 2F-2 (Search ACI: Files + Counts) was pulled forward into PR 2.
+
+- [x] **2E-1. Loop-Exit Gate + Mutation Journal** — `src/session/mutation-journal.ts`, `src/session/control-plane.ts`. Append-only journal, `resolveExitCondition()` with 6-row exit table, reflection injection, `max_empty_exit_retries`. Intent detection fails open toward code-change.
+- [x] **2E-2. Verification as Harness Reflection** — Exit-time verification with baseline comparison (only new regressions block). Repair budget hard cap. Fresh-verify skip. Parse-fail circuit breaker (3-strike). Wake-up audit logging.
+- [x] **2E-3. Localization Pipeline + Code Context Block** — `src/session/code-context.ts`, `src/session/localize/{pipeline,bm25,graph,ranker}.ts`. 5k token envelope, BM25 over identifiers + PageRank graph, RRF fusion, function-level span extraction, cold-index non-blocking, honest cache key.
+- [x] **2E-4. ACI Simplification — Tool Surface Matrix** — `TIER_TOOL_SURFACE` in `model-tier.ts`, `filterToolsByTier()`. Syntax gate (`src/tool/syntax-gate.ts`). Bounded `read` (200 lines + offset + byte cap). `commit`/`write`/`apply_patch` off default surface. Empty success formatting.
+- [x] **2E-5. *(Merged into 2E-3)*** — Repo map injection + working-set pinning subsumed by `buildCodeContextBlock()`.
+- [x] **2E-6. Weak-Model Fast Path** — `src/session/fence-parser.ts`. C/D contract: no edit tool schemas, fence-parse in harness. Accepts fenced blocks, `File:` headers, SEARCH/REPLACE. Journal records with `source: "fence-parse"`. `FENCE_INSTRUCTION_PROMPT` injected for C/D tiers.
+- [x] **2E-7. Multi-Attempt Architecture** — `src/session/attempt.ts`, `src/session/attempt-selector.ts`. `fox run --attempts N` + `--attempt-timeout`. Git worktree isolation, sequential v1, deterministic selection (filter + rank), per-attempt timeout, signal-handler cleanup.
+- [x] **2F-1. Harness-Owned Commit** _(pulled forward)_ — `harnessCommit()` in `processor.ts`. Deterministic commit message (`fox: <tool> <file>`). Empty diff → no commit. Rollback to last green commit.
+- [x] **2F-2. Search ACI: Files + Counts** _(pulled forward)_ — Grep returns `{path, hitCount, preview}` by default. `context` param for full hunks.
+- [x] **2F-4. Unified Control-Plane Table** _(pulled forward)_ — `resolveExitCondition()` in `src/session/control-plane.ts`. One function, 6-row matrix, combination tests.
+

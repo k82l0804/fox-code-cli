@@ -1,54 +1,30 @@
-# Current Tasks — Phase 2E: SOTA Harness & Localization
+# Current Tasks — Phase 2F: Harness Law Refinements
 
-> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (✅) → Phase 2B (✅) → Phase 2C (✅) → Phase 2D (✅) → **Phase 2E** 🔧 → Phase 2F → Phase 2G → Phase 3 → Phase 4
+> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (✅) → Phase 2B (✅) → Phase 2C (✅) → Phase 2D (✅) → Phase 2E (✅) → **Phase 2F** 🔧 → Phase 2G → Phase 3 → Phase 4
 >
-> The harness owns done, context, and the edit contract. Everything below moves those three
-> from "the model may" to "the loop will." If a plan does not change `loop.ts`'s exit condition,
-> it is not this project.
+> The remaining Aider/SWE-agent behaviors that 2E does not cover. Still harness law, still no extra model.
+> 2E-1/2E-2 killed the empty-exit trace on the 8B Llama benchmark — this phase builds on that foundation.
 >
-> **Research**: [`why-aider-wins.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-20_why-aider-wins.md), [`how-to-make-fox-code-cli-state-of-the-art.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-30_how-to-make-fox-code-cli-state-of-the-art.md), [`guardian-architecture-v5.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-25T06-38_guardian-architecture-v5.md)
+> **Note**: 2F-1 (Harness-Owned Commit), 2F-2 (Search ACI), and 2F-4 (Unified Control-Plane Table) were
+> implemented in Phase 2E as they were architecturally inseparable from the exit gate and ACI matrix.
+> See [done-tasks.md](./done-tasks.md) for details.
 
 ---
 
-- [x] **2E-1. Loop-Exit Gate + Mutation Journal** — Mutation gate in `loop.ts`: code-change tasks cannot exit on prose. Session mutation journal tracks harness-applied edits. Intent detection fails open toward code-change. Reflection names the tier-appropriate edit tool.
+- [ ] **2F-3. Cheap-First Verify + Incremental Touch-Set** — 3-stage incremental verification: tree-sitter syntax check on apply → lint/tsc on touched files only → full suite at exit. Skip stage 3 if last mutation-tool verify is fresh on same HEAD. One flake retry before consuming a repair budget slot.
 
-- [x] **2E-2. Verification as Harness Reflection** — Exit-time verification with baseline comparison (only new regressions block). Repair budget as hard cap. Fresh-verify skip. Flaky test retry. Parse-fail circuit breaker (3-strike rule — prevents Goose-style truncate→retry livelock). Unified `resolveExitCondition()`.
+- [ ] **2F-5. `/add` Working Set as a First-Class Session Object** — Session working set = localize pins ∪ mutated files ∪ `/add` ∪ `--file`. Stable across turns until `/drop` or session end. Working set files have priority over localize-only pins in `buildCodeContextBlock()`. `/add <path>` and `/drop <path>` TUI commands.
 
-- [x] **2E-3. Localization Pipeline + Code Context Block** — `buildCodeContextBlock()` with 5k token envelope (map + localize spans + pinned bodies). Hierarchical localize prelude (BM25 over identifiers + graph). Cold-index non-blocking. Honest cache key. Repo map injection (more for weak models). Working-set pinning.
+- [ ] **2F-6. Project Command Graph as Session Law** — Detect and persist `{typecheck, test, lint, build}` commands from project config on session start. Verification uses only detected commands, not model-invented ones. Bash policy warns on mismatched commands. User override via `fox.jsonc` or `/set test_command`.
 
-- [x] **2E-4. ACI Simplification — Tool Surface Matrix** — Canonical ACI matrix (S/A: `edit` + `rewrite_file(create)`; B: `edit` + `rewrite_file`; C/D: none as tools → 2E-6). Syntax gate on apply. Bounded `read` (200 lines + offset). Empty success formatting. `commit`/`write`/`apply_patch` off default surface.
-
-- [x] **2E-5. *(Merged into 2E-3)*** — Repo Map Injection + Working-Set Pinning. N/A — see 2E-3.
-
-- [x] **2E-6. Weak-Model Fast Path — Whole-File Generation Format** — C/D generation contract: no edit tool schemas, fence-parse in harness. Accept fenced blocks, `File:` headers, SEARCH/REPLACE. `bash` + `grep` only tools. `read` as dynamic fallback.
-
-- [x] **2E-7. Multi-Attempt Architecture** — `fox run --attempts N` with worktree isolation, sequential v1, deterministic selection (filter + rank for N=3, cluster for N≥5). Per-attempt timeout. No `--repro-first` in v1.
+- [ ] **2F-7. Fold or Freeze `general`/`explore` Agents** — Fold `general` into main agent (it adds nothing). Freeze `explore` as a read-only preset (no mutation tools). No new agent personas. Audit all session paths route through `resolveExitCondition()`.
 
 ---
 
-> **Success criteria (all four must be true before moving past 2E):**
-> 1. Code-change task + weak model → at least one applied mutation, or a capped explicit failure — never a prose exit.
-> 2. Dirty/red repo → only *new* failures block.
-> 3. Tier C/D → first completion can be a file, not a tool call.
-> 4. KV prefix still hits when map/pins have not changed.
+> **Execution order**: 2F-3 → 2F-5 → 2F-6 → 2F-7
 >
-> If (1) is false, 2E-3 through 2E-7 are decoration.
-
-> **Ship order (PRs, not tasks — implement in this order, stop and measure after each):**
+> 2F-3 (incremental verify) is foundational — it makes the verification feedback loop fast enough for the
+> working set changes in 2F-5. 2F-6 (project commands) refines what verification runs. 2F-7 (agent fold)
+> is a cleanup task that depends on all prior harness law being in place.
 >
-> | PR | Tasks | Gate |
-> |---|---|---|
-> | **PR 1** | 2E-1 + 2E-2 + 2F-1 + 2F-4 | Re-run 8B Task 3 trace — must NOT exit on prose |
-> | **PR 2** | 2E-4 + 2F-2 (grep shape) | Typecheck + existing tests pass |
-> | **PR 3** | 2E-3 (includes 2E-5) | Localize top-3 accuracy on fixture repo with decoys |
-> | **PR 4** | 2E-6 | 8B produces and applies a fence without tool calls |
-> | **PR 5** | 2E-7 | Exit + verify trusted from PR 1 |
->
-> _2F-1 (Harness-Owned Commit) and 2F-4 (Unified Control-Plane Table) are future-phase tasks pulled forward into PR 1 because they are architecturally inseparable from the exit gate and verification loop._
-
-> **Golden replay fixture**: Frozen 8B empty-exit transcript + small fixture repo with one-span bug + decoy file. Each PR changes that outcome or is not merged.
-
-> **References**:
-> - [Phase 2E full spec](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/master-plan/future-tasks.md) (cross-cutting constraints, per-task details, plan-lie guardrails)
-> - [Why Aider Wins](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-20_why-aider-wins.md)
-> - [SOTA Stack](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-30_how-to-make-fox-code-cli-state-of-the-art.md)
+> **Gate**: All 2E success criteria hold. 781 tests pass. Typecheck clean.

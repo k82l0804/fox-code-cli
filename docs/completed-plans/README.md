@@ -2,6 +2,13 @@
 
 This directory contains implementation plans for tasks that have been successfully implemented, verified, and recorded in [`../master-plan/done-tasks.md`](../master-plan/done-tasks.md).
 
+## Phase 2E — SOTA Harness & Localization (2026-09-25)
+- [`2026-09-25T08-33_pr1-exit-gate-verify-commit.md`](./2026-09-25T08-33_pr1-exit-gate-verify-commit.md) — PR 1: Exit Gate + Verify + Commit + Control Plane (2E-1, 2E-2, 2F-1, 2F-4)
+- [`2026-09-25T04-56_pr2-aci-matrix-grep-shape.md`](./2026-09-25T04-56_pr2-aci-matrix-grep-shape.md) — PR 2: ACI Matrix + Grep Shape (2E-4, 2F-2)
+- [`2026-09-25T04-57_pr3-code-context-block.md`](./2026-09-25T04-57_pr3-code-context-block.md) — PR 3: Code Context Block (2E-3, 2E-5)
+- [`2026-09-25T04-58_pr4-weak-model-fast-path.md`](./2026-09-25T04-58_pr4-weak-model-fast-path.md) — PR 4: Weak-Model Fast Path (2E-6)
+- [`2026-09-25T04-59_pr5-multi-attempt.md`](./2026-09-25T04-59_pr5-multi-attempt.md) — PR 5: Multi-Attempt v1 (2E-7)
+
 ## Phase 2D — Agent Faultline Benchmark (2026-09-24)
 - [`2026-09-23T22-41_task-2d-1-benchmark-infrastructure.md`](./2026-09-23T22-41_task-2d-1-benchmark-infrastructure.md) — Task 2D-1: Benchmark Infrastructure
 - [`2026-09-24T04-47_task-2d-2-tier-1-5-challenges.md`](./2026-09-24T04-47_task-2d-2-tier-1-5-challenges.md) — Task 2D-2: Tier 1–5 Challenges
