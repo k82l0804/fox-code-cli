@@ -12,7 +12,7 @@
 
 - [ ] **2E-1. Loop-Exit Gate + Mutation Journal** — Mutation gate in `loop.ts`: code-change tasks cannot exit on prose. Session mutation journal tracks harness-applied edits. Intent detection fails open toward code-change. Reflection names the tier-appropriate edit tool.
 
-- [ ] **2E-2. Verification as Harness Reflection** — Exit-time verification with baseline comparison (only new regressions block). Repair budget as hard cap. Fresh-verify skip. Flaky test retry. Unified `resolveExitCondition()`.
+- [ ] **2E-2. Verification as Harness Reflection** — Exit-time verification with baseline comparison (only new regressions block). Repair budget as hard cap. Fresh-verify skip. Flaky test retry. Parse-fail circuit breaker (3-strike rule — prevents Goose-style truncate→retry livelock). Unified `resolveExitCondition()`.
 
 - [ ] **2E-3. Localization Pipeline + Code Context Block** — `buildCodeContextBlock()` with 5k token envelope (map + localize spans + pinned bodies). Hierarchical localize prelude (BM25 over identifiers + graph). Cold-index non-blocking. Honest cache key. Repo map injection (more for weak models). Working-set pinning.
 

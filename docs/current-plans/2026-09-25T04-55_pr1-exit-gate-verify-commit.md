@@ -302,6 +302,8 @@ export interface ExitConditionState {
   maxRepairTurns: number            // default 3
   hasGreenCommit: boolean
   isMaxSteps: boolean
+  parseFailStreak: number           // consecutive identical tool-output parse failures
+  maxParseFailStreak: number        // default 3 — circuit breaker
   // oscillation: reserved for future (2F-4 placeholder row)
 }
 
@@ -321,6 +323,17 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
   // 2. Not a code-change task — exit normally
   if (!state.isCodeChangeTask) {
     return { action: "break", reason: "non-code task, exit normally" }
+  }
+
+  // 2.5. Parse-fail circuit breaker (3-strike rule)
+  // Prevents Goose-style truncate → retry → 1000-turn livelock.
+  // If the last N consecutive tool outputs were identical parse failures,
+  // the model is stuck in a loop and cannot recover.
+  if (state.parseFailStreak >= state.maxParseFailStreak) {
+    return {
+      action: state.hasGreenCommit ? "rollback" : "break",
+      reason: `parse-fail circuit breaker: ${state.parseFailStreak} identical failures`,
+    }
   }
 
   // 3. No mutations — inject empty-exit reflection
@@ -365,6 +378,9 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
 - Non-code task always exits normally.
 - `isCodeChangeTask` with `journalEmpty` + `emptyExitRetries === 0` → continue with reflection.
 - `isCodeChangeTask` with `journalEmpty` + `emptyExitRetries === 2` → break with warning.
+- Parse-fail streak = 3 + green commit → rollback.
+- Parse-fail streak = 3 + no green commit → break with warning.
+- Parse-fail streak = 2 → continue (not yet at threshold).
 
 ---
 
@@ -382,10 +398,11 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
 
 ### Unit tests (`test/`)
 1. `mutation-journal.test.ts` — record, isEmpty, reset, fileCount. Commit does not count. Fence-parse source accepted.
-2. `control-plane.test.ts` — all 6 conditions individually + 4 combinations (see above).
+2. `control-plane.test.ts` — all 7 conditions individually + 7 combinations (see above). Includes parse-fail circuit breaker at streak=3.
 3. `exit-gate.test.ts` — mock session where model finishes without mutations on code-change task → reflection injected with correct tool name for tier. Non-code task exits normally.
 4. Intent override: "the rate limiter tests are failing" → `isCodeChangeTask` returns true.
 5. `isCodeChangeTask` with `intent === "research"` + no edit tools → returns false.
+6. Parse-fail circuit breaker: 3 identical tool parse failures → break. 2 → continue.
 
 ### Full-stack smoke test
 - `test/exit-gate-smoke.test.ts` — runs the full loop against a tiny fixture repo with a fabricated session. Asserts:
