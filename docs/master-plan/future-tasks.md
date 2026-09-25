@@ -449,6 +449,24 @@ Do not add tools. Do not add a second model. Do not fine-tune until you have a p
 
 ---
 
+### 2F-7. Fold or Freeze `general`/`explore` Agents
+
+**Problem**: Fox's `general` and `explore` agents are same-model clones with all tools and no harness discipline — the exact pattern that makes Goose's subagents ineffective. They dilute the loop's authority over exit/verify/commit. Keeping them alongside the hardened 2E loop creates two paths: the disciplined path (main agent with exit gate) and the undisciplined path (subagent with all tools, no gate).
+
+**What to build**:
+- **Fold `general` into the main agent**. The main agent already has all tools; `general` adds nothing. Remove the agent definition.
+- **Freeze `explore`**: convert from "agent with all tools" to a **read-only preset** that restricts the tool surface to `read`, `grep`, `glob`, `lsp`, `bash` (no mutation tools). This makes it genuinely useful for exploration without the risk of unverified writes.
+- **Do not add new agent personas.** Scout = a capped parent tool (PR 3 graph queries). Scribe = fence-parse format (PR 4). Runner = verify pipeline (PR 1). None of these are agents.
+- Audit any session code that dispatches to `general`/`explore` and ensure it routes through the exit gate.
+
+**Source**: Competitive analysis — Goose weakness #5 ("subagents unclutter chat; they do not own apply").
+
+**Files to modify**: Agent definitions in `src/foxcode/agents/`, `src/session/prompt/loop.ts` (remove general dispatch), session tools resolution.
+
+**Tests**: Main agent with code-change task → full exit gate applies. `explore` preset → mutation tools not in surface. No agent path bypasses `resolveExitCondition()`.
+
+---
+
 ## Phase 2G — Infrastructure & Traces
 
 > Still no supervisor model. These multiply infrastructure quality, not loop correctness. Do after 2F, when you have green traces from the hardened loop.
@@ -530,6 +548,45 @@ Do not add tools. Do not add a second model. Do not fine-tune until you have a p
 **Files to create**: `src/session/multi-attempt/repro.ts`.
 
 **Tests**: Repro test generated → fails on HEAD → passes after patch → attempt ranked highest. Repro that doesn't flip → attempt penalized.
+
+---
+
+### 2G-6. Two-Model Dispatch (Parent/Editor on Separate Hardware)
+
+**Problem**: Aider's architect/editor assumes two API tiers to the same cloud. Fox's environment is two physical GPUs with different resident models (H200 for planning, RTX 6000 for fast edits). The tier system (2E-4) and fence-parse (2E-6) provide the foundation, but there's no mechanism to route the parent's plan to a *different model* on *different hardware* for the editing step.
+
+**What to build**:
+- **`EditSpec` output format**: When the parent model (write-banned, S/A tier on H200) completes planning, it emits an `EditSpec` — a structured description of what to change (`{files, intent, approach}`) that the harness can route.
+- **Editor dispatch**: The harness routes the `EditSpec` + pinned file content to the editor model (C/D tier on RTX 6000). The editor produces fenced file output (2E-6 format). The harness applies, verifies, and commits.
+- **Model routing config**: `fox.jsonc` config for mapping tiers to providers/endpoints: `{ "parent": { "provider": "openai-compat", "endpoint": "http://h200:8000/v1" }, "editor": { "provider": "openai-compat", "endpoint": "http://rtx6000:8000/v1" } }`.
+- **Constraint**: Parent cannot write (no mutation tools). Editor cannot search (no `grep`/`read` — it gets pinned files from the harness). This is Aider's architect/editor mapped to physical hardware.
+
+**Source**: Competitive analysis — Aider weakness #7 ("architect/editor is two API roles, not two GPUs").
+
+**Files to create**: `src/session/model-dispatch.ts` (routing logic), `src/session/edit-spec.ts` (EditSpec type + parser).
+**Files to modify**: `src/session/prompt/loop.ts` (two-model orchestration), `src/foxcode/config/config.ts` (model routing config).
+
+**Tests**: Parent emits EditSpec → editor receives pinned files + spec → produces fence → harness applies. Parent cannot call mutation tools. Editor cannot call search tools. Single-model fallback works (both parent and editor are the same model).
+
+---
+
+### 2G-7. Selective Compaction (Compact Outputs, Not Map/Errors)
+
+**Problem**: Fox's compaction (and Goose's) summarizes the entire conversation uniformly. This destroys the code-context block that was cached in the KV prefix, and erases error messages the model needs to recover from a bug. The H200's prefix cache is expensive to refill.
+
+**What to build**:
+- **Tiered compaction**: When context limit is approaching, compact in this order:
+  1. **Tool output payloads** (grep results, read output, bash stdout) — summarize to `{tool, file, status, 1-line summary}`.
+  2. **Old assistant prose** (explanations, planning text older than N turns) — summarize to 1 sentence.
+  3. **Never compact**: system prefix (code-context block, map, pins), error messages from verification failures, mutation journal entries.
+- **Compaction boundary**: The code-context block is in the system prefix. It is never part of conversation compaction. Error messages from the last 2 verification failures are pinned (not compacted) so the model can still see what went wrong.
+- **Metric**: After compaction, the KV prefix cache key should still hit (the system prefix didn't change).
+
+**Source**: Competitive analysis — Goose weakness #2 ("compact at 80% destroys the prefix you paid to cache").
+
+**Files to modify**: Compaction logic in `src/session/prompt/` (tiered compaction rules), `src/session/code-context.ts` (mark as non-compactable).
+
+**Tests**: Compaction fires → tool outputs summarized → system prefix unchanged → KV cache key still hits. Error messages from last 2 verify failures survive compaction. Old prose compacted. Code-context block never touched.
 
 ---
 
