@@ -415,6 +415,10 @@ export const Info = Schema.Struct({
         description:
           "Maximum consecutive failed verification cycles before warning the agent to stop. Defaults to 3.",
       }),
+      max_empty_exit_retries: Schema.optional(PositiveInt).annotate({
+        description:
+          "Maximum times the harness will re-prompt a model that exits without making any file changes on a code-change task. Defaults to 2.",
+      }),
     }),
   ).annotate({ description: "Autonomous verification layer configuration for oscillation detection, auto-testing, and repair budget" }),
 }).annotate({ identifier: "Config" })

@@ -423,8 +423,13 @@ export interface VerificationExecutionOptions {
  */
 export async function executeVerification(
   command: string,
-  options: VerificationExecutionOptions,
+  optionsOrCwd?: VerificationExecutionOptions | string,
+  timeoutMsArg?: number,
 ): Promise<VerificationResult> {
+  const options: VerificationExecutionOptions =
+    typeof optionsOrCwd === "string"
+      ? { cwd: optionsOrCwd, timeoutMs: timeoutMsArg }
+      : { cwd: optionsOrCwd?.cwd ?? process.cwd(), ...optionsOrCwd }
   const { spawn } = await import("child_process")
   const { killTree } = await import("./shell")
   const { filterTestOutput } = await import("./tool/compress")

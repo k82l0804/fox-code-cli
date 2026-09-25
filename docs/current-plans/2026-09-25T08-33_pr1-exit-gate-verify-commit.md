@@ -309,6 +309,7 @@ export type ExitAction = "continue" | "break" | "rollback"
  * The 4 universal terminal states for unattended execution (from Guardian v5.0):
  * - "done": Plan/task satisfied, mutations applied, verification passed/approved
  * - "blocked": Human decision required (ambiguous spec, policy violation, design fork)
+ *              NOTE: Reserved for Phase 3A (Plan Contract gate) — not assignable by resolveExitCondition() in PR 1.
  * - "failed-safe": Circuit breaker / repair budget tripped; rolled back to green anchor
  * - "needs-review": Budget exhausted without a green commit; halted with wake-up audit
  */
@@ -433,6 +434,26 @@ export function formatWakeUpAudit(params: WakeUpAuditParams): string {
   lines.push(`=============================`)
   return lines.join("\n")
 }
+
+/**
+ * Returns a contextual next-action suggestion based on the terminal state.
+ * This is a simple string — Phase 3 (task 15c) extends this into a rich
+ * structured briefing with Plan Contract integration.
+ */
+export function buildSuggestedPrompt(exitDecision: ExitDecision): string {
+  switch (exitDecision.terminalState) {
+    case "done":
+      return "Review the changes and run tests manually to confirm."
+    case "failed-safe":
+      return `Rolled back to green commit. Focus on fixing: ${exitDecision.reason}`
+    case "needs-review":
+      return `Budget exhausted. Review the current state: ${exitDecision.reason}`
+    case "blocked":
+      return "Human decision required before proceeding."
+    default:
+      return "Check session state and decide next steps."
+  }
+}
 ```
 
 ### Combination tests required
@@ -482,3 +503,5 @@ export function formatWakeUpAudit(params: WakeUpAuditParams): string {
 
 ### Manual gate test
 - Replay frozen 8B empty-exit transcript against fixture repo → must NOT exit on prose.
+
+> **Refinement pass**: Completed 2026-09-25. Fixed: added `"blocked"` reserved-for-Phase-3A comment, defined `buildSuggestedPrompt()` implementation.

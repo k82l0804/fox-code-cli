@@ -4,4 +4,4 @@ Directory for curated session prompts used to drive autonomous runs, implementat
 
 | Prompt | Target | Description |
 |---|---|---|
-| [2026-09-25T06-42_phase-2e-pr1-implementation.md](./2026-09-25T06-42_phase-2e-pr1-implementation.md) | Gemini 3.8 Flash High | Phase 2E PR 1 implementation prompt (Exit Gate + Verify + Commit + Control Plane) |
+| [2026-09-25T08-33_phase-2e-pr1-implementation.md](./2026-09-25T08-33_phase-2e-pr1-implementation.md) | Gemini 3.8 Flash High | Phase 2E PR 1 implementation prompt (Exit Gate + Verify + Commit + Control Plane) |

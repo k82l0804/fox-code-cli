@@ -9,7 +9,7 @@
 
 | Plan | PR | Tasks | Status |
 |------|-----|-------|--------|
-| [PR 1: Exit Gate + Verify + Commit + Control Plane](./2026-09-25T06-40_pr1-exit-gate-verify-commit.md) | PR 1 | 2E-1 + 2E-2 + 2F-1 + 2F-4 | ⏳ Pending |
+| [PR 1: Exit Gate + Verify + Commit + Control Plane](./2026-09-25T08-33_pr1-exit-gate-verify-commit.md) | PR 1 | 2E-1 + 2E-2 + 2F-1 + 2F-4 | ✅ Implemented |
 | [PR 2: ACI Matrix + Grep Shape](./2026-09-25T04-56_pr2-aci-matrix-grep-shape.md) | PR 2 | 2E-4 + 2F-2 | ⏳ Pending |
 | [PR 3: Code Context Block](./2026-09-25T04-57_pr3-code-context-block.md) | PR 3 | 2E-3 (includes 2E-5) | ⏳ Pending |
 | [PR 4: Weak-Model Fast Path](./2026-09-25T04-58_pr4-weak-model-fast-path.md) | PR 4 | 2E-6 | ⏳ Pending |

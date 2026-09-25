@@ -27,7 +27,7 @@ PR 1 (Exit Gate + Verify + Commit + Control Plane)
 ```
 
 Read the full PR 1 plan first:
-`fox-code-cli/docs/current-plans/2026-09-25T06-40_pr1-exit-gate-verify-commit.md`
+`fox-code-cli/docs/current-plans/2026-09-25T08-33_pr1-exit-gate-verify-commit.md`
 
 ---
 

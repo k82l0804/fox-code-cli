@@ -15,6 +15,7 @@ import {
 import {
   SessionID,
   MessageID,
+  PartID,
 } from "../schema"
 import {
   PermissionV1,
@@ -74,6 +75,17 @@ import {
   reclassifyOnFailure,
   type TierReclassState,
 } from "@/foxcode/model-tier"
+import {
+  resolveExitCondition,
+  isCodeChangeTask,
+  formatWakeUpAudit,
+  buildSuggestedPrompt,
+  buildEmptyExitReflectionText,
+} from "../control-plane"
+import { classifyIntent } from "@/foxcode/intent"
+import { Verification } from "@opencode-ai/core/verification"
+import { VerificationBaseline } from "@opencode-ai/core/verification-baseline"
+import { RepairBudgetTracker } from "@opencode-ai/core/repair-budget"
 
 export interface PromptLoopDeps {
   readonly sessions: Session.Interface
@@ -143,6 +155,12 @@ export function makePromptLoop(deps: PromptLoopDeps) {
   } = deps
 
   const closeReasons = new Map<string, FoxSession.CloseReason>()
+  const emptyExitCounters = new Map<SessionID, number>()
+  const lastUserMessageIDs = new Map<SessionID, MessageID>()
+  const lastVerificationStates = new Map<
+    SessionID,
+    { timestamp: number; hasNewRegressions: boolean; feedback: string }
+  >()
 
   const runLoop = Effect.fn("SessionPrompt.run")(function* (input: LoopInput) {
     const sessionID = input.sessionID
@@ -181,6 +199,15 @@ export function makePromptLoop(deps: PromptLoopDeps) {
       const { user: lastUser, assistant: lastAssistantMsgRef, finished: lastFinished, tasks } = latest
       if (input.resume && step === 0 && FoxSessionContinuation.target(msgs) !== input.resume) break
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+
+      // Reset empty exit counter and journal on new user message (new goal)
+      if (lastUserMessageIDs.get(sessionID) !== lastUser.id) {
+        lastUserMessageIDs.set(sessionID, lastUser.id)
+        emptyExitCounters.set(sessionID, 0)
+        processor.getJournal(sessionID).reset()
+        processor.resetParseFailStreak(sessionID)
+        lastVerificationStates.delete(sessionID)
+      }
 
       const lastAssistantMsg = msgs.findLast(
         (msg) => msg.info.role === "assistant" && msg.info.id === lastAssistantMsgRef?.id,
@@ -233,7 +260,212 @@ export function makePromptLoop(deps: PromptLoopDeps) {
             callID: orphan.callID,
           })
         }
-        yield* Effect.logInfo("exiting loop", { "session.id": sessionID })
+
+        // --- Phase 2E-1 & 2E-2 & 2F-4: Loop Exit Gate & Control Plane ---
+        const cfg = yield* config.get()
+        const userMsg = msgs.findLast((m) => m.info.role === "user" && m.info.id === lastUser.id)
+        const userText =
+          userMsg?.parts
+            .filter((p): p is MessageV2.TextPart => p.type === "text")
+            .map((p) => p.text)
+            .join("\n") ?? ""
+
+        const intent = classifyIntent({ message: userText })
+        const hasEditTools = toolDefCache
+          ? toolDefCache.builtins.some((b) =>
+              ["edit", "rewrite_file", "apply_patch"].includes(b.id),
+            )
+          : true
+        const isCodeChange = isCodeChangeTask(intent, userText, hasEditTools)
+
+        const journal = processor.getJournal(sessionID)
+        const journalEmpty = journal.isEmpty()
+        const emptyExitRetries = emptyExitCounters.get(sessionID) ?? 0
+        const maxEmptyExitRetries = cfg.autonomous?.max_empty_exit_retries ?? 2
+
+        // Resolve agent, model and tier for exit check
+        const agent = yield* agents.get(lastUser.agent)
+        const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
+        const profile = resolveProfile({
+          modelId: model.api.id,
+          providerId: model.providerID,
+          overrideProfile: cfg.model_profile,
+        })
+        const tierInfo = resolveTier({
+          modelId: model.api.id,
+          providerId: model.providerID,
+          profileTier: profile.tier,
+          profileParamHint: profile.parameterHint,
+          overrideTier: cfg.model_tier,
+        })
+        if (!reclassState || reclassState.original.tier !== tierInfo.tier) {
+          reclassState = createReclassState(tierInfo)
+        }
+        const effectiveTier =
+          cfg.dynamic_tier_reclassification !== false && reclassState ? reclassState.current : tierInfo
+        const maxSteps = computeMaxSteps(agent.steps, effectiveTier)
+        const isMaxSteps = step >= maxSteps
+
+        // Exit-time verification if mutations exist and auto-verify is enabled
+        let hasNewRegressions = false
+        let repairBudgetExhausted = false
+        let regressionReflectionText: string | undefined
+
+        const autoVerifyEnabled = cfg.autonomous?.auto_verify !== false
+        if (!journalEmpty && autoVerifyEnabled) {
+          const lastEntry = journal.lastEntry()
+          const lastVerify = lastVerificationStates.get(sessionID)
+          // Fresh-verify skip: if no new mutations since last verify
+          if (lastVerify && lastEntry && lastEntry.timestamp <= lastVerify.timestamp) {
+            hasNewRegressions = lastVerify.hasNewRegressions
+            regressionReflectionText = lastVerify.feedback
+          } else {
+            const dirs = yield* config.directories()
+            const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+            const scripts = yield* Effect.promise(() => Verification.readPackageScripts(projectDir))
+            const pipeline = Verification.detectCommandPipeline(scripts, {
+              test_command: cfg.autonomous?.test_command,
+              typecheck_command: cfg.autonomous?.typecheck_command,
+              lint_command: cfg.autonomous?.lint_command,
+              verification_strategy: cfg.autonomous?.verification_strategy,
+            })
+
+            if (pipeline.commands.length > 0) {
+              const timeoutMs = cfg.autonomous?.test_timeout ?? Verification.DEFAULT_VERIFICATION_TIMEOUT_MS
+              let pipelineResult: Verification.PipelineResult = yield* Effect.promise(() =>
+                Verification.executePipeline(pipeline, {
+                  cwd: projectDir,
+                  timeoutMs,
+                }),
+              )
+
+              // Flaky test retry: retry failed command once before consuming budget
+              if (!pipelineResult.allPassed && pipelineResult.firstFailure) {
+                const retryResult = yield* Effect.promise(() =>
+                  Verification.executeVerification(pipelineResult.firstFailure!.command, {
+                    cwd: projectDir,
+                    timeoutMs,
+                  }),
+                )
+                if (retryResult.passed) {
+                  const updatedResults = pipelineResult.results.map((r) =>
+                    r.command === pipelineResult.firstFailure!.command ? retryResult : r,
+                  )
+                  const allPassed = updatedResults.every((r) => r.passed)
+                  pipelineResult = {
+                    results: updatedResults,
+                    allPassed,
+                    firstFailure: updatedResults.find((r) => !r.passed),
+                    totalElapsedMs: pipelineResult.totalElapsedMs + retryResult.elapsedMs,
+                  }
+                }
+              }
+
+              const baseline = processor.getVerificationBaseline(sessionID)
+              let regressionFeedback = ""
+              if (baseline) {
+                const analysis = VerificationBaseline.analyzeRegressions(baseline, pipelineResult)
+                hasNewRegressions = analysis.hasNewRegressions
+                regressionFeedback = VerificationBaseline.formatRegressionFeedback(analysis)
+              } else {
+                hasNewRegressions = !pipelineResult.allPassed
+              }
+
+              const feedback = Verification.formatPipelineFeedback(pipelineResult)
+              regressionReflectionText = [feedback, regressionFeedback].filter(Boolean).join("\n\n")
+
+              lastVerificationStates.set(sessionID, {
+                timestamp: Date.now(),
+                hasNewRegressions,
+                feedback: regressionReflectionText,
+              })
+
+              const maxRepairTurns = cfg.autonomous?.max_repair_turns ?? 3
+              const budget = processor.getRepairBudget(sessionID, maxRepairTurns)
+              if (hasNewRegressions) {
+                const budgetResult = RepairBudgetTracker.recordFailure(budget)
+                repairBudgetExhausted = budgetResult.exhausted
+              } else if (pipelineResult.allPassed) {
+                RepairBudgetTracker.recordSuccess(budget)
+                const lastHarnessCommit =
+                  processor.getLastGreenCommit(sessionID) ??
+                  processor.getHarnessCommits(sessionID).slice(-1)[0]
+                if (lastHarnessCommit) {
+                  processor.tagCommitGreen(sessionID, lastHarnessCommit.hash)
+                }
+              }
+            }
+          }
+        }
+
+        const parseFailStreak = processor.getParseFailStreak(sessionID)
+        const greenCommit = processor.getLastGreenCommit(sessionID)
+
+        const exitDecision = resolveExitCondition({
+          isCodeChangeTask: isCodeChange,
+          journalEmpty,
+          emptyExitRetries,
+          maxEmptyExitRetries,
+          hasNewRegressions,
+          repairBudgetExhausted,
+          maxRepairTurns: cfg.autonomous?.max_repair_turns ?? 3,
+          hasGreenCommit: !!greenCommit,
+          isMaxSteps,
+          parseFailStreak,
+          maxParseFailStreak: 3,
+          tier: effectiveTier.tier,
+          regressionReflectionText,
+        })
+
+        if (exitDecision.action === "continue") {
+          if (exitDecision.incrementEmptyExit) {
+            emptyExitCounters.set(sessionID, emptyExitRetries + 1)
+          }
+          const reflectionText =
+            exitDecision.reflectionText ?? buildEmptyExitReflectionText(effectiveTier.tier)
+          const reflectionMsg: SessionV1.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: { created: Date.now() },
+            agent: lastUser.agent,
+            model: lastUser.model,
+            editorContext: lastUser.editorContext,
+          }
+          yield* sessions.updateMessage(reflectionMsg)
+          yield* sessions.updatePart({
+            id: PartID.ascending(),
+            messageID: reflectionMsg.id,
+            sessionID,
+            type: "text",
+            text: reflectionText,
+            synthetic: true,
+          } satisfies SessionV1.TextPart)
+          FoxSessionPromptQueue.retarget(sessionID, reflectionMsg.id)
+          yield* Effect.logInfo("exit gate injected reflection, continuing loop", {
+            "session.id": sessionID,
+            reason: exitDecision.reason,
+          })
+          continue
+        }
+
+        if (exitDecision.action === "rollback") {
+          yield* processor.rollbackToLastGreen(sessionID)
+        }
+
+        if (exitDecision.terminalState) {
+          const audit = formatWakeUpAudit({
+            terminalState: exitDecision.terminalState,
+            sessionID,
+            reason: exitDecision.reason,
+            rollbackAnchor: processor.getLastGreenCommit(sessionID)?.hash,
+            modifiedFiles: [...new Set(journal.entries.map((e) => e.file))],
+            suggestedPrompt: buildSuggestedPrompt(exitDecision),
+          })
+          yield* Effect.logInfo(audit)
+        }
+
+        yield* Effect.logInfo("exiting loop", { "session.id": sessionID, action: exitDecision.action })
         break
       }
 

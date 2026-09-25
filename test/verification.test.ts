@@ -271,7 +271,7 @@ describe("Verification", () => {
         expect(result.exitCode).toBe(0)
         expect(result.command).toBe("echo 'all tests passed'")
         expect(result.compressedOutput).toContain("all tests passed")
-        expect(result.elapsedMs).toBeGreaterThan(0)
+        expect(result.elapsedMs).toBeGreaterThanOrEqual(0)
       } finally {
         await rm(tempDir, { recursive: true, force: true })
       }

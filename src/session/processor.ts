@@ -37,6 +37,10 @@ import { Oscillation } from "@opencode-ai/core/oscillation"
 import { RepairBudgetTracker } from "@opencode-ai/core/repair-budget"
 import { Verification } from "@opencode-ai/core/verification"
 import { VerificationBaseline } from "@opencode-ai/core/verification-baseline"
+import path from "node:path"
+import * as Process from "@/util/process"
+import { InvalidArgumentsError } from "@/tool/tool"
+import { createJournal, type MutationJournal } from "./mutation-journal"
 
 
 export const DOOM_LOOP_THRESHOLD = 3
@@ -97,16 +101,59 @@ function extractMutationFilePaths(toolName: string, metadata: Record<string, any
     for (const file of metadata.files) {
       if (isRecord(file) && typeof file.file === "string") {
         paths.push(file.file)
+      } else if (typeof file === "string") {
+        paths.push(file)
       }
     }
   }
 
   // Try metadata.path (write tool)
-  if (typeof metadata.path === "string" && paths.length === 0) {
+  if (typeof metadata.path === "string" && !paths.includes(metadata.path)) {
     paths.push(metadata.path)
   }
 
+  // Try metadata.file (single file)
+  if (typeof metadata.file === "string" && !paths.includes(metadata.file)) {
+    paths.push(metadata.file)
+  }
+
   return paths
+}
+
+async function execGit(args: string[], cwd: string): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const res = await Process.run(["git", ...args], {
+    cwd,
+    nothrow: true,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+  })
+  return {
+    exitCode: res.code,
+    stdout: res.stdout.toString("utf-8"),
+    stderr: res.stderr.toString("utf-8"),
+  }
+}
+
+export async function harnessCommit(
+  projectDir: string,
+  files: string[],
+  toolName: string,
+): Promise<string | undefined> {
+  if (files.length === 0) return undefined
+  // Stage the specific files first
+  await execGit(["add", ...files], projectDir)
+
+  // Check for actual staged changes (git diff --cached --quiet exits 0 if no changes)
+  const diffResult = await execGit(["diff", "--cached", "--quiet"], projectDir)
+  if (diffResult.exitCode === 0) return undefined // no changes -> no commit
+
+  const msg = `fox: ${toolName} ${files.map((f) => path.basename(f)).join(", ")}`
+  const result = await execGit(["commit", "-m", msg, "--no-verify"], projectDir)
+  return result.stdout.match(/\b([0-9a-f]{7,})\b/)?.[1] // return short hash
+}
+
+export async function rollbackToCommit(projectDir: string, commitHash: string): Promise<boolean> {
+  const result = await execGit(["reset", "--hard", commitHash], projectDir)
+  return result.exitCode === 0
 }
 
 export type Result = "compact" | "stop" | "continue"
@@ -142,8 +189,24 @@ type Input = {
   snapshotInitialization?: "wait"
 }
 
+export interface HarnessCommit {
+  readonly hash: string
+  readonly green: boolean
+  readonly timestamp: number
+  readonly files: readonly string[]
+}
+
 export interface Interface {
   readonly create: (input: Input) => Effect.Effect<Handle>
+  readonly getJournal: (sessionID: SessionID) => MutationJournal
+  readonly getRepairBudget: (sessionID: SessionID, maxTurns?: number) => RepairBudgetTracker.RepairBudget
+  readonly getVerificationBaseline: (sessionID: SessionID) => VerificationBaseline.BaselineSnapshot | undefined
+  readonly getHarnessCommits: (sessionID: SessionID) => readonly HarnessCommit[]
+  readonly getLastGreenCommit: (sessionID: SessionID) => HarnessCommit | undefined
+  readonly rollbackToLastGreen: (sessionID: SessionID, projectDir?: string) => Effect.Effect<boolean>
+  readonly getParseFailStreak: (sessionID: SessionID) => number
+  readonly resetParseFailStreak: (sessionID: SessionID) => void
+  readonly tagCommitGreen: (sessionID: SessionID, hash: string) => void
 }
 
 type ToolCall = {
@@ -198,6 +261,52 @@ const layer = Layer.effect(
     const verificationBaselines = new Map<SessionID, VerificationBaseline.BaselineSnapshot>()
     /** Monotonically increasing turn counter per session for oscillation tracking. */
     const turnCounters = new Map<SessionID, number>()
+    const mutationJournals = new Map<SessionID, MutationJournal>()
+    const harnessCommits = new Map<SessionID, HarnessCommit[]>()
+    const parseFailStreaks = new Map<SessionID, number>()
+
+    const getMutationJournal = (sessionID: SessionID) => {
+      let journal = mutationJournals.get(sessionID)
+      if (!journal) {
+        journal = createJournal()
+        mutationJournals.set(sessionID, journal)
+      }
+      return journal
+    }
+
+    const getHarnessCommits = (sessionID: SessionID): readonly HarnessCommit[] => {
+      let commits = harnessCommits.get(sessionID)
+      if (!commits) {
+        commits = []
+        harnessCommits.set(sessionID, commits)
+      }
+      return commits
+    }
+
+    const getLastGreenCommit = (sessionID: SessionID): HarnessCommit | undefined => {
+      const commits = harnessCommits.get(sessionID)
+      if (!commits) return undefined
+      for (let i = commits.length - 1; i >= 0; i--) {
+        if (commits[i].green) return commits[i]
+      }
+      return undefined
+    }
+
+    const getParseFailStreak = (sessionID: SessionID): number => parseFailStreaks.get(sessionID) ?? 0
+
+    const resetParseFailStreak = (sessionID: SessionID): void => {
+      parseFailStreaks.set(sessionID, 0)
+    }
+
+    const tagCommitGreen = (sessionID: SessionID, hash: string): void => {
+      const commits = harnessCommits.get(sessionID)
+      if (!commits) return
+      const match = commits.find((c) => c.hash === hash)
+      if (match) {
+        const idx = commits.indexOf(match)
+        commits[idx] = { ...match, green: true }
+      }
+    }
 
     const getOscillationTracker = (sessionID: SessionID, threshold?: number) => {
       let tracker = oscillationTrackers.get(sessionID)
@@ -401,11 +510,15 @@ const layer = Layer.effect(
         }
         yield* settleToolCall(toolCallID)
         FoxSessionProcessor.malformedToolGuard.reset(ctx.assistantMessage.parentID)
+        parseFailStreaks.set(ctx.sessionID, 0)
       })
 
       const failToolCall = Effect.fn("SessionProcessor.failToolCall")(function* (toolCallID: string, error: unknown) {
         const match = yield* readToolCall(toolCallID)
         if (!match || match.part.state.status !== "running") return false
+        if (error instanceof InvalidArgumentsError) {
+          parseFailStreaks.set(ctx.sessionID, (parseFailStreaks.get(ctx.sessionID) ?? 0) + 1)
+        }
         yield* session.updatePart({
           ...match.part,
           state: {
@@ -644,14 +757,13 @@ const layer = Layer.effect(
               const cfg = yield* config.get()
               const autonomousCfg = cfg.autonomous
               const oscillationsEnabled = autonomousCfg?.detect_oscillations !== false
+              const filePaths = extractMutationFilePaths(value.name, rawOutput.metadata)
 
               if (oscillationsEnabled) {
                 const threshold = autonomousCfg?.oscillation_threshold ?? 4
                 const tracker = getOscillationTracker(ctx.sessionID, threshold)
                 const turn = nextTurn(ctx.sessionID)
 
-                // Extract file paths from mutation tool metadata/output
-                const filePaths = extractMutationFilePaths(value.name, rawOutput.metadata)
                 for (const filePath of filePaths) {
                   // Hash the output text as a proxy for the content state
                   // (includes the diff/patch which reflects the actual change)
@@ -666,6 +778,11 @@ const layer = Layer.effect(
 
               // --- Autonomous Verification Layer: auto-verify after mutation ---
               const autoVerifyEnabled = autonomousCfg?.auto_verify !== false
+              let executedPipeline = false
+              let pipelineAllPassed = true
+              let hasNewRegressions = false
+              const baseline = verificationBaselines.get(ctx.sessionID)
+
               if (autoVerifyEnabled) {
                 const dirs = yield* config.directories()
                 const projectDir: string = dirs[0] ?? globalThis.process.cwd()
@@ -680,6 +797,7 @@ const layer = Layer.effect(
                 })
 
                 if (pipeline.commands.length > 0) {
+                  executedPipeline = true
                   const timeoutMs = autonomousCfg?.test_timeout ?? Verification.DEFAULT_VERIFICATION_TIMEOUT_MS
                   const pipelineResult: Verification.PipelineResult = yield* Effect.promise(() =>
                     Verification.executePipeline(pipeline, {
@@ -687,12 +805,11 @@ const layer = Layer.effect(
                       timeoutMs,
                     }),
                   )
+                  pipelineAllPassed = pipelineResult.allPassed
                   const feedback = Verification.formatPipelineFeedback(pipelineResult)
                   outputText = `${outputText}\n\n${feedback}`
 
                   // Regression analysis against baseline
-                  const baseline = verificationBaselines.get(ctx.sessionID)
-                  let hasNewRegressions = false
                   if (baseline) {
                     const analysis = VerificationBaseline.analyzeRegressions(baseline, pipelineResult)
                     const regressionFeedback = VerificationBaseline.formatRegressionFeedback(analysis)
@@ -715,6 +832,51 @@ const layer = Layer.effect(
                   } else if (pipelineResult.allPassed) {
                     RepairBudgetTracker.recordSuccess(budget)
                   }
+                }
+              }
+
+              // --- Phase 2E: Mutation Journal recording ---
+              if (value.name !== "commit" && filePaths.length > 0) {
+                const journal = getMutationJournal(ctx.sessionID)
+                for (const filePath of filePaths) {
+                  journal.record({
+                    tool: value.name,
+                    file: filePath,
+                    timestamp: Date.now(),
+                    messageId: ctx.assistantMessage.id,
+                  })
+                }
+              }
+
+              // --- Phase 2F-1: Harness-Owned Commit ---
+              if (value.name !== "commit" && filePaths.length > 0) {
+                const dirs = yield* config.directories()
+                const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+                const isGreen =
+                  !autoVerifyEnabled ||
+                  !executedPipeline ||
+                  (baseline ? !hasNewRegressions : pipelineAllPassed)
+                const commitHash = yield* Effect.promise(() =>
+                  harnessCommit(projectDir, filePaths, value.name),
+                )
+                if (commitHash) {
+                  const commits = harnessCommits.get(ctx.sessionID) ?? []
+                  if (!harnessCommits.has(ctx.sessionID)) {
+                    harnessCommits.set(ctx.sessionID, commits)
+                  }
+                  commits.push({
+                    hash: commitHash,
+                    green: isGreen,
+                    timestamp: Date.now(),
+                    files: [...filePaths],
+                  })
+                  yield* Effect.logInfo("harness commit created", {
+                    "session.id": ctx.sessionID,
+                    hash: commitHash,
+                    green: isGreen,
+                    tool: value.name,
+                    files: filePaths,
+                  })
                 }
               }
             }
@@ -1219,7 +1381,25 @@ const layer = Layer.effect(
       } satisfies Handle
     })
 
-    return Service.of({ create })
+    return Service.of({
+      create,
+      getJournal: getMutationJournal,
+      getRepairBudget,
+      getVerificationBaseline: (sessionID) => verificationBaselines.get(sessionID),
+      getHarnessCommits,
+      getLastGreenCommit,
+      rollbackToLastGreen: (sessionID, projectDir) =>
+        Effect.gen(function* () {
+          const greenCommit = getLastGreenCommit(sessionID)
+          if (!greenCommit) return false
+          const dirs = yield* config.directories()
+          const dir = projectDir ?? dirs[0] ?? globalThis.process.cwd()
+          return yield* Effect.promise(() => rollbackToCommit(dir, greenCommit.hash))
+        }),
+      getParseFailStreak,
+      resetParseFailStreak,
+      tagCommitGreen,
+    })
   }),
 )
 

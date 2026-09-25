@@ -2,7 +2,6 @@ import { Provider } from "@/provider/provider"
 import { LLM } from "@/session/llm"
 import { FoxLLM } from "@/foxcode/session/llm"
 import { Agent } from "@/agent/agent"
-import { AppRuntime } from "@/effect/app-runtime"
 import { Effect } from "effect"
 import * as Log from "@opencode-ai/core/util/log"
 import type { CommitMessageRequest, CommitMessageResponse, GitContext } from "./types"
@@ -17,12 +16,23 @@ export class NoChangesError extends Error {
   }
 }
 
+// Lazily load AppRuntime to avoid circular initialization between tool/registry and session/prompt
+let appRuntime: typeof import("@/effect/app-runtime").AppRuntime | undefined
+async function getAppRuntime() {
+  if (!appRuntime) {
+    const mod = await import("@/effect/app-runtime")
+    appRuntime = mod.AppRuntime
+  }
+  return appRuntime
+}
+
 export const CommitMessageRuntime = {
   context(repoPath: string, selectedFiles?: string[]) {
     return getGitContext(repoPath, selectedFiles)
   },
-  model() {
-    return AppRuntime.runPromise(
+  async model() {
+    const runtime = await getAppRuntime()
+    return runtime.runPromise(
       Provider.Service.use((svc) =>
         Effect.gen(function* () {
           const ref = yield* svc.defaultModel()
@@ -31,9 +41,10 @@ export const CommitMessageRuntime = {
       ),
     )
   },
-  generate(input: LLM.StreamInput, signal: AbortSignal) {
+  async generate(input: LLM.StreamInput, signal: AbortSignal) {
     // runPromise is needed until generateCommitMessage() uses Effect
-    return AppRuntime.runPromise(
+    const runtime = await getAppRuntime()
+    return runtime.runPromise(
       LLM.Service.use((svc) => FoxLLM.text(svc.stream(input)).pipe(Effect.orDie)),
       {
         signal,
