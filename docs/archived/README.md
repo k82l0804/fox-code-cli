@@ -46,6 +46,8 @@ Early research notes and RFCs that led to the current compression engine and tes
 - [`2026-09-20T19-32_concerns-lossless-token-compression.md`](./research/2026-09-20T19-32_concerns-lossless-token-compression.md) — Risk analysis on KV-cache, truncation, and git rewrite invariants.
 - [`2026-09-20T19-32_report-realworld-autonomous-swe-benchmark.md`](./research/2026-09-20T19-32_report-realworld-autonomous-swe-benchmark.md) — Early real-world autonomous benchmark report (feature branch).
 - [`2026-09-20T19-32_std-test-suite-sort-of.md`](./research/2026-09-20T19-32_std-test-suite-sort-of.md) — Initial memo recommending standard SWE test suites. Superseded by [`../future/2026-09-22T15-16_autonomous-agent-std-tests.md`](../future/2026-09-22T15-16_autonomous-agent-std-tests.md).
+- [`2026-09-24T08-39_guardian-role.md`](./research/2026-09-24T08-39_guardian-role.md) — Guardian System Specification v4.0 (16-class classifier, same-model turn supervisor). Superseded by [`../research/2026-09-25T06-38_guardian-architecture-v5.md`](../research/2026-09-25T06-38_guardian-architecture-v5.md) (Plan Contract + asymmetric reviewer).
+- [`2026-09-24T20-21_guardian-concept-review.md`](./research/2026-09-24T20-21_guardian-concept-review.md) — Intermediate critique establishing Layer 0 harness priority over LLM supervisor. Reconciled into Phase 2E and Guardian v5.0.
 
 ### 4. `reviews/` — Codebase & Compression Reviews
 Historical peer reviews and tracker artifacts:

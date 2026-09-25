@@ -132,6 +132,19 @@ if (exitDecision.action === "rollback") {
   // Rollback to last green harness commit (2F-1)
   yield* rollbackToLastGreen(sessionID, harnessCommits)
 }
+
+// Emit Wake-Up Audit on any terminal exit (break or rollback)
+if (exitDecision.terminalState) {
+  yield* Effect.logInfo(formatWakeUpAudit({
+    terminalState: exitDecision.terminalState,
+    sessionID,
+    reason: exitDecision.reason,
+    rollbackAnchor: getLastGreenCommitHash(sessionID),
+    modifiedFiles: getJournal(sessionID).entries.map(e => e.file),
+    failedStage: lastVerificationFailure(sessionID)?.stage,
+    suggestedPrompt: buildSuggestedPrompt(exitDecision),
+  }))
+}
 // exitDecision.action === "break" → fall through to existing break
 ```
 
@@ -292,6 +305,15 @@ One **pure function** that owns all exit decisions. Import `isCodeChangeTask()` 
 ```typescript
 export type ExitAction = "continue" | "break" | "rollback"
 
+/**
+ * The 4 universal terminal states for unattended execution (from Guardian v5.0):
+ * - "done": Plan/task satisfied, mutations applied, verification passed/approved
+ * - "blocked": Human decision required (ambiguous spec, policy violation, design fork)
+ * - "failed-safe": Circuit breaker / repair budget tripped; rolled back to green anchor
+ * - "needs-review": Budget exhausted without a green commit; halted with wake-up audit
+ */
+export type TerminalState = "done" | "blocked" | "failed-safe" | "needs-review"
+
 export interface ExitConditionState {
   isCodeChangeTask: boolean
   journalEmpty: boolean
@@ -309,20 +331,29 @@ export interface ExitConditionState {
 
 export interface ExitDecision {
   action: ExitAction
+  terminalState?: TerminalState
   reflectionText?: string
   incrementEmptyExit?: boolean
   reason: string
 }
 
 export function resolveExitCondition(state: ExitConditionState): ExitDecision {
-  // 1. Max steps — existing logic, highest priority
+  // 1. Max steps — highest priority
   if (state.isMaxSteps) {
-    return { action: "break", reason: "max steps reached" }
+    return {
+      action: "break",
+      terminalState: "needs-review",
+      reason: "max steps reached",
+    }
   }
 
   // 2. Not a code-change task — exit normally
   if (!state.isCodeChangeTask) {
-    return { action: "break", reason: "non-code task, exit normally" }
+    return {
+      action: "break",
+      terminalState: "done",
+      reason: "non-code task, exit normally",
+    }
   }
 
   // 2.5. Parse-fail circuit breaker (3-strike rule)
@@ -332,6 +363,7 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
   if (state.parseFailStreak >= state.maxParseFailStreak) {
     return {
       action: state.hasGreenCommit ? "rollback" : "break",
+      terminalState: "failed-safe",
       reason: `parse-fail circuit breaker: ${state.parseFailStreak} identical failures`,
     }
   }
@@ -339,7 +371,11 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
   // 3. No mutations — inject empty-exit reflection
   if (state.journalEmpty) {
     if (state.emptyExitRetries >= state.maxEmptyExitRetries) {
-      return { action: "break", reason: `empty exit retries exhausted (${state.maxEmptyExitRetries})` }
+      return {
+        action: "break",
+        terminalState: "needs-review",
+        reason: `empty exit retries exhausted (${state.maxEmptyExitRetries})`,
+      }
     }
     return {
       action: "continue",
@@ -354,6 +390,7 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
     if (state.repairBudgetExhausted) {
       return {
         action: state.hasGreenCommit ? "rollback" : "break",
+        terminalState: state.hasGreenCommit ? "failed-safe" : "needs-review",
         reason: `repair budget exhausted (${state.maxRepairTurns} cycles)`,
       }
     }
@@ -364,8 +401,37 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
     }
   }
 
-  // 5. Mutations exist, verification passed (or not configured) — exit
-  return { action: "break", reason: "mutations applied, verification passed" }
+  // 5. Mutations exist, verification passed (or not configured) — exit cleanly
+  return {
+    action: "break",
+    terminalState: "done",
+    reason: "mutations applied, verification passed",
+  }
+}
+
+export interface WakeUpAuditParams {
+  terminalState: TerminalState
+  sessionID: string
+  reason: string
+  rollbackAnchor?: string
+  modifiedFiles: string[]
+  failedStage?: string
+  suggestedPrompt?: string
+}
+
+export function formatWakeUpAudit(params: WakeUpAuditParams): string {
+  const lines = [
+    `=== [Fox Wake-up Audit] ===`,
+    `Terminal State : ${params.terminalState}`,
+    `Session ID     : ${params.sessionID}`,
+    `Reason         : ${params.reason}`,
+  ]
+  if (params.rollbackAnchor) lines.push(`Rollback Anchor: ${params.rollbackAnchor}`)
+  lines.push(`Modified Files : [${params.modifiedFiles.join(", ")}]`)
+  if (params.failedStage) lines.push(`Failing Stage  : ${params.failedStage}`)
+  if (params.suggestedPrompt) lines.push(`Suggested Next : "${params.suggestedPrompt}"`)
+  lines.push(`=============================`)
+  return lines.join("\n")
 }
 ```
 

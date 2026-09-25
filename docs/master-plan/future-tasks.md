@@ -605,66 +605,40 @@ SFT on Fox-format successful trajectories becomes rational **after** 2E+2F produ
 ---
 
 
-## Phase 3 — Guardian (Autonomy Intelligence Layer)
+## Phase 3 — Guardian: Unattended Reliability Layer
 
-> The dual-agent oversight system. 4-layer architecture (Programmatic Controller → Classifier → Decision Engine → Corrector)
-> with L0–L3 authority postures. Needed for `--auto` / headless / `/goal` modes.
-> Depends on Phase 2 foundation being in place. Ship incrementally — Layer 0 (programmatic)
-> first, then LLM layers, then GUI.
+> Gated autonomy for hours-long unattended runs on local models.
+> In interactive mode the human is the guardian; in `--auto` nobody is.
+> Guardian is the intelligence layer between "raw doer" and "circuit breaker."
+> Built strictly on top of the deterministic harness from Phase 2E.
+>
+> **Core Law**: Autonomy is a request, not a guarantee.
+> **Context Asymmetry**: Guardian operates in a separate, lean context window (3–8k tokens) with frozen artifacts (Plan Contract, diff stat, test results, oscillation counters) — never the doer's chain-of-thought.
+>
+> **Research**: [`2026-09-25T06-38_guardian-architecture-v5.md`](../research/2026-09-25T06-38_guardian-architecture-v5.md)
 
-See: `fox-code-cli/docs/research/2026-09-24T08-39_guardian-role.md`.
+### Phase 3A — Plan Contract & Gated Autonomy Intake
 
-### Phase 3A-1 — Guardian Visibility (L0 + L1)
+- [ ] **15. First-Class `PlanContract` Schema & Validator** — The product is the Plan Contract. Machine-readable schema: single-sentence goal, in-scope files/packages, out-of-scope tether (forbidden paths), acceptance test commands + expected signal, rollback anchor (SHA/snapshot), blast-radius budget (max files/lines), and a binary definition of done. `/plan` and `/refine` produce verified contracts.
 
-> **Layer 0 (programmatic) first, then LLM layers, then GUI easiest → hardest.**
+- [ ] **15b. Autonomous Intake Gate (`--auto` Refusal / Scaffold)** — Asking for `--auto` requests permission to run unattended. If the plan contract is ambiguous, unbounded, or missing binary acceptance criteria, the gate **refuses** `--auto` and prints an Assisted Scaffold with `[REQUIRED]` and `[MISSING]` markers. No unconstrained runs.
 
-**Layer 0: Programmatic Controller (no LLM, ship first):**
+- [ ] **15c. Structured Wake-Up Audit Generator** — Standardized diagnostic briefing emitted whenever execution halts or ends (`done`, `blocked`, `failed-safe`, `needs-review`). Emits: terminal state, active plan, completed steps, modified files, verification results, rollback SHA, suggested prompt.
 
-- [ ] **15. Guardian Config + Decision Logging + CLI** — Config loading (`fox.jsonc` guardian section, CLI flags, defaults). `GuardianDecisionLog` schema → session metadata. `fox guardian-log` CLI. Preset postures per project.
-- [ ] **15b. Programmatic Controller: Counters + Boundaries** — Retry/repair budget counters. Doom loop detection (N identical errors → stop). Oscillation detection (A→B→A→B hash ring buffer). File boundary enforcement (diff files ∩ allowed set). Cost/token budget tracking. Context size monitoring. Progress tracking (completed steps vs plan).
-- [ ] **15c. Programmatic Controller: Process Hooks + Baselines** — Auto-lint after file write (run `lint_command`, feed errors to Worker). Auto-test after significant edits (compare to baseline). Test/lint/build baseline capture at task start. Fallback behavior (Guardian failure → conservative posture).
+### Phase 3B — Asymmetric Pre-Commit Reviewer (A2 Gate)
 
-**Layers 1–3: LLM Engine (ship after Layer 0 is solid):**
+- [ ] **16. Separate-Window Context & Artifact Ingestion** — Guardian fiber running in an independent context window (3–8k tokens). Ingests only frozen artifacts: Plan Contract, `git diff --stat` + scoped hunk, test/typecheck outputs, oscillation & budget counters. Strictly blinded to doer chain-of-thought to prevent rationalization mirroring.
 
-- [ ] **16. Guardian Classifier + Decision Engine** — Layer 1 (action model, constrained decoding via XGrammar, F1–F16). Layer 2 (deterministic posture × severity × confidence lookup table). Confidence model (logprobs). Context injection correction (lightest, needed for L1 advise).
-- [ ] **17. Trip-Wires + Pre-Task Analysis + Human Intent Review (F16)** — Semantic scope analysis (beyond Layer 0 file boundaries). F16 human intent review (elevated thresholds).
+- [ ] **16b. Antagonistic Reviewer & Decision Protocol** — Hostile review prompt ("Find reasons why this diff violates the Plan Contract or breaks product intent"). Emits one of three structured verdicts: `approve` (proceeds to harness commit), `request_changes` (injects targeted feedback to doer with retry bound), or `flag_for_human` (triggers `needs-review` / `blocked` with wake-up audit).
 
-**GUI (easiest → hardest, after engine works):**
+- [ ] **16c. Sliding Authority Postures (L0–L2)** — Single analysis engine with three permission policies: L0 (monitor/log only), L1 (Wingman advise in interactive TUI; Esc drops to L0), L2 (surrogate enforce in `--auto` with emergency stop and rollback).
 
-- [ ] **18a. GUI Tier 1 (Trivial)** — Status bar (`🛡️ Wingman · ready`), Wingman↔Guardian naming transition, `/guardian <posture>` commands, `/guardian off`, `Esc` drops to L1.
-- [ ] **18b. GUI Tier 2 (Easy)** — `/guardian status` panel (posture, trip-wires, recent decisions, confidence), warning panel, `/scope` (scope radar), `/context` (context health).
-- [ ] **18c. GUI Tier 3 (Medium)** — User-invokable Wingman commands: `/enhance`, `/plan`, `/verify`, `/refine`, `/scope narrow`. Ready-to-use prompts, one-click override.
-- [ ] **18d. GUI Tier 4 (Hard)** — Wingman auto-propose: auto-detect bad prompt → offer `/enhance` with accept/edit/ignore. The autocomplete behavior. Ship *after* manual commands are proven.
+### Phase 3C — Adaptive Triage (A1) & Directed Compaction (A3)
 
-### Phase 3A-2 — Guardian Light Corrections (L2)
+- [ ] **17. Failure Classification & Triage (A1 Gate)** — When deterministic verification fails, Guardian inspects test output and recent diff to classify failure: implementation error, test-suite bug, out-of-scope drift, or environment flake. Injects specific tactical redirection to doer rather than blind retry.
 
-**Engine:**
+- [ ] **18. Guardian-Directed Compaction (A3 Gate)** — When doer context approaches compaction threshold, Guardian synthesizes the compaction directive: pins the Plan Contract, completed milestones, and architecture decisions while discarding ephemeral scratchpad steps and intermediate tool outputs.
 
-- [ ] **19. L2 Correction Engine** — Strategy redirect, plan rewrite, snapshot rollback. Watchdog fiber (continuous monitoring between checkpoints). Session-local adjustment (override tracking, nag prevention).
-- [ ] **20. Multi-Model Routing (LLM-based)** — Guardian classifies failure types and recommends model tier changes. Complements the deterministic routing from Phase 2C.
-
-**GUI (easiest → hardest):**
-
-- [ ] **20a. L2 Posture + Mid-Session Switching** — L2 `guard` posture. `/guardian guard`, `Esc` drops posture. Auto-correct low-severity, stop on medium/high.
-- [ ] **20b. Wingman Live Monitoring GUI** — Progress pulse ("3 of 7 steps done"), `/context compact`, `/trajectory`, live trajectory commentary, one-click interventions ("Redirect strategy?"), silent trip-wire highlights. Ghost suggestions (prototype — high UX risk).
-
-### Phase 3A-3 — Guardian Full Autonomy (L3)
-
-- [ ] **21. L3 Engine + Posture** — Diff rejection + rewrite (heaviest correction). L3 `autopilot` posture. Headless BLOCKED policy (timeout, notification, `snapshot_and_abort`). Pre-commit review gate.
-
-### Phase 3B — Task Decomposition + Wingman Memory
-
-- [ ] **22. Guardian Phase B — Task Decomposition** — Guardian owns goal decomposition into task graphs with dependencies and acceptance criteria. Extends `todowrite` with status tracking and task supersession.
-
-**Deferred GUI (ships after 3A is battle-tested):**
-
-- [ ] **22b. Wingman Preference Memory + /memory + /learn** — `/memory` (show/forget/export preferences), `/learn "<constraint>"` (teach explicitly, `--repo` to persist as rule). Cross-session pattern detection ("Overridden 'major drift' 3 times — loosen rule?"). Diff digest + retrospective nudges.
-- [ ] **22c. Wingman Auto-Discovery (Skills, Rules, Config)** — Detect repeating patterns and offer to productize: repeated workflows → Skill (`.agents/skills/`), repeated preferences → Rule (`.agents/rules/`), repeated severity overrides → Config change (`fox.jsonc`). Conservative — never auto-create, always offer, always let user edit before saving.
-- [ ] **22d. Wingman Chat Side-Channel** — Lightweight way to ask Wingman questions ("Is this on track?") without breaking the main Worker flow.
-
-### Phase 3C — Multi-Worker
-
-- [ ] **23. Guardian Phase C — Multi-Worker** — Multiple doer sessions executing tasks in parallel, Guardian managing load balancing, branch isolation, and result aggregation.
 
 ---
 

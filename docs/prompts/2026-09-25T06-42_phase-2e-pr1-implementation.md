@@ -27,7 +27,7 @@ PR 1 (Exit Gate + Verify + Commit + Control Plane)
 ```
 
 Read the full PR 1 plan first:
-`fox-code-cli/docs/current-plans/2026-09-25T04-55_pr1-exit-gate-verify-commit.md`
+`fox-code-cli/docs/current-plans/2026-09-25T06-40_pr1-exit-gate-verify-commit.md`
 
 ---
 
@@ -52,23 +52,28 @@ Read the full PR 1 plan first:
 - [ ] Write unit tests in `test/mutation-journal.test.ts`.
 
 #### 2. Unified Control Plane (`src/session/control-plane.ts`)
-- [ ] Create `src/session/control-plane.ts` exporting `resolveExitCondition()` and `isCodeChangeTask()`.
-- [ ] Pure decision function mapping `ExitConditionState` to `ExitDecision` (`continue` | `break` | `rollback`).
-- [ ] Enforce the 5 priority rules:
-  1. `isMaxSteps` → `break` (reason: "max steps reached")
-  2. Not a code-change task (`!isCodeChangeTask`) → `break` (reason: "non-code task, exit normally")
+- [ ] Create `src/session/control-plane.ts` exporting `resolveExitCondition()`, `isCodeChangeTask()`, and `formatWakeUpAudit()`.
+- [ ] Implement the **4 canonical terminal states** (`TerminalState = "done" | "blocked" | "failed-safe" | "needs-review"`):
+  - `"done"`: mutations applied + verification passed/not-configured, or non-code task.
+  - `"blocked"`: ambiguous task requiring human decision.
+  - `"failed-safe"`: circuit breaker (parse-fail streak) or repair budget exhausted with green rollback.
+  - `"needs-review"`: budgets exhausted without green rollback anchor, or step limit reached.
+- [ ] Enforce the priority rules in `resolveExitCondition`:
+  1. `isMaxSteps` → `break`, `terminalState: "needs-review"`.
+  2. Not a code-change task (`!isCodeChangeTask`) → `break`, `terminalState: "done"`.
   3. **Parse-fail circuit breaker** (`parseFailStreak >= maxParseFailStreak`, default 3):
      - Prevents Goose-style truncate → retry → 1000-turn livelock.
-     - Returns `action: hasGreenCommit ? "rollback" : "break"`.
+     - Returns `action: hasGreenCommit ? "rollback" : "break"`, `terminalState: "failed-safe"`.
   4. Empty journal on code-change task (`journalEmpty`):
      - If `emptyExitRetries < maxEmptyExitRetries` (default 2) → `action: "continue"` with synthetic user-role reflection (`incrementEmptyExit: true`).
-     - If retries exhausted → `action: "break"` with warning.
+     - If retries exhausted → `action: "break"`, `terminalState: "needs-review"` with warning.
   5. Regression detected (`hasNewRegressions`):
-     - If `repairBudgetExhausted` (default 3 cycles) → `action: hasGreenCommit ? "rollback" : "break"`.
+     - If `repairBudgetExhausted` (default 3 cycles) → `action: hasGreenCommit ? "rollback" : "break"`, `terminalState: hasGreenCommit ? "failed-safe" : "needs-review"`.
      - Else → `action: "continue"` with regression feedback reflection.
-  6. Mutations applied + verification passed/not-configured → `action: "break"`.
+  6. Mutations applied + verification passed/not-configured → `action: "break"`, `terminalState: "done"`.
 - [ ] Fail-open code-change heuristic (`CODE_CHANGE_OVERRIDE_WORDS`).
-- [ ] Write unit tests in `test/control-plane.test.ts` covering all individual conditions and combination states.
+- [ ] Implement `formatWakeUpAudit({ terminalState, sessionID, reason, rollbackAnchor, modifiedFiles, failedStage, suggestedPrompt })`.
+- [ ] Write unit tests in `test/control-plane.test.ts` covering all individual conditions, terminal states, and combinations.
 
 #### 3. Core Export (`packages/core/src/verification.ts`)
 - [ ] Export `executeVerification` (currently internal) so it can be called cleanly during exit verification.
@@ -84,6 +89,7 @@ Read the full PR 1 plan first:
 - [ ] Insert `resolveExitCondition()` before the `break`.
 - [ ] If action is `"continue"`: inject synthetic user-role reflection (`sessions.updateMessage()`), increment counters, and `continue`.
 - [ ] If action is `"rollback"`: reset workspace to last green harness commit.
+- [ ] Emit **Wake-up Audit** summary via `Effect.logInfo` on any terminal exit (`break` or `rollback`).
 - [ ] If action is `"break"`: execute existing exit logic.
 
 #### 6. Integration & Smoke Tests
