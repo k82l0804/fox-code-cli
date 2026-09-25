@@ -352,7 +352,8 @@ const layer = Layer.effect(
         !verificationBaselines.has(input.sessionID)
       ) {
         const dirs = yield* config.directories()
-        const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+        const projectDir: string =
+          globalThis.process.env.FOX_WORKTREE_PATH || dirs[0] || globalThis.process.cwd()
         const scripts = yield* Effect.promise(() => Verification.readPackageScripts(projectDir))
         const pipeline = Verification.detectCommandPipeline(scripts, {
           test_command: autonomousCfg?.test_command,
@@ -788,7 +789,8 @@ const layer = Layer.effect(
 
               if (autoVerifyEnabled) {
                 const dirs = yield* config.directories()
-                const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+                const projectDir: string =
+                  globalThis.process.env.FOX_WORKTREE_PATH || dirs[0] || globalThis.process.cwd()
                 const scripts: Record<string, string> | undefined = yield* Effect.promise(() =>
                   Verification.readPackageScripts(projectDir),
                 )
@@ -854,7 +856,8 @@ const layer = Layer.effect(
               // --- Phase 2F-1: Harness-Owned Commit ---
               if (value.name !== "commit" && filePaths.length > 0) {
                 const dirs = yield* config.directories()
-                const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+                const projectDir: string =
+                  globalThis.process.env.FOX_WORKTREE_PATH || dirs[0] || globalThis.process.cwd()
                 const isGreen =
                   !autoVerifyEnabled ||
                   !executedPipeline ||
@@ -1218,7 +1221,8 @@ const layer = Layer.effect(
 
             if (parsedBlocks.length > 0) {
               const dirs = yield* config.directories()
-              const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+              const projectDir: string =
+                globalThis.process.env.FOX_WORKTREE_PATH || dirs[0] || globalThis.process.cwd()
               const journal = getMutationJournal(ctx.sessionID)
               const appliedFiles: string[] = []
 
@@ -1480,7 +1484,11 @@ const layer = Layer.effect(
           const greenCommit = getLastGreenCommit(sessionID)
           if (!greenCommit) return false
           const dirs = yield* config.directories()
-          const dir = projectDir ?? dirs[0] ?? globalThis.process.cwd()
+          const dir =
+            projectDir ??
+            globalThis.process.env.FOX_WORKTREE_PATH ??
+            dirs[0] ??
+            globalThis.process.cwd()
           return yield* Effect.promise(() => rollbackToCommit(dir, greenCommit.hash))
         }),
       getParseFailStreak,

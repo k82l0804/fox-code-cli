@@ -155,6 +155,17 @@ export namespace FoxRunDrain {
       ),
     )
   }
+  export async function multiAttempt(
+    options: import("@/session/attempt").MultiAttemptOptions,
+  ): Promise<import("@/session/attempt").MultiAttemptRunResult> {
+    const { runMultiAttempt } = await import("@/session/attempt")
+    return runMultiAttempt(options)
+  }
 }
 
+export { runMultiAttempt, createAttemptWorktree, cleanupWorktree, applyWinner } from "@/session/attempt"
+export { selectBestAttempt, formatSummary } from "@/session/attempt-selector"
+export type { AttemptResult, AttemptSelection } from "@/session/attempt-selector"
+
 export { FoxRunDrain as KiloRunDrain }
+

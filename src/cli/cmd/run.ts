@@ -260,6 +260,16 @@ export const RunCommand = effectCmd({
         type: "boolean",
         hidden: true,
         default: false,
+      })
+      .option("attempts", {
+        type: "number",
+        default: 1,
+        describe: "number of isolated execution attempts (default: 1)",
+      })
+      .option("attempt-timeout", {
+        type: "number",
+        default: 300000,
+        describe: "timeout per attempt in milliseconds (default: 300000)",
       }),
   handler: Effect.fn("Cli.run")(function* (args) {
     const { Agent } = yield* Effect.promise(() => import("@/agent/agent"))
@@ -333,6 +343,34 @@ export const RunCommand = effectCmd({
       const replay = args.replay === false ? false : args.replay || args["replay-limit"] !== undefined
 
       const root = Filesystem.resolve(process.env.PWD ?? process.cwd())
+
+      if (args.attempts && args.attempts > 1) {
+        if (interactive) {
+          die("--attempts cannot be used with interactive mode (--interactive / --mini)")
+        }
+        const { runMultiAttempt } = await import("@/session/attempt")
+        UI.println(UI.Style.TEXT_INFO_BOLD + `~  Starting multi-attempt execution (${args.attempts} attempts)...`)
+        const result = await runMultiAttempt({
+          projectDir: root,
+          attempts: args.attempts,
+          attemptTimeoutMs: args["attempt-timeout"],
+          task: rawMessage,
+          model: args.model,
+          onAttemptStart: (idx, total) => {
+            UI.println(UI.Style.TEXT_DIM + `~  Starting attempt ${idx + 1} of ${total}...`)
+          },
+          onAttemptComplete: (att) => {
+            const status = att.hasMutations ? "mutations applied" : "no mutations"
+            UI.println(UI.Style.TEXT_DIM + `~  Attempt ${att.index + 1} finished (${status}, exit: ${att.exitReason})`)
+          },
+        })
+        UI.println("")
+        UI.println(result.selection.summary)
+        if (!result.winner) {
+          process.exit(1)
+        }
+        return
+      }
       const directory = (() => {
         if (!args.dir) return args.attach ? undefined : root
         if (args.attach) return args.dir
@@ -1140,5 +1178,8 @@ export async function runMini(input: MiniCommandInput) {
     yolo: false,
     "dangerously-skip-permissions": false,
     dangerouslySkipPermissions: false,
+    attempts: 1,
+    "attempt-timeout": 300000,
+    attemptTimeout: 300000,
   })
 }

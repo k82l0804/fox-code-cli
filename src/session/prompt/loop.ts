@@ -345,7 +345,8 @@ export function makePromptLoop(deps: PromptLoopDeps) {
             regressionReflectionText = lastVerify.feedback
           } else {
             const dirs = yield* config.directories()
-            const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+            const projectDir: string =
+              globalThis.process.env.FOX_WORKTREE_PATH || dirs[0] || globalThis.process.cwd()
             const scripts = yield* Effect.promise(() => Verification.readPackageScripts(projectDir))
             const pipeline = Verification.detectCommandPipeline(scripts, {
               test_command: cfg.autonomous?.test_command,
