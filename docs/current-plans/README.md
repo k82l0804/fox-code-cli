@@ -1,15 +1,16 @@
-# Current Plans — Phase 2D: Agent Faultline Benchmark (AFB)
+# Current Plans — Phase 2E: SOTA Harness & Localization
 
-Implementation plans for each task in [current-tasks.md](../master-plan/current-tasks.md).
+**Target implementer**: Gemini 3.8 Flash High
 
-**Target implementer**: Gemini Flash 3.8 High
+**Ship order**: PR 1 → PR 2 → PR 3 → PR 4 → PR 5 (see [current-tasks.md](../master-plan/current-tasks.md) for gates)
 
-**Recommended execution order**: 2D-1 → 2D-2 → 2D-3 → 2D-4 → 2D-5
+> **Key rule**: Plans name the **loop assertion** they enforce, not the files they touch.
+> Every plan includes a "non-goals / do not break" section preserving: local-first, prefix stability, transactional apply.
 
-| Plan | Task | Status |
-|------|------|--------|
-| [Task 2D-1: Benchmark Infrastructure](2026-09-23T22-41_task-2d-1-benchmark-infrastructure.md) | `rubric.ts`, `runner.ts`, `reporter.ts`, `comparator.ts`, catastrophic failure detection, scripts | ✅ Completed |
-| [Task 2D-2: Tier 1–5 Challenges](2026-09-24T04-47_task-2d-2-tier-1-5-challenges.md) | 50 challenges (Sanity, Multi-step, Multi-file, Error Recovery, Adversarial) | ✅ Completed |
-| [Task 2D-3: Tier 6–10 Challenges](2026-09-24T05-00_task-2d-3-tier-6-10-challenges.md) | 50 challenges (Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench) | ✅ Completed |
-| [Task 2D-4: Competitive Evaluation](2026-09-24T06-07_task-2d-4-competitive-evaluation.md) | Multi-agent benchmarking (Fox, Aider, Goose) + reporting | 🔄 In Progress |
-| [Task 2D-5: Fox Hardening](2026-09-23T22-09_task-2d-5-fox-hardening.md) | Defect resolution, pass bar iteration (≥70%, beats competitors, zero catastrophic) | ⏳ Pending |
+| Plan | PR | Tasks | Status |
+|------|-----|-------|--------|
+| [PR 1: Exit Gate + Verify + Commit + Control Plane](./2026-09-25T04-34_pr1-exit-gate-verify-commit.md) | PR 1 | 2E-1 + 2E-2 + 2F-1 + 2F-4 | ⏳ Pending |
+| PR 2: ACI Matrix + Grep Shape | PR 2 | 2E-4 + 2F-2 | ⏳ Pending |
+| PR 3: Code Context Block | PR 3 | 2E-3 (includes 2E-5) | ⏳ Pending |
+| PR 4: Weak-Model Generation Format | PR 4 | 2E-6 | ⏳ Pending |
+| PR 5: Multi-Attempt v1 | PR 5 | 2E-7 | ⏳ Pending |

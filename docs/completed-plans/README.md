@@ -2,6 +2,14 @@
 
 This directory contains implementation plans for tasks that have been successfully implemented, verified, and recorded in [`../master-plan/done-tasks.md`](../master-plan/done-tasks.md).
 
+## Phase 2D — Agent Faultline Benchmark (2026-09-24)
+- [`2026-09-23T22-41_task-2d-1-benchmark-infrastructure.md`](./2026-09-23T22-41_task-2d-1-benchmark-infrastructure.md) — Task 2D-1: Benchmark Infrastructure
+- [`2026-09-24T04-47_task-2d-2-tier-1-5-challenges.md`](./2026-09-24T04-47_task-2d-2-tier-1-5-challenges.md) — Task 2D-2: Tier 1–5 Challenges
+- [`2026-09-24T05-00_task-2d-3-tier-6-10-challenges.md`](./2026-09-24T05-00_task-2d-3-tier-6-10-challenges.md) — Task 2D-3: Tier 6–10 Challenges
+- [`2026-09-24T06-07_task-2d-4-competitive-evaluation.md`](./2026-09-24T06-07_task-2d-4-competitive-evaluation.md) — Task 2D-4: Competitive Evaluation
+- [`2026-09-23T22-09_task-2d-5-fox-hardening.md`](./2026-09-23T22-09_task-2d-5-fox-hardening.md) — Task 2D-5: Fox Hardening
+
+
 ## Phase 2C — Routing & Refinement (2026-09-23)
 - [`2026-09-23T18-42_task-11-system-driven-model-routing.md`](./2026-09-23T18-42_task-11-system-driven-model-routing.md) — Task 11: System-Driven Model Routing
 - [`2026-09-23T18-42_task-12-blast-radius-regression-detection.md`](./2026-09-23T18-42_task-12-blast-radius-regression-detection.md) — Task 12: Blast-Radius Regression Detection

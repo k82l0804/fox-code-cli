@@ -1,39 +1,52 @@
-# Current Tasks — Phase 2D: Agent Faultline Benchmark (AFB)
+# Current Tasks — Phase 2E: SOTA Harness & Localization
 
-> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (✅) → Phase 2B (✅) → Phase 2C (✅) → **Phase 2D** 🔧 → Phase 3 → Phase 4
+> **Phase flow**: Phase 1 (✅) → Phase 1B (✅) → Phase 2.0 (✅) → Phase 2A (✅) → Phase 2B (✅) → Phase 2C (✅) → Phase 2D (✅) → **Phase 2E** 🔧 → Phase 2F → Phase 2G → Phase 3 → Phase 4
 >
-> 100-challenge tiered benchmark (10 tiers × 10 challenges) that exposes real fault lines in agent CLIs.
-> Compares Fox vs Aider vs Goose with a rigorous 5-dimension scoring rubric.
-> **Gate before Phase 3**: Fox must pass a 5-criterion AND gate before Guardian work begins.
+> The harness owns done, context, and the edit contract. Everything below moves those three
+> from "the model may" to "the loop will." If a plan does not change `loop.ts`'s exit condition,
+> it is not this project.
 >
-> Location: `test/capability-ladder/`
+> **Research**: [`why-aider-wins.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-20_why-aider-wins.md), [`how-to-make-fox-code-cli-state-of-the-art.md`](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-30_how-to-make-fox-code-cli-state-of-the-art.md)
 
 ---
 
-- [x] **2D-1. Benchmark Infrastructure** — `rubric.ts` (5-dimension scoring + efficiency formula), `runner.ts` (sandbox + agent invocation + token/time capture), `reporter.ts` (JSON + Markdown), `comparator.ts` (multi-agent verdict + 5-criterion pass bar), catastrophic failure detection. Scripts: `bun run bench`, `bun run bench:compare`.
+- [ ] **2E-1. Loop-Exit Gate + Mutation Journal** — Mutation gate in `loop.ts`: code-change tasks cannot exit on prose. Session mutation journal tracks harness-applied edits. Intent detection fails open toward code-change. Reflection names the tier-appropriate edit tool.
 
-- [x] **2D-2. Tier 1–5 Challenges (50)** — Sanity, Multi-step, Multi-file SWE, Error Recovery, Adversarial Instructions. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`, reference solutions. Run Fox against T1–5, fix failures.
+- [ ] **2E-2. Verification as Harness Reflection** — Exit-time verification with baseline comparison (only new regressions block). Repair budget as hard cap. Fresh-verify skip. Flaky test retry. Unified `resolveExitCondition()`.
 
-- [x] **2D-3. Tier 6–10 Challenges (50)** — Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench Bugs. 50 workspaces, 50 `challenge.json`, 50 `verify.ts`. T8–9 scored on native agent behavior (no Guardian yet).
+- [ ] **2E-3. Localization Pipeline + Code Context Block** — `buildCodeContextBlock()` with 5k token envelope (map + localize spans + pinned bodies). Hierarchical localize prelude (BM25 over identifiers + graph). Cold-index non-blocking. Honest cache key. Repo map injection (more for weak models). Working-set pinning.
 
-- [ ] **2D-4. Competitive Evaluation** — Run full suite against Fox, Aider, Goose (3 runs/challenge, median). Generate comparison report with 5-criterion verdict. Publish to `docs/reports/`.
+- [ ] **2E-4. ACI Simplification — Tool Surface Matrix** — Canonical ACI matrix (S/A: `edit` + `rewrite_file(create)`; B: `edit` + `rewrite_file`; C/D: none as tools → 2E-6). Syntax gate on apply. Bounded `read` (200 lines + offset). Empty success formatting. `commit`/`write`/`apply_patch` off default surface.
 
-- [ ] **2D-5. Fox Hardening** — Fix Fox failures discovered during T1–10 runs. Iterate until 5-criterion pass bar met. Document architectural improvements.
+- [ ] **2E-5. *(Merged into 2E-3)*** — Repo Map Injection + Working-Set Pinning. Placeholder.
+
+- [ ] **2E-6. Weak-Model Fast Path — Whole-File Generation Format** — C/D generation contract: no edit tool schemas, fence-parse in harness. Accept fenced blocks, `File:` headers, SEARCH/REPLACE. `bash` + `grep` only tools. `read` as dynamic fallback.
+
+- [ ] **2E-7. Multi-Attempt Architecture** — `fox run --attempts N` with worktree isolation, sequential v1, deterministic selection (filter + rank for N=3, cluster for N≥5). Per-attempt timeout. No `--repro-first` in v1.
 
 ---
 
-> **Pass bar (all must be true simultaneously):**
-> 1. Fox ≥ 70% on Tiers 1–7 + T10 (≥ 56/80 challenges scoring ≥ 7/10)
-> 2. Fox ≥ both Aider AND Goose on overall score
-> 3. Fox ≥ best competitor on ≥ 6 of 8 runnable tiers
-> 4. Zero catastrophic failures on any evaluated task
-> 5. All criteria above met simultaneously
+> **Success criteria (all four must be true before moving past 2E):**
+> 1. Code-change task + weak model → at least one applied mutation, or a capped explicit failure — never a prose exit.
+> 2. Dirty/red repo → only *new* failures block.
+> 3. Tier C/D → first completion can be a file, not a tool call.
+> 4. KV prefix still hits when map/pins have not changed.
+>
+> If (1) is false, 2E-3 through 2E-7 are decoration.
 
-> **Recommended execution order**: 2D-1 → 2D-2 → 2D-3 → 2D-4 → 2D-5
-> (Infrastructure first, then challenges bottom-up, then evaluation, then hardening)
+> **Ship order (PRs, not tasks — implement in this order, stop and measure after each):**
+>
+> | PR | Tasks | Gate |
+> |---|---|---|
+> | **PR 1** | 2E-1 + 2E-2 + 2F-1 + 2F-4 | Re-run 8B Task 3 trace — must NOT exit on prose |
+> | **PR 2** | 2E-4 + 2F-2 (grep shape) | Typecheck + existing tests pass |
+> | **PR 3** | 2E-3 (includes 2E-5) | Localize top-3 accuracy on fixture repo with decoys |
+> | **PR 4** | 2E-6 | 8B produces and applies a fence without tool calls |
+> | **PR 5** | 2E-7 | Exit + verify trusted from PR 1 |
+
+> **Golden replay fixture**: Frozen 8B empty-exit transcript + small fixture repo with one-span bug + decoy file. Each PR changes that outcome or is not merged.
 
 > **References**:
-> - [Phase 2D Plan](file:///home/k82l0804/.gemini/antigravity-ide/brain/b76840f4-d827-4e96-9f45-6cb2fca03b67/phase-2d-plan.md)
-> - [Existing Challenge Ladder Report](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/2026-09-22T15-54_fox-challenge-ladder-report.md)
-> - [Competitive Benchmark Report](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/2026-09-22T20-40_competitive-agent-benchmark-aider-goose.md)
-> - [Competitor Eval Script](file:///home/k82l0804/workarea/fox/fox-code-cli/tools/competitor-eval.sh)
+> - [Phase 2E full spec](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/master-plan/future-tasks.md) (cross-cutting constraints, per-task details, plan-lie guardrails)
+> - [Why Aider Wins](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-20_why-aider-wins.md)
+> - [SOTA Stack](file:///home/k82l0804/workarea/fox/fox-code-cli/docs/research/2026-09-24T20-30_how-to-make-fox-code-cli-state-of-the-art.md)

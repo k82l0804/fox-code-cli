@@ -104,3 +104,27 @@
 
 - [x] **14. Repo-Level Intent Detection** — [📋 Plan](../completed-plans/2026-09-23T18-42_task-14-repo-level-intent-detection.md)
   Classify task scope and blast radius from the goal description before planning.
+
+---
+
+## Phase 2D — Agent Faultline Benchmark (2026-09-24) ✅
+
+> 100-challenge tiered benchmark (10 tiers × 10 challenges). Infrastructure built, all challenges authored.
+> Competitive analysis completed via research docs rather than automated runner — identified root causes
+> (loop-exit bug, verification wiring, tool surface sprawl) that drove Phase 2E design.
+> 2D-4 (automated competitive runner) and 2D-5 (mechanical hardening) deferred to testing infrastructure;
+> superseded strategically by Phase 2E SOTA Harness.
+
+- [x] **2D-1. Benchmark Infrastructure** — [📋 Plan](../completed-plans/2026-09-23T22-41_task-2d-1-benchmark-infrastructure.md)
+  `rubric.ts` (5-dimension scoring), `runner.ts` (sandbox + agent invocation), `reporter.ts`, `comparator.ts`. Scripts: `bun run bench`, `bun run bench:compare`.
+
+- [x] **2D-2. Tier 1–5 Challenges (50)** — [📋 Plan](../completed-plans/2026-09-24T04-47_task-2d-2-tier-1-5-challenges.md)
+  Sanity, Multi-step, Multi-file SWE, Error Recovery, Adversarial Instructions. 50 workspaces + verify scripts.
+
+- [x] **2D-3. Tier 6–10 Challenges (50)** — [📋 Plan](../completed-plans/2026-09-24T05-00_task-2d-3-tier-6-10-challenges.md)
+  Long-horizon, Unsafe Autonomy, Guardian+Autonomy, Arbitration, SWE-bench Bugs. 50 workspaces + verify scripts.
+
+- [~] **2D-4. Competitive Evaluation** — Deferred. Strategic analysis completed via [`why-aider-wins.md`](../research/2026-09-24T20-20_why-aider-wins.md) and [`how-to-make-fox-code-cli-state-of-the-art.md`](../research/2026-09-24T20-30_how-to-make-fox-code-cli-state-of-the-art.md). Automated runner deferred to testing infrastructure.
+
+- [~] **2D-5. Fox Hardening** — Superseded by Phase 2E (SOTA Harness & Localization) which addresses root causes identified in the research.
+
