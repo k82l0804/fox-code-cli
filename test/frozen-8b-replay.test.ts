@@ -119,7 +119,7 @@ describe("Frozen 8B Empty-Exit Trace Replay (Phase 2E PR 1 Gate)", () => {
     expect(exitDecision.reflectionText).toContain("Please use the `edit` tool to make the necessary changes.")
     expect(exitDecision.reflectionText).toContain("Do not describe the changes — apply them directly.")
 
-    // For Tier C/D, reflection directs to rewrite_file
+    // For Tier C/D, reflection directs to fenced block
     const tierCDecision = resolveExitCondition({
       isCodeChangeTask: isCodeChange,
       journalEmpty: journal.isEmpty(),
@@ -132,7 +132,7 @@ describe("Frozen 8B Empty-Exit Trace Replay (Phase 2E PR 1 Gate)", () => {
       tier: "C",
     })
     expect(tierCDecision.action).toBe("continue")
-    expect(tierCDecision.reflectionText).toContain("Please use the `rewrite_file` tool")
+    expect(tierCDecision.reflectionText).toContain("fenced block")
   })
 
   test("Gate Test: 8B replay recovers after reflection, mutates real span, and triggers harness commit", async () => {

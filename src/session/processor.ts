@@ -38,9 +38,12 @@ import { RepairBudgetTracker } from "@opencode-ai/core/repair-budget"
 import { Verification } from "@opencode-ai/core/verification"
 import { VerificationBaseline } from "@opencode-ai/core/verification-baseline"
 import path from "node:path"
+import fs from "node:fs"
 import * as Process from "@/util/process"
 import { InvalidArgumentsError } from "@/tool/tool"
 import { createJournal, type MutationJournal } from "./mutation-journal"
+import { resolveTier } from "@/foxcode/model-tier"
+import { parseFencedBlocks } from "./fence-parser"
 
 
 export const DOOM_LOOP_THRESHOLD = 3
@@ -1190,10 +1193,94 @@ const layer = Layer.effect(
         }
         ctx.toolcalls = {}
         ctx.toolmeta = {}
+        const messageParts = yield* MessageV2.parts(ctx.assistantMessage.id).pipe(
+          Effect.provideService(Database.Service, database),
+        )
         FoxSessionProcessor.guardEmptyToolCalls(
           ctx.assistantMessage,
-          yield* MessageV2.parts(ctx.assistantMessage.id).pipe(Effect.provideService(Database.Service, database)),
+          messageParts,
         )
+
+        // --- Phase 2E PR 4: Weak-Model Fast Path (Fence Parsing for Tier C/D) ---
+        const cfg = yield* config.get()
+        const tierInfo = resolveTier({
+          modelId: input.model.api.id,
+          providerId: input.model.providerID,
+          overrideTier: cfg.model_tier,
+        })
+
+        if (tierInfo.useFenceParse) {
+          const hasToolCalls = messageParts.some((p) => p.type === "tool")
+          if (!hasToolCalls) {
+            const textParts = messageParts.filter((p): p is SessionV1.TextPart => p.type === "text")
+            const fullText = textParts.map((p) => p.text).join("\n")
+            const parsedBlocks = parseFencedBlocks(fullText)
+
+            if (parsedBlocks.length > 0) {
+              const dirs = yield* config.directories()
+              const projectDir: string = dirs[0] ?? globalThis.process.cwd()
+              const journal = getMutationJournal(ctx.sessionID)
+              const appliedFiles: string[] = []
+
+              for (const block of parsedBlocks) {
+                const fullPath = path.isAbsolute(block.file) ? block.file : path.join(projectDir, block.file)
+                let applied = false
+
+                if (block.format === "fence") {
+                  fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+                  fs.writeFileSync(fullPath, block.content, "utf-8")
+                  applied = true
+                } else if (block.format === "search-replace" && block.searchContent !== undefined) {
+                  if (fs.existsSync(fullPath)) {
+                    const existing = fs.readFileSync(fullPath, "utf-8")
+                    if (existing.includes(block.searchContent)) {
+                      const updated = existing.replace(block.searchContent, block.replaceContent ?? block.content)
+                      fs.writeFileSync(fullPath, updated, "utf-8")
+                      applied = true
+                    }
+                  }
+                }
+
+                if (applied) {
+                  appliedFiles.push(fullPath)
+                  journal.record({
+                    tool: block.format === "fence" ? "rewrite_file" : "edit",
+                    file: fullPath,
+                    timestamp: Date.now(),
+                    messageId: ctx.assistantMessage.id,
+                    source: "fence-parse",
+                  })
+
+                  const toolPart: SessionV1.ToolPart = {
+                    id: PartID.ascending(),
+                    messageID: ctx.assistantMessage.id,
+                    sessionID: ctx.assistantMessage.sessionID,
+                    type: "tool",
+                    tool: block.format === "fence" ? "rewrite_file" : "edit",
+                    callID: `fence-${Date.now()}-${block.file.replace(/[^a-zA-Z0-9]/g, "_")}`,
+                    state: {
+                      status: "completed",
+                      input: { file: block.file },
+                      output: `Applied file block to ${block.file} (${block.content.length} bytes)`,
+                      title: block.format === "fence" ? `rewrite_file: ${block.file}` : `edit: ${block.file}`,
+                      metadata: {
+                        fenceParsed: true,
+                        files: [{ file: block.file }],
+                      },
+                      time: { start: Date.now(), end: Date.now() },
+                    },
+                  }
+                  yield* session.updatePart(toolPart)
+                }
+              }
+
+              if (appliedFiles.length > 0) {
+                yield* Effect.promise(() => harnessCommit(projectDir, appliedFiles, "fence-parse"))
+              }
+            }
+          }
+        }
+
         ctx.assistantMessage.time.completed = Date.now()
         yield* reconcile()
         yield* session.updateMessage(ctx.assistantMessage)

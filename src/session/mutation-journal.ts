@@ -15,6 +15,8 @@ export interface MutationEntry {
   readonly timestamp: number
   /** Assistant message ID that triggered the tool */
   readonly messageId: string
+  /** Origin source of the mutation: "tool" | "fence-parse" | etc. */
+  readonly source?: string
 }
 
 export interface MutationJournal {

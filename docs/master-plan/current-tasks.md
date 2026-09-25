@@ -20,7 +20,7 @@
 
 - [x] **2E-5. *(Merged into 2E-3)*** — Repo Map Injection + Working-Set Pinning. N/A — see 2E-3.
 
-- [ ] **2E-6. Weak-Model Fast Path — Whole-File Generation Format** — C/D generation contract: no edit tool schemas, fence-parse in harness. Accept fenced blocks, `File:` headers, SEARCH/REPLACE. `bash` + `grep` only tools. `read` as dynamic fallback.
+- [x] **2E-6. Weak-Model Fast Path — Whole-File Generation Format** — C/D generation contract: no edit tool schemas, fence-parse in harness. Accept fenced blocks, `File:` headers, SEARCH/REPLACE. `bash` + `grep` only tools. `read` as dynamic fallback.
 
 - [ ] **2E-7. Multi-Attempt Architecture** — `fox run --attempts N` with worktree isolation, sequential v1, deterministic selection (filter + rank for N=3, cluster for N≥5). Per-attempt timeout. No `--repro-first` in v1.
 

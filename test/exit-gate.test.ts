@@ -113,10 +113,10 @@ describe("Exit Gate — Control Plane Integration Decisions", () => {
     expect(decision.reflectionText).toContain("No files were modified")
   })
 
-  test("code-change task with empty journal uses rewrite_file for Tier C/D", () => {
+  test("code-change task with empty journal directs to fenced block for Tier C/D", () => {
     const journal = createJournal()
     const text = buildEmptyExitReflectionText("C")
-    expect(text).toContain("`rewrite_file`")
+    expect(text).toContain("fenced block")
 
     const decision = resolveExitCondition({
       isCodeChangeTask: true,
@@ -131,7 +131,7 @@ describe("Exit Gate — Control Plane Integration Decisions", () => {
       tier: "C",
     })
     expect(decision.action).toBe("continue")
-    expect(decision.reflectionText).toContain("`rewrite_file`")
+    expect(decision.reflectionText).toContain("fenced block")
   })
 
   test("non-code task exits cleanly without requiring mutations", () => {

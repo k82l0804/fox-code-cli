@@ -89,6 +89,14 @@ import { RepairBudgetTracker } from "@opencode-ai/core/repair-budget"
 import { buildCodeContextBlock, type CodeContextBlock } from "../code-context"
 import { getOrCreateIndexer } from "@/tool/lookup_symbols"
 
+export const FENCE_INSTRUCTION_PROMPT = `When making code changes, write the complete updated file in a fenced code block with the file path on the opening line:
+
+\`\`\`filepath.ts
+// complete file content
+\`\`\`
+
+Do not describe changes. Write the full file content directly.`
+
 export interface PromptLoopDeps {
   readonly sessions: Session.Interface
   readonly status: typeof SessionStatus.Service.Service
@@ -772,11 +780,14 @@ export function makePromptLoop(deps: PromptLoopDeps) {
         sysCache.codeContextHash = codeContextCache.contentHash
         sysCache.codeContextBlock = codeContextCache.content
 
+        // Phase 2E PR 4: C/D whole-file generation format instruction
+        const fenceInstruction = effectiveTierInfo.useFenceParse ? FENCE_INSTRUCTION_PROMPT : undefined
+
         const system = [
           ...env,
           ...mem,
           ...(tools.board_read && notify ? [BoardContext.instructions] : []),
-          ...instructions,
+          ...(fenceInstruction ? [fenceInstruction] : instructions),
           ...(mcpInstructions ? [mcpInstructions] : []),
           ...(skills ? [skills] : []),
           ...(sysCache.codeContextBlock ? [sysCache.codeContextBlock] : []),

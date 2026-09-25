@@ -24,6 +24,8 @@ export interface TierInfo {
   readonly codingReliable: boolean
   /** Whether to warn when used in coding/debug agent modes */
   readonly warnOnCoding: boolean
+  /** Whether the tier uses harness fence-parsing instead of edit tool schemas (Tier C/D) */
+  readonly useFenceParse: boolean
   /** How the tier was determined */
   readonly source: "override" | "profile" | "pattern" | "heuristic" | "reclassified"
 }
@@ -33,17 +35,18 @@ interface TierMeta {
   readonly maxSteps: number
   readonly codingReliable: boolean
   readonly warnOnCoding: boolean
+  readonly useFenceParse: boolean
 }
 
 /**
  * Static tier metadata. Keyed by tier letter.
  */
 export const TIER_META: Record<ModelTier, TierMeta> = {
-  S: { label: "Production-grade (70B+)", maxSteps: Infinity, codingReliable: true, warnOnCoding: false },
-  A: { label: "Reliable multi-turn (30-40B)", maxSteps: Infinity, codingReliable: true, warnOnCoding: false },
-  B: { label: "Partial repair (13-20B)", maxSteps: 5, codingReliable: true, warnOnCoding: false },
-  C: { label: "Summarization only (7-10B)", maxSteps: 3, codingReliable: false, warnOnCoding: true },
-  D: { label: "Basic chat (<7B)", maxSteps: 1, codingReliable: false, warnOnCoding: true },
+  S: { label: "Production-grade (70B+)", maxSteps: Infinity, codingReliable: true, warnOnCoding: false, useFenceParse: false },
+  A: { label: "Reliable multi-turn (30-40B)", maxSteps: Infinity, codingReliable: true, warnOnCoding: false, useFenceParse: false },
+  B: { label: "Partial repair (13-20B)", maxSteps: 5, codingReliable: true, warnOnCoding: false, useFenceParse: false },
+  C: { label: "Summarization only (7-10B)", maxSteps: 3, codingReliable: false, warnOnCoding: true, useFenceParse: true },
+  D: { label: "Basic chat (<7B)", maxSteps: 1, codingReliable: false, warnOnCoding: true, useFenceParse: true },
 }
 
 /**

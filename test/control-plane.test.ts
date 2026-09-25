@@ -209,8 +209,8 @@ describe("Control Plane — Reflection & Audit Helpers", () => {
     expect(buildEmptyExitReflectionText("S")).toContain("`edit`")
     expect(buildEmptyExitReflectionText("A")).toContain("`edit`")
     expect(buildEmptyExitReflectionText("B")).toContain("`edit`")
-    expect(buildEmptyExitReflectionText("C")).toContain("`rewrite_file`")
-    expect(buildEmptyExitReflectionText("D")).toContain("`rewrite_file`")
+    expect(buildEmptyExitReflectionText("C")).toContain("fenced block")
+    expect(buildEmptyExitReflectionText("D")).toContain("fenced block")
   })
 
   test("formatWakeUpAudit formats all fields accurately", () => {

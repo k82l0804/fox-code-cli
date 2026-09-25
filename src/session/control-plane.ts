@@ -82,10 +82,16 @@ export function isCodeChangeTask(
  * Build synthetic user-role reflection text when the model exits with an empty journal on a code-change task.
  */
 export function buildEmptyExitReflectionText(tier?: string): string {
-  const editTool = tier === "C" || tier === "D" ? "rewrite_file" : "edit"
+  if (tier === "C" || tier === "D") {
+    return [
+      "No files were modified. The task requires a code change.",
+      "Please write the complete file in a fenced block with the file path on the opening line.",
+      "Do not describe the changes — write the full file content directly.",
+    ].join(" ")
+  }
   return [
     "No files were modified. The task requires a code change.",
-    `Please use the \`${editTool}\` tool to make the necessary changes.`,
+    "Please use the `edit` tool to make the necessary changes.",
     "Do not describe the changes — apply them directly.",
   ].join(" ")
 }
