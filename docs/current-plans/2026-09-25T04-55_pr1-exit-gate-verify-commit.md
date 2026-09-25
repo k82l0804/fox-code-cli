@@ -1,0 +1,358 @@
+# PR 1: Loop-Exit Gate + Verification Reflection + Harness Commit + Control Plane
+
+**Tasks**: 2E-1, 2E-2, 2F-1, 2F-4
+**Target implementer**: Gemini 3.8 Flash High
+**Gate**: Re-run 8B Task 3 trace — must NOT exit on prose when the task required a code change.
+
+---
+
+## Loop assertions enforced by this PR
+
+1. **`break` is illegal** when `intent.needsWriteTools === true` AND `mutationJournal.isEmpty()` AND `emptyExitRetries < max_empty_exit_retries`.
+2. **`break` is illegal** when `mutationJournal.hasEntries()` AND `verificationPipeline.configured` AND `exitVerification.hasNewRegressions` AND `repairBudget.isExhausted === false`.
+3. On exhaustion of any budget: keep current state and exit with warning. Rollback to last green **harness commit** only if one exists. Never rollback to pre-task and call it success.
+
+## Non-goals / Do not break
+
+- **Local-first**: No network calls added. No cloud services. No telemetry changes.
+- **Prefix stability**: Do NOT modify `sysCache` structure. Do NOT inject content into the system prefix. All injections are user-role reflection messages.
+- **Transactional apply**: Do NOT change how `edit` / `apply_patch` / `rewrite_file` apply mutations. The journal observes; it does not intercept.
+- **Existing post-mutation verification**: The `MUTATION_TOOLS` trigger in `processor.ts` (lines 643–740) stays unchanged. This PR adds a **second** gate at loop exit.
+- **Tool schemas**: Do NOT add or remove tools. That is PR 2.
+
+---
+
+## 1. Mutation Journal (`src/session/mutation-journal.ts`)
+
+### What it is
+
+A session-scoped, append-only log of successful mutations applied by the harness. Gate = "harness applied ≥1 successful mutation since the user message that started this goal."
+
+### Interface
+
+```typescript
+export interface MutationEntry {
+  readonly tool: string        // "edit" | "apply_patch" | "write" | "rewrite_file"
+  readonly file: string        // absolute path
+  readonly timestamp: number   // Date.now()
+  readonly messageId: string   // assistant message that triggered the tool
+}
+
+export interface MutationJournal {
+  /** All mutations since the current goal started. */
+  readonly entries: MutationEntry[]
+  /** True if at least one mutation was successfully applied. */
+  isEmpty(): boolean
+  /** Record a successful mutation. */
+  record(entry: MutationEntry): void
+  /** Reset on new user message (new goal). */
+  reset(): void
+  /** Count of unique files mutated. */
+  fileCount(): number
+}
+
+export function createJournal(): MutationJournal
+```
+
+### Integration point
+
+In [`processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts), after a mutation tool completes successfully (line ~643, inside the `MUTATION_TOOLS.has(value.name)` block), call `journal.record()` with the tool name and file paths extracted via existing `extractMutationFilePaths()` (line 92–110).
+
+The journal is stored in `SessionProcessor.make`'s closure alongside existing `oscillationTrackers`, `repairBudgets`, `verificationBaselines` maps (lines 196–200). Key: `SessionID → MutationJournal`.
+
+### What does NOT count as a mutation
+
+- `commit` tool — it changes git metadata, not files. Explicit exclusion: `if (value.name === "commit") skip journal`.
+- Tool calls that error / are rejected by syntax gate — only successful applies.
+- Pre-session dirt (`git diff` against nothing) — the journal starts empty on each user message.
+
+---
+
+## 2. Exit Gate in `loop.ts` (2E-1)
+
+### Where to insert
+
+In [`loop.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/prompt/loop.ts) lines 217–238, the exit condition is:
+
+```typescript
+if (
+  lastAssistantMsgRef?.finish &&
+  !["tool-calls"].includes(lastAssistantMsgRef.finish) &&
+  lastAssistantMsgRef.id !== input.resume &&
+  !hasToolCalls &&
+  lastAssistantMsgRef.parentID === lastUser.id &&
+  userBeforeAssistant
+) {
+  // ... orphan check ...
+  yield* Effect.logInfo("exiting loop", { "session.id": sessionID })
+  break  // <-- THIS IS THE TARGET
+}
+```
+
+### What to add before the `break`
+
+```typescript
+// --- Exit Gate: mutation check + verification ---
+const exitDecision = yield* resolveExitCondition({
+  sessionID,
+  journal: getJournal(sessionID),
+  userMessage: lastUser,
+  toolSurface: toolDefCache,  // to know which edit tool is available
+  tierInfo: effectiveTierInfo,
+  verificationBaseline: verificationBaselines.get(sessionID),
+  repairBudget: getRepairBudget(sessionID),
+  emptyExitRetries: emptyExitCounters.get(sessionID) ?? 0,
+  config: cfg,
+})
+
+if (exitDecision.action === "continue") {
+  // Inject reflection as a user-role message
+  yield* injectReflection(sessionID, exitDecision.reflectionText, sessions, msgs)
+  if (exitDecision.incrementEmptyExit) {
+    emptyExitCounters.set(sessionID, (emptyExitCounters.get(sessionID) ?? 0) + 1)
+  }
+  continue
+}
+if (exitDecision.action === "rollback") {
+  // Rollback to last green harness commit (2F-1)
+  yield* rollbackToLastGreen(sessionID, harnessCommits)
+}
+// exitDecision.action === "break" → fall through to existing break
+```
+
+### Intent classification — fail open
+
+Use [`classifyIntent()`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/foxcode/intent.ts) from `src/foxcode/intent.ts`. The existing `needsWriteTools` field (line 284) returns `false` for `research` and `docs` intents.
+
+**Override rule** (fail open toward code-change): If ANY of `edit`, `rewrite_file`, `apply_patch` is in the current tool surface AND the user message contains any of: fix, add, refactor, implement, create, update, change, modify, remove, delete, failing, broken, bug, error → treat as code-change regardless of classifier confidence. This catches "the rate limiter tests are failing" which might be classified as `research` (matches "failing test" in fix rules, but also matches "find" in research rules).
+
+```typescript
+const CODE_CHANGE_OVERRIDE_WORDS = /\b(fix|add|refactor|implement|create|update|change|modify|remove|delete|failing|broken|bug|error)\b/i
+
+function isCodeChangeTask(intent: IntentClassification, userText: string, hasEditTools: boolean): boolean {
+  if (intent.needsWriteTools) return true
+  if (hasEditTools && CODE_CHANGE_OVERRIDE_WORDS.test(userText)) return true
+  return false
+}
+```
+
+### Reflection message format
+
+The reflection must be a **user-role message** (not tool-result append). It must name the allowed edit tool for this tier:
+
+```typescript
+function buildReflectionText(tierInfo: TierInfo, journal: MutationJournal): string {
+  const editTool = tierInfo.tier === "C" || tierInfo.tier === "D" ? "rewrite_file" : "edit"
+  return [
+    "No files were modified. The task requires a code change.",
+    `Please use the \`${editTool}\` tool to make the necessary changes.`,
+    "Do not describe the changes — apply them directly.",
+  ].join(" ")
+}
+```
+
+### Injecting a user-role reflection
+
+Create a synthetic user message via `sessions.updateMessage()` with role "user", similar to how `FoxSessionPrompt.askPlanFollowup` works (line 210–215). The message should have `parentID` set to the current assistant message so it appears in the conversation at the right position.
+
+### `max_empty_exit_retries` (default 2)
+
+Stored per-session in a `Map<SessionID, number>` alongside existing counters (lines 196–200). After N reflections with no mutation, allow exit with a warning log. Reset on new user message.
+
+---
+
+## 3. Exit-Time Verification (2E-2)
+
+### When to run
+
+When the exit gate detects `journal.isEmpty() === false` AND a verification pipeline is configured (`cfg.autonomous?.auto_verify !== false`).
+
+### Fresh-verify skip
+
+Before running the pipeline, check if the last post-mutation-tool verification covers the same state:
+- Track the last verification HEAD in a `Map<SessionID, { commitHash: string, pipelineResult: PipelineResult }>`.
+- If no new mutations since the last post-mutation verify (journal's last entry timestamp < last verify timestamp), skip exit-time verification.
+
+### Pipeline execution
+
+Reuse existing `Verification.detectCommandPipeline()` and `Verification.executePipeline()` from [`verification.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/verification.ts). The pipeline already orders commands by priority (typecheck → test → lint per `detectCommandPipeline`, lines 156–250).
+
+### Baseline comparison
+
+Use existing [`VerificationBaseline.analyzeRegressions()`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/verification-baseline.ts) (line 93). Only block exit for `analysis.hasNewRegressions === true`. Pre-existing failures (`analysis.preExisting`) do NOT block.
+
+### Reflection on failure
+
+If `hasNewRegressions`:
+1. Format via existing `Verification.formatPipelineFeedback()` + `VerificationBaseline.formatRegressionFeedback()`.
+2. Inject as user-role reflection message (same mechanism as 2E-1).
+3. Record failure via existing `RepairBudgetTracker.recordFailure()`.
+4. `continue` the loop.
+
+### Repair budget as hard cap
+
+Wire existing [`RepairBudgetTracker`](file:///home/k82l0804/workarea/fox/fox-code-cli/packages/core/src/repair-budget.ts) into the exit decision. After `max_repair_turns` (default 3, from `cfg.autonomous?.max_repair_turns`) failed cycles:
+- If a green harness commit exists (2F-1): rollback to it, exit with warning.
+- If no green commit: keep current state, exit with warning.
+- Never rollback to pre-task and report success.
+
+### Flaky test retry
+
+Before consuming a repair budget slot, retry a failed test command once:
+```typescript
+if (!result.passed) {
+  const retry = await Verification.executeVerification(result.command, projectDir, timeout)
+  if (retry.passed) {
+    // Flake — do not consume budget, use retry result
+    return retry
+  }
+}
+```
+
+---
+
+## 4. Harness-Owned Commit (2F-1)
+
+### What it does
+
+After successful apply + (optional) green verification, the harness creates a git commit with a deterministic message. The model never invents `git commit`.
+
+### Implementation
+
+In [`processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts), after a mutation tool succeeds AND post-mutation verification passes (or is skipped):
+
+```typescript
+async function harnessCommit(projectDir: string, files: string[], toolName: string): Promise<string | undefined> {
+  // Check for actual changes
+  const diffResult = await execGit(["diff", "--cached", "--quiet"], projectDir)
+  if (diffResult.exitCode === 0) return undefined  // no changes → no commit
+
+  await execGit(["add", ...files], projectDir)
+  const msg = `fox: ${toolName} ${files.map(f => path.basename(f)).join(", ")}`
+  const result = await execGit(["commit", "-m", msg, "--no-verify"], projectDir)
+  return result.stdout.match(/\b([0-9a-f]{7,})\b/)?.[1]  // return short hash
+}
+```
+
+### Harness commit tracker
+
+`Map<SessionID, { commits: Array<{ hash: string, green: boolean, timestamp: number }> }>`.
+
+- After green verification: mark commit as green.
+- "Last green" = most recent commit with `green: true`.
+- The 2E-7 selector will cherry-pick from these commits.
+
+### Empty diff = no commit
+
+If `git diff --cached --quiet` returns 0 (no changes), skip the commit. This is the 8B "committed unchanged files" cousin.
+
+---
+
+## 5. Unified Control Plane (2F-4)
+
+### Module: `src/session/control-plane.ts`
+
+One function that owns all exit decisions:
+
+```typescript
+export type ExitAction = "continue" | "break" | "rollback"
+
+export interface ExitConditionState {
+  isCodeChangeTask: boolean
+  journalEmpty: boolean
+  emptyExitRetries: number
+  maxEmptyExitRetries: number       // default 2
+  hasNewRegressions: boolean
+  repairBudgetExhausted: boolean
+  maxRepairTurns: number            // default 3
+  hasGreenCommit: boolean
+  isMaxSteps: boolean
+  // oscillation: reserved for future (2F-4 placeholder row)
+}
+
+export interface ExitDecision {
+  action: ExitAction
+  reflectionText?: string
+  incrementEmptyExit?: boolean
+  reason: string
+}
+
+export function resolveExitCondition(state: ExitConditionState): ExitDecision {
+  // 1. Max steps — existing logic, highest priority
+  if (state.isMaxSteps) {
+    return { action: "break", reason: "max steps reached" }
+  }
+
+  // 2. Not a code-change task — exit normally
+  if (!state.isCodeChangeTask) {
+    return { action: "break", reason: "non-code task, exit normally" }
+  }
+
+  // 3. No mutations — inject empty-exit reflection
+  if (state.journalEmpty) {
+    if (state.emptyExitRetries >= state.maxEmptyExitRetries) {
+      return { action: "break", reason: `empty exit retries exhausted (${state.maxEmptyExitRetries})` }
+    }
+    return {
+      action: "continue",
+      reflectionText: "...",  // built by caller with tier info
+      incrementEmptyExit: true,
+      reason: "no mutations on code-change task",
+    }
+  }
+
+  // 4. Mutations exist but verification failed with new regressions
+  if (state.hasNewRegressions) {
+    if (state.repairBudgetExhausted) {
+      return {
+        action: state.hasGreenCommit ? "rollback" : "break",
+        reason: `repair budget exhausted (${state.maxRepairTurns} cycles)`,
+      }
+    }
+    return {
+      action: "continue",
+      reflectionText: "...",  // built by caller with verify output
+      reason: "new regressions detected",
+    }
+  }
+
+  // 5. Mutations exist, verification passed (or not configured) — exit
+  return { action: "break", reason: "mutations applied, verification passed" }
+}
+```
+
+### Combination tests required
+
+- Empty exit + verify fail in same turn: should not double-count budgets.
+- Verify fail + budget exhausted + green commit exists → rollback.
+- Verify fail + budget exhausted + no green commit → break with warning.
+- Max steps overrides everything.
+- Non-code task always exits normally.
+- `isCodeChangeTask` with `journalEmpty` + `emptyExitRetries === 0` → continue with reflection.
+- `isCodeChangeTask` with `journalEmpty` + `emptyExitRetries === 2` → break with warning.
+
+---
+
+## Files Summary
+
+| Action | File | Description |
+|--------|------|-------------|
+| **Create** | `src/session/mutation-journal.ts` | Append-only mutation log, session-scoped |
+| **Create** | `src/session/control-plane.ts` | Unified `resolveExitCondition()` function |
+| **Modify** | `src/session/prompt/loop.ts` (lines 217–238) | Insert exit gate before `break` |
+| **Modify** | `src/session/processor.ts` (line ~643) | Record mutations to journal; harness commit after successful apply |
+| **Modify** | `packages/core/src/verification.ts` | Export `executeVerification` for exit-time use (already exists as internal, just export) |
+
+## Verification Plan
+
+### Unit tests (`test/`)
+1. `mutation-journal.test.ts` — record, isEmpty, reset, fileCount. Commit does not count.
+2. `control-plane.test.ts` — all 6 conditions individually + 4 combinations (see above).
+3. `exit-gate.test.ts` — mock session where model finishes without mutations on code-change task → reflection injected with correct tool name for tier. Non-code task exits normally.
+4. Intent override: "the rate limiter tests are failing" → `isCodeChangeTask` returns true.
+
+### Smoke test
+- `timeout 60s bun run test:smoke`
+
+### Manual gate test
+- Replay frozen 8B empty-exit transcript against fixture repo → must NOT exit on prose.
