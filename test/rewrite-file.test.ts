@@ -186,6 +186,16 @@ describe("rewrite_file tool", () => {
       expect(decoded.reason).toBe("Full rewrite for Tier D model safety")
     })
 
+    test("accepts optional create parameter", () => {
+      const validWithCreate = {
+        file_path: "/path/to/file.ts",
+        content: "hello",
+        create: true,
+      }
+      const decoded = Schema.decodeUnknownSync(Parameters)(validWithCreate)
+      expect(decoded.create).toBe(true)
+    })
+
     test("rejects missing file_path", () => {
       expect(() => Schema.decodeUnknownSync(Parameters)({ content: "hello" })).toThrow()
     })

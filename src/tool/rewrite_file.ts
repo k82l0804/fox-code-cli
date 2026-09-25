@@ -12,13 +12,18 @@ import { assertExternalDirectoryEffect } from "./external-directory"
 import { assertMutablePath } from "../foxcode/agent-manager/protection"
 import * as Bom from "@/util/bom"
 
+import { syntaxCheck } from "./syntax-gate"
+
 const DESCRIPTION = [
   "Write the entire contents of a file. This tool replaces the full file content (or creates a new file).",
   "Use this tool for simple file creation or modification. Provide the complete file content — do not use diffs or patches.",
+  "If the file does not exist, set create: true to create it.",
   "",
   "Parameters:",
   "- file_path: The absolute path to the file to write",
   "- content: The complete new content for the file",
+  "- create: Set to true to create a new file if it does not already exist (default: false)",
+  "- reason: Optional explanation of why the file is being rewritten",
 ].join("\n")
 
 export const Parameters = Schema.Struct({
@@ -26,6 +31,9 @@ export const Parameters = Schema.Struct({
     description: "The absolute path to the file to write (must be absolute, not relative)",
   }),
   content: Schema.String.annotate({ description: "The complete new content for the file" }),
+  create: Schema.optional(Schema.Boolean).annotate({
+    description: "Set to true to create a new file if it does not already exist (default: false)",
+  }),
   reason: Schema.optional(Schema.String).annotate({
     description: "Optional explanation of why the file is being rewritten",
   }),
@@ -36,6 +44,7 @@ type Metadata = {
   exists: boolean
   linesAdded: number
   linesRemoved: number
+  rejected?: boolean
 }
 
 export function resolveRewritePath(filePath: string, directory: string): string {
@@ -105,7 +114,10 @@ export const RewriteFileTool = Tool.define<typeof Parameters, Metadata, FSUtil.S
     return {
       description: DESCRIPTION,
       parameters: Parameters,
-      execute: (params: { file_path: string; content: string; reason?: string }, ctx: Tool.Context) =>
+      execute: (
+        params: { file_path: string; content: string; reason?: string; create?: boolean },
+        ctx: Tool.Context,
+      ) =>
         Effect.gen(function* () {
           const instance = yield* InstanceState.context
           const filepath = resolveRewritePath(params.file_path, instance.directory)
@@ -115,11 +127,38 @@ export const RewriteFileTool = Tool.define<typeof Parameters, Metadata, FSUtil.S
           yield* assertExternalDirectoryEffect(ctx, filepath)
 
           const exists = yield* fs.existsSafe(filepath)
+          if (!exists && !params.create) {
+            throw new Error("File does not exist. Set create: true to create a new file.")
+          }
+
           const oldContent = exists ? (yield* fs.readFileStringSafe(filepath)) ?? "" : ""
           const { desiredBom, cleanNewContent, cleanOldContent, fullContent } = prepareRewriteContent(
             oldContent,
             params.content,
           )
+
+          // Syntax gate check before modifying disk
+          const preSyntax = exists
+            ? yield* Effect.promise(() => syntaxCheck(cleanOldContent, filepath))
+            : { count: 0, supported: false, errorLines: [] }
+          const postSyntax = yield* Effect.promise(() => syntaxCheck(cleanNewContent, filepath))
+
+          const displayPath = path.relative(instance.worktree, filepath)
+          if (postSyntax.supported && postSyntax.count > preSyntax.count) {
+            const diffCount = postSyntax.count - preSyntax.count
+            const linesStr = postSyntax.errorLines.length > 0 ? ` Lines: ${postSyntax.errorLines.join(", ")}.` : ""
+            return {
+              title: displayPath,
+              metadata: {
+                filepath,
+                exists,
+                linesAdded: 0,
+                linesRemoved: 0,
+                rejected: true,
+              },
+              output: `Edit rejected: introduces ${diffCount} syntax error(s).${linesStr} Please check your changes.`,
+            }
+          }
 
           // Compute diff stats
           const { linesAdded, linesRemoved } = computeRewriteDiffStats(cleanOldContent, cleanNewContent)
@@ -135,7 +174,6 @@ export const RewriteFileTool = Tool.define<typeof Parameters, Metadata, FSUtil.S
             event: exists ? "change" : "add",
           })
 
-          const displayPath = path.relative(instance.worktree, filepath)
           const output = buildRewriteOutput(exists, displayPath, {
             linesAdded,
             linesRemoved,

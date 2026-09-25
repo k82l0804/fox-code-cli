@@ -30,7 +30,8 @@ export const GrepTool = Tool.define(
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const limit = params.limit ?? KiloGrep.DEFAULT_LIMIT
-          const context = params.context ?? 0
+          const isDetailed = params.context === true || (typeof params.context === "number" && params.context > 0)
+          const contextLines = typeof params.context === "number" ? params.context : params.context === true ? 2 : 0
           const empty = {
             title: params.pattern,
             metadata: { matches: 0, truncated: false },
@@ -48,7 +49,7 @@ export const GrepTool = Tool.define(
               pattern: params.pattern,
               path: params.path,
               include: params.include,
-              ...KiloGrep.metadata(params, limit, context),
+              ...KiloGrep.metadata(params, limit, params.context ?? 0),
             },
           })
 
@@ -71,7 +72,7 @@ export const GrepTool = Tool.define(
             file: info?.type === "File" ? path.basename(search) : undefined,
             pattern: params.pattern,
             include: params.include,
-            ...KiloGrep.options(params, limit, context),
+            ...KiloGrep.options(params, limit, contextLines),
             signal: ctx.abort,
           })
           const matches = result.items
@@ -93,6 +94,42 @@ export const GrepTool = Tool.define(
 
           const total = rows.filter((row) => !row.context).length
           const hasMore = truncated
+
+          if (!isDetailed) {
+            const fileMap = new Map<string, Array<{ line: number; text: string }>>()
+            for (const row of final) {
+              if (row.context) continue
+              const rel = path.relative(ins.directory, row.path) || row.path
+              const list = fileMap.get(rel) ?? []
+              list.push(row)
+              fileMap.set(rel, list)
+            }
+            const totalFiles = fileMap.size
+            if (totalFiles === 0) return empty
+            const output = [`Found "${params.pattern}" in ${totalFiles} file${totalFiles === 1 ? "" : "s"}:`]
+            const entries = Array.from(fileMap.entries())
+            const maxFiles = 20
+            const displayed = entries.slice(0, maxFiles)
+            for (const [filePath, hits] of displayed) {
+              const hitCount = hits.length
+              const previews = hits.slice(0, 2).map((h) => `line ${h.line}: ${h.text.trim()}`).join("; ")
+              output.push(`${filePath} (${hitCount} hit${hitCount === 1 ? "" : "s"}) - ${previews}`)
+            }
+            if (entries.length > maxFiles) {
+              const moreFiles = entries.length - maxFiles
+              output.push(`... and ${moreFiles} more file${moreFiles === 1 ? "" : "s"}`)
+            }
+            if (result.partial) output.push("", "(Some paths were inaccessible.)")
+            return {
+              title: params.pattern,
+              metadata: {
+                matches: total,
+                truncated,
+              },
+              output: output.join("\n"),
+            }
+          }
+
           const output = [`Found ${total} matches${hasMore ? " (more matches available)" : ""}`]
 
           let current = ""
@@ -102,7 +139,7 @@ export const GrepTool = Tool.define(
               current = match.path
               output.push(`${match.path}:`)
             }
-            output.push(KiloGrep.line(match, context))
+            output.push(KiloGrep.line(match, contextLines))
           }
 
           if (truncated) {

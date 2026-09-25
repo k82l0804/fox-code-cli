@@ -675,7 +675,9 @@ export const ShellTool = Tool.define(
       }
 
       let output = end.text
-      if (!output) output = "(no output)"
+      if (!output || !output.trim()) {
+        output = code === 0 ? "Command completed successfully with no output." : "(no output)"
+      }
 
       if (cut && file) {
         output = `...output truncated...\n\nFull output saved to: ${file}\n\n` + output

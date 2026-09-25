@@ -4,8 +4,8 @@ import { Schema } from "effect"
 export const DEFAULT_LIMIT = 100
 
 export const fields = {
-  context: Schema.optional(NonNegativeInt).annotate({
-    description: "Number of context lines to show before and after each match (default 0)",
+  context: Schema.optional(Schema.Union([NonNegativeInt, Schema.Boolean])).annotate({
+    description: "Number of context lines or boolean for detailed hunk view (default false / summary mode)",
   }),
   limit: Schema.optional(PositiveInt).annotate({
     description: "Maximum matching lines to return (default 100)",
@@ -19,13 +19,13 @@ export const fields = {
 }
 
 type Input = {
-  readonly context?: number
+  readonly context?: number | boolean
   readonly limit?: number
   readonly literal?: boolean
   readonly ignoreCase?: boolean
 }
 
-export const metadata = (input: Input, limit: number, context: number) => ({
+export const metadata = (input: Input, limit: number, context: number | boolean) => ({
   context,
   limit,
   literal: input.literal,

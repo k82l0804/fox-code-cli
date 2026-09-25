@@ -198,7 +198,13 @@ const layer = Layer.effectDiscard(
                 }
               }
 
-              let output = result.output?.toString("utf8") || "(no output)"
+              const rawText = result.output?.toString("utf8")
+              let output =
+                rawText && rawText.trim()
+                  ? rawText
+                  : result.exitCode === 0
+                    ? "Command completed successfully with no output."
+                    : "(no output)"
               let isTruncated = result.outputTruncated === true
               if (Flag.FOX_EXPERIMENTAL_COMPRESS_GIT) {
                 const tr = ToolOutputCompressor.truncateShellOutput(output, { command: input.command })

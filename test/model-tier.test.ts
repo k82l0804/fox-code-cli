@@ -527,7 +527,8 @@ describe("Model Capability Tier System", () => {
   // -------------------------------------------------------------------------
   describe("Category 7: Tool Surface Filtering (filterToolsByTier)", () => {
     // Helper: create mock tool list
-    const mockTools = (ids: string[]) => ids.map((id) => ({ id, description: `mock ${id}` }))
+    const mockTools = (ids: string[]): Array<{ id: string; description: string }> =>
+      ids.map((id) => ({ id, description: `mock ${id}` }))
 
     const ALL_TOOL_IDS = [
       "read", "grep", "glob", "bash", "webfetch", "question", "todowrite",
@@ -536,76 +537,66 @@ describe("Model Capability Tier System", () => {
       "fox_memory_save", "kilo_memory_save",
     ]
 
-    test("Tier S sees all tools", () => {
+    test("Tier S sees canonical tools (8 tools)", () => {
       const tier = resolveTier({ overrideTier: "S" })
       const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
-      expect(result.map((t) => t.id)).toEqual(ALL_TOOL_IDS)
+      expect(new Set(result.map((t) => t.id))).toEqual(
+        new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash", "lookup_symbols"]),
+      )
     })
 
-    test("Tier A sees all tools", () => {
+    test("Tier A sees canonical tools (8 tools)", () => {
       const tier = resolveTier({ overrideTier: "A" })
       const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
-      expect(result.map((t) => t.id)).toEqual(ALL_TOOL_IDS)
+      expect(new Set(result.map((t) => t.id))).toEqual(
+        new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash", "lookup_symbols"]),
+      )
     })
 
-    test("Tier B sees all tools", () => {
+    test("Tier B sees canonical tools (7 tools, no lookup_symbols)", () => {
       const tier = resolveTier({ overrideTier: "B" })
       const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
-      expect(result.map((t) => t.id)).toEqual(ALL_TOOL_IDS)
+      expect(new Set(result.map((t) => t.id))).toEqual(
+        new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash"]),
+      )
     })
 
-    test("Tier C hides complex tools", () => {
+    test("Tier C sees only grep and bash", () => {
+      const tier = resolveTier({ overrideTier: "C" })
+      const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
+      expect(result.map((t) => t.id)).toEqual(["grep", "bash"])
+    })
+
+    test("Tier C hides edit, rewrite_file, read, glob, and complex tools", () => {
       const tier = resolveTier({ overrideTier: "C" })
       const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
       const ids = result.map((t) => t.id)
-      expect(ids).not.toContain("task")
-      expect(ids).not.toContain("skill")
-      expect(ids).not.toContain("lookup_symbols")
-      expect(ids).not.toContain("fetch_repo_map")
+      expect(ids).not.toContain("edit")
+      expect(ids).not.toContain("rewrite_file")
+      expect(ids).not.toContain("read")
+      expect(ids).not.toContain("glob")
       expect(ids).not.toContain("lsp")
-      expect(ids).not.toContain("agent_manager")
-      expect(ids).not.toContain("fox_memory_save")
-      expect(ids).not.toContain("kilo_memory_save")
-    })
-
-    test("Tier C hides edit/write/apply_patch (uses rewrite_file instead)", () => {
-      const tier = resolveTier({ overrideTier: "C" })
-      const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
-      const ids = result.map((t) => t.id)
-      expect(ids).not.toContain("edit")
-      expect(ids).not.toContain("write")
-      expect(ids).not.toContain("apply_patch")
-      expect(ids).toContain("rewrite_file")
-    })
-
-    test("Tier C keeps safe tools", () => {
-      const tier = resolveTier({ overrideTier: "C" })
-      const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
-      const ids = result.map((t) => t.id)
-      expect(ids).toContain("read")
-      expect(ids).toContain("grep")
-      expect(ids).toContain("glob")
-      expect(ids).toContain("bash")
-      expect(ids).toContain("webfetch")
-      expect(ids).toContain("question")
-      expect(ids).toContain("rewrite_file")
-    })
-
-    test("Tier D hides complex tools AND edit/write/apply_patch", () => {
-      const tier = resolveTier({ overrideTier: "D" })
-      const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
-      const ids = result.map((t) => t.id)
       expect(ids).not.toContain("task")
       expect(ids).not.toContain("skill")
-      expect(ids).not.toContain("edit")
-      expect(ids).not.toContain("write")
-      expect(ids).not.toContain("apply_patch")
     })
 
-    test("Tier D includes rewrite_file", () => {
+    test("Tier D sees only grep and bash", () => {
       const tier = resolveTier({ overrideTier: "D" })
       const result = filterToolsByTier(mockTools(ALL_TOOL_IDS), tier)
-      expect(result.map((t) => t.id)).toContain("rewrite_file")
+      expect(result.map((t) => t.id)).toEqual(["grep", "bash"])
+    })
+
+    test("Excluded tools (write, apply_patch, commit, fetch_repo_map) are hidden from all tiers", () => {
+      const tiers: ModelTier[] = ["S", "A", "B", "C", "D"]
+      const excluded = ["write", "apply_patch", "commit", "fetch_repo_map"]
+      for (const t of tiers) {
+        const tier = resolveTier({ overrideTier: t })
+        const result = filterToolsByTier(mockTools([...ALL_TOOL_IDS, ...excluded]), tier)
+        const ids = result.map((tool) => tool.id)
+        for (const ex of excluded) {
+          expect(ids).not.toContain(ex)
+        }
+      }
     })
 
     test("Tier C with filter disabled sees all tools", () => {
@@ -625,77 +616,11 @@ describe("Model Capability Tier System", () => {
       expect(filterToolsByTier([], tier)).toEqual([])
     })
 
-    test("Unknown/custom tool IDs pass through (not in either set)", () => {
+    test("Unknown/custom tool IDs pass through (not in KNOWN_BUILTIN_TOOLS)", () => {
       const tier = resolveTier({ overrideTier: "C" })
       const custom = mockTools(["my_custom_plugin_tool", "another_tool"])
       const result = filterToolsByTier(custom, tier)
       expect(result.map((t) => t.id)).toEqual(["my_custom_plugin_tool", "another_tool"])
-    })
-
-    test("Tier B does NOT have rewrite_file filtered out", () => {
-      const tier = resolveTier({ overrideTier: "B" })
-      const tools = mockTools(["read", "edit", "rewrite_file"])
-      const result = filterToolsByTier(tools, tier)
-      expect(result.map((t) => t.id)).toContain("rewrite_file")
-    })
-
-    test("commit is in TIER_COMPLEX_TOOLS and filtered out for Tier C", () => {
-      expect(TIER_COMPLEX_TOOLS.has("commit")).toBe(true)
-      const tier = resolveTier({ overrideTier: "C" })
-      const tools = mockTools(["read", "commit"])
-      const result = filterToolsByTier(tools, tier)
-      expect(result.map((t) => t.id)).not.toContain("commit")
-    })
-
-    test("websearch is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
-      expect(TIER_SAFE_TOOLS.has("websearch")).toBe(true)
-      const tier = resolveTier({ overrideTier: "D" })
-      const tools = mockTools(["read", "websearch", "task"])
-      const result = filterToolsByTier(tools, tier)
-      expect(result.map((t) => t.id)).toContain("websearch")
-    })
-
-    test("recall is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
-      expect(TIER_SAFE_TOOLS.has("recall")).toBe(true)
-      const tier = resolveTier({ overrideTier: "D" })
-      const tools = mockTools(["read", "recall", "task"])
-      const result = filterToolsByTier(tools, tier)
-      expect(result.map((t) => t.id)).toContain("recall")
-    })
-
-    test("repo_overview is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
-      expect(TIER_SAFE_TOOLS.has("repo_overview")).toBe(true)
-      const tier = resolveTier({ overrideTier: "D" })
-      const tools = mockTools(["read", "repo_overview", "task"])
-      const result = filterToolsByTier(tools, tier)
-      expect(result.map((t) => t.id)).toContain("repo_overview")
-    })
-
-    test("semantic_search is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
-      expect(TIER_SAFE_TOOLS.has("semantic_search")).toBe(true)
-      const tier = resolveTier({ overrideTier: "D" })
-      const tools = mockTools(["read", "semantic_search", "task"])
-      const result = filterToolsByTier(tools, tier)
-      expect(result.map((t) => t.id)).toContain("semantic_search")
-    })
-
-    test("notebook_read is in TIER_SAFE_TOOLS and survives Tier D filtering", () => {
-      expect(TIER_SAFE_TOOLS.has("notebook_read")).toBe(true)
-      const tier = resolveTier({ overrideTier: "D" })
-      const tools = mockTools(["read", "notebook_read", "task"])
-      const result = filterToolsByTier(tools, tier)
-      expect(result.map((t) => t.id)).toContain("notebook_read")
-    })
-
-    test("notebook_edit and notebook_execute are in TIER_COMPLEX_TOOLS and filtered out for Tier C", () => {
-      expect(TIER_COMPLEX_TOOLS.has("notebook_edit")).toBe(true)
-      expect(TIER_COMPLEX_TOOLS.has("notebook_execute")).toBe(true)
-      const tier = resolveTier({ overrideTier: "C" })
-      const tools = mockTools(["read", "notebook_edit", "notebook_execute"])
-      const result = filterToolsByTier(tools, tier)
-      const ids = result.map((t) => t.id)
-      expect(ids).not.toContain("notebook_edit")
-      expect(ids).not.toContain("notebook_execute")
     })
 
     test("TIER_SAFE_TOOLS and TIER_COMPLEX_TOOLS have no overlapping tools", () => {
@@ -848,33 +773,34 @@ describe("Model Capability Tier System", () => {
   // Category 9: Tool Filtering + Tier Reclassification Integration (Phase 2)
   // -------------------------------------------------------------------------
   describe("Category 9: Tool Filtering + Reclassification Integration", () => {
-    const mockTools = (ids: string[]) => ids.map((id) => ({ id, description: `mock ${id}` }))
+    const mockTools = (ids: string[]): Array<{ id: string; description: string }> =>
+      ids.map((id) => ({ id, description: `mock ${id}` }))
     const EDIT_TOOLS = ["read", "grep", "glob", "bash", "edit", "write", "task", "rewrite_file"]
 
     test("Tier C after reclassification to B expands tools", () => {
       const tier = resolveTier({ overrideTier: "C" })
       let state = createReclassState(tier)
-      // Initially C: task is hidden
+      // Initially C: edit is hidden
       const before = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
-      expect(before.map((t) => t.id)).not.toContain("task")
-      // After success: promoted to B, task is available
+      expect(before.map((t) => t.id)).not.toContain("edit")
+      // After success: promoted to B, edit is available
       state = reclassifyOnSuccess(state)
       const after = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
-      expect(after.map((t) => t.id)).toContain("task")
+      expect(after.map((t) => t.id)).toContain("edit")
     })
 
     test("Promoted Tier B after demotion to C narrows tools", () => {
       const tier = resolveTier({ overrideTier: "C" })
       let state = createReclassState(tier)
       state = reclassifyOnSuccess(state) // C → B
-      // Now B: task is available
+      // Now B: edit is available
       const before = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
-      expect(before.map((t) => t.id)).toContain("task")
-      // After 2 failures: demoted back to C, task is hidden
+      expect(before.map((t) => t.id)).toContain("edit")
+      // After 2 failures: demoted back to C, edit is hidden
       state = reclassifyOnFailure(state)
       state = reclassifyOnFailure(state)
       const after = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
-      expect(after.map((t) => t.id)).not.toContain("task")
+      expect(after.map((t) => t.id)).not.toContain("edit")
     })
 
     test("B-native model preserves tools after failures (no demotion)", () => {
@@ -883,7 +809,7 @@ describe("Model Capability Tier System", () => {
       state = reclassifyOnFailure(state)
       state = reclassifyOnFailure(state)
       const after = filterToolsByTier(mockTools(EDIT_TOOLS), state.current)
-      expect(after.map((t) => t.id)).toContain("task")
+      expect(after.map((t) => t.id)).toContain("edit")
     })
 
     test("TIER_SAFE_TOOLS and TIER_COMPLEX_TOOLS don't overlap", () => {

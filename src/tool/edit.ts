@@ -25,6 +25,7 @@ import * as Encoding from "../foxcode/encoding"
 import { assertMutablePath } from "../foxcode/agent-manager/protection"
 import { computeConfidence } from "@/foxcode/lsp-confidence"
 import type { Diagnostic } from "vscode-languageserver-types"
+import { syntaxCheck } from "./syntax-gate"
 const MAX_DIFF_CONTENT = 500_000
 export function buildFileDiff(file: string, before: string, after: string): Snapshot.FileDiff {
   const tooLarge = before.length > MAX_DIFF_CONTENT || after.length > MAX_DIFF_CONTENT
@@ -79,7 +80,23 @@ export const Parameters = Schema.Struct({
   }),
 })
 
-export const EditTool = Tool.define(
+export type Metadata = {
+  diff: string
+  filediff: Snapshot.FileDiff
+  diagnostics: Record<string, Diagnostic[]>
+  rejected?: boolean
+  confidence?: {
+    score: number
+    label: string
+    newErrors: number
+  }
+}
+
+export const EditTool = Tool.define<
+  typeof Parameters,
+  Metadata,
+  LSP.Service | FSUtil.Service | Format.Service | EventV2Bridge.Service
+>(
   "edit",
   Effect.gen(function* () {
     const lsp = yield* LSP.Service
@@ -112,6 +129,7 @@ export const EditTool = Tool.define(
           let contentNew = ""
           let cachedFilediff: Snapshot.FileDiff | undefined
           let beforeDiags: Diagnostic[] = []
+          let syntaxRejection: string | undefined
           yield* lock(filePath).withPermits(1)(
             Effect.gen(function* () {
               if (params.oldString === "") {
@@ -127,6 +145,14 @@ export const EditTool = Tool.define(
                 contentNew = next.text
                 diff = trimDiff(createTwoFilesPatch(filePath, filePath, contentOld, contentNew))
                 cachedFilediff = buildFileDiff(filePath, contentOld, contentNew)
+
+                const postSyntax = yield* Effect.promise(() => syntaxCheck(contentNew, filePath))
+                if (postSyntax.supported && postSyntax.count > 0) {
+                  const linesStr = postSyntax.errorLines.length > 0 ? ` Lines: ${postSyntax.errorLines.join(", ")}.` : ""
+                  syntaxRejection = `Edit rejected: introduces ${postSyntax.count} syntax error(s).${linesStr} Please check your changes.`
+                  return
+                }
+
                 yield* ctx.ask({
                   permission: "edit",
                   patterns: [path.relative(instance.worktree, filePath)],
@@ -174,6 +200,17 @@ export const EditTool = Tool.define(
                 ),
               )
               cachedFilediff = buildFileDiff(filePath, contentOld, contentNew)
+
+              // Syntax gate check before modifying disk
+              const preSyntax = yield* Effect.promise(() => syntaxCheck(contentOld, filePath))
+              const postSyntax = yield* Effect.promise(() => syntaxCheck(contentNew, filePath))
+              if (postSyntax.supported && postSyntax.count > preSyntax.count) {
+                const diffCount = postSyntax.count - preSyntax.count
+                const linesStr = postSyntax.errorLines.length > 0 ? ` Lines: ${postSyntax.errorLines.join(", ")}.` : ""
+                syntaxRejection = `Edit rejected: introduces ${diffCount} syntax error(s).${linesStr} Please check your changes.`
+                return
+              }
+
               yield* ctx.ask({
                 permission: "edit",
                 patterns: [path.relative(instance.worktree, filePath)],
@@ -209,6 +246,21 @@ export const EditTool = Tool.define(
             }).pipe(Effect.orDie),
           )
 
+          if (syntaxRejection) {
+            const filediff: Snapshot.FileDiff = cachedFilediff ?? buildFileDiff(filePath, contentOld, contentNew)
+            return {
+              metadata: {
+                diagnostics: {},
+                diff,
+                filediff,
+                rejected: true,
+                confidence: undefined,
+              },
+              title: `${path.relative(instance.worktree, filePath)}`,
+              output: syntaxRejection,
+            }
+          }
+
           const filediff: Snapshot.FileDiff = cachedFilediff ?? buildFileDiff(filePath, contentOld, contentNew)
           yield* ctx.metadata({
             metadata: {
@@ -239,6 +291,7 @@ export const EditTool = Tool.define(
               diagnostics: filterDiagnostics(diagnostics, [normalizedFilePath]),
               diff,
               filediff,
+              rejected: false,
               confidence: {
                 score: confidence.score,
                 label: confidence.label,

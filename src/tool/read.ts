@@ -18,11 +18,11 @@ import * as FoxConfiguredReference from "@/foxcode/reference"
 import { FoxReadObject } from "@/foxcode/tool/read-object"
 import * as Extract from "../foxcode/tool/read-extract"
 import * as TextStream from "../foxcode/text-stream"
-const DEFAULT_READ_LIMIT = 2000
-const MAX_LINE_LENGTH = 2000
+export const DEFAULT_READ_LIMIT = 200
+export const MAX_LINE_LENGTH = 2000
 const suffix = (length: number) => `... (line truncated to ${length} chars)`
-const MAX_BYTES = 50 * 1024
-const MAX_BYTES_LABEL = `${MAX_BYTES / 1024} KB`
+export const MAX_BYTES = 50 * 1024
+export const MAX_BYTES_LABEL = `${MAX_BYTES / 1024} KB`
 const SAMPLE_BYTES = 4096
 const SUPPORTED_IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"])
 
@@ -37,7 +37,7 @@ export const Parameters = Schema.Struct({
     description: "The line number to start reading from (1-indexed)",
   }),
   limit: Schema.optional(NonNegativeInt).annotate({
-    description: "The maximum number of lines to read (defaults to 2000)",
+    description: "The maximum number of lines to read (defaults to 200)",
   }),
 })
 
@@ -193,6 +193,8 @@ export const ReadTool = Tool.define<
       const requested = filepath
       const title = path.relative(instance.worktree, requested)
       const config = yield* Effect.serviceOption(Config.Service)
+      const appConfig = config._tag === "Some" ? yield* config.value.get() : undefined
+      const configuredLimit = (appConfig as any)?.autonomous?.max_read_lines ?? DEFAULT_READ_LIMIT
       const references =
         config._tag === "Some"
           ? FoxConfiguredReference.resolveAll({
@@ -237,7 +239,7 @@ export const ReadTool = Tool.define<
           }
         }
         const items = yield* list(target)
-        const limit = Math.max(1, params.limit ?? DEFAULT_READ_LIMIT)
+        const limit = Math.max(1, params.limit ?? configuredLimit)
         const offset = params.offset || 1
         const start = offset - 1
         const sliced = items.slice(start, start + limit)
@@ -316,7 +318,7 @@ export const ReadTool = Tool.define<
           }
           const file = yield* lines(
             bound,
-            { limit: Math.max(1, params.limit ?? DEFAULT_READ_LIMIT), offset: params.offset || 1 },
+            { limit: Math.max(1, params.limit ?? configuredLimit), offset: params.offset || 1 },
             ctx.abort,
           )
           if (file.count < file.offset && !(file.count === 0 && file.offset === 1)) {
@@ -330,10 +332,9 @@ export const ReadTool = Tool.define<
           const last = file.offset + file.raw.length - 1
           const next = last + 1
           const truncated = file.more || file.cut
-          if (file.cut) {
-            output += `\n\n(Output capped at ${MAX_BYTES_LABEL}. Showing lines ${file.offset}-${last}. Use offset=${next} to continue.)`
-          } else if (file.more) {
-            output += `\n\n(Showing lines ${file.offset}-${last} of ${file.count}. Use offset=${next} to continue.)`
+          if (truncated) {
+            const moreLines = file.count - last
+            output += `\n\n... ${moreLines} more lines (${file.remainingBytes} bytes), use offset=${next} to continue`
           } else {
             output += `\n\n(End of file - total ${file.count} lines)`
           }
@@ -372,7 +373,7 @@ export const ReadTool = Tool.define<
     }
   }),
 )
-async function collect(stream: Readable, opts: { limit: number; offset: number }) {
+export async function collect(stream: Readable, opts: { limit: number; offset: number }) {
   const rl = createInterface({ input: stream, crlfDelay: Infinity })
   const start = opts.offset - 1
   const raw: string[] = []
@@ -380,12 +381,14 @@ async function collect(stream: Readable, opts: { limit: number; offset: number }
   let count = 0
   let cut = false
   let more = false
+  let remainingBytes = 0
   try {
     for await (const text of rl) {
       count += 1
       if (count <= start) continue
-      if (raw.length >= opts.limit) {
+      if (cut || raw.length >= opts.limit) {
         more = true
+        remainingBytes += Buffer.byteLength(text, "utf-8") + 1
         continue
       }
       const sliced = TextStream.safeSlice(text, MAX_LINE_LENGTH)
@@ -394,7 +397,8 @@ async function collect(stream: Readable, opts: { limit: number; offset: number }
       if (bytes + size > MAX_BYTES) {
         cut = true
         more = true
-        break
+        remainingBytes += Buffer.byteLength(text, "utf-8") + 1
+        continue
       }
       raw.push(line)
       bytes += size
@@ -403,5 +407,5 @@ async function collect(stream: Readable, opts: { limit: number; offset: number }
     rl.close()
     stream.destroy()
   }
-  return { raw, count, cut, more, offset: opts.offset }
+  return { raw, count, cut, more, offset: opts.offset, remainingBytes }
 }

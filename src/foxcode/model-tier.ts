@@ -260,6 +260,85 @@ export const TIER_SAFE_TOOLS = new Set([
 ])
 
 /**
+ * Canonical tool surface mapping per model capability tier (Phase 2E Task 2E-4).
+ * - S/A: full tool-calling suite with lookup_symbols
+ * - B: full tool-calling suite
+ * - C/D: minimal explore-only suite (grep + bash); edits handled via harness fence-parse
+ */
+export const TIER_TOOL_SURFACE: Record<ModelTier, Set<string>> = {
+  S: new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash", "lookup_symbols"]),
+  A: new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash", "lookup_symbols"]),
+  B: new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash"]),
+  C: new Set(["grep", "bash"]),
+  D: new Set(["grep", "bash"]),
+}
+
+/**
+ * Tools removed from default surface for ALL tiers:
+ * - apply_patch: internal harness use only
+ * - write: deprecated, subsumed into rewrite_file(create: true)
+ * - commit: harness-owned only
+ * - fetch_repo_map: injected via code context block in system prefix
+ */
+export const EXCLUDED_FROM_ALL_TIERS = new Set(["apply_patch", "write", "commit", "fetch_repo_map"])
+
+/**
+ * Standard known built-in tool IDs for classification.
+ */
+export const KNOWN_BUILTIN_TOOLS = new Set([
+  "edit",
+  "rewrite_file",
+  "write",
+  "apply_patch",
+  "read",
+  "grep",
+  "glob",
+  "lsp",
+  "bash",
+  "commit",
+  "fetch_repo_map",
+  "lookup_symbols",
+  "task",
+  "skill",
+  "webfetch",
+  "websearch",
+  "question",
+  "todo",
+  "todowrite",
+  "plan_exit",
+  "notebook_edit",
+  "notebook_execute",
+  "notebook_read",
+  "agent_manager",
+  "agent_manager_models",
+  "background_process",
+  "board_read",
+  "board_post",
+  "goal_report",
+  "browser_open",
+  "cancel_wakeup",
+  "chart",
+  "generate_image",
+  "memory_recall",
+  "memory_save",
+  "fox_memory_recall",
+  "fox_memory_save",
+  "kilo_memory_recall",
+  "kilo_memory_save",
+  "kilo_local_recall",
+  "notify_user",
+  "open_plan",
+  "schedule_wakeup",
+  "send_file",
+  "repo_overview",
+  "repo_clone",
+  "invalid",
+  "suggest",
+  "recall",
+  "semantic_search",
+])
+
+/**
  * Tool IDs hidden from Tier C/D models. These tools require multi-step
  * reasoning, complex schema formatting (diffs, patches), or recursive
  * subagent coordination that small models cannot reliably handle.
@@ -283,11 +362,12 @@ export const TIER_COMPLEX_TOOLS = new Set([
 ])
 
 /**
- * Filter a tool list based on the model's capability tier.
+ * Filter a tool list based on the model's capability tier (Canonical ACI Matrix).
  *
- * - Tiers S/A/B: all tools returned (no filtering)
- * - Tier C: TIER_COMPLEX_TOOLS removed; edit/write/apply_patch kept (C models can do basic edits)
- * - Tier D: TIER_COMPLEX_TOOLS removed AND edit/write/apply_patch removed (use rewrite_file instead)
+ * - Tiers S/A: edit, rewrite_file, read, grep, glob, lsp, bash, lookup_symbols
+ * - Tier B: edit, rewrite_file, read, grep, glob, lsp, bash
+ * - Tiers C/D: grep, bash only (fence-parse editing handled by harness)
+ * - Custom/plugin tools outside KNOWN_BUILTIN_TOOLS pass through.
  *
  * @param tools - Array of objects with an `id` field
  * @param tierInfo - The resolved tier info
@@ -299,16 +379,13 @@ export function filterToolsByTier<T extends { id: string }>(
   enabled: boolean = true,
 ): T[] {
   if (!enabled) return tools
-  if (tierInfo.tier === "S" || tierInfo.tier === "A" || tierInfo.tier === "B") return tools
-
-  // Tier C: remove complex tools but keep edit/write/apply_patch
-  if (tierInfo.tier === "C") {
-    return tools.filter((tool) => !TIER_COMPLEX_TOOLS.has(tool.id))
-  }
-
-  // Tier D: remove complex tools AND edit/write/apply_patch (use rewrite_file instead)
-  const tierDExclude = new Set([...TIER_COMPLEX_TOOLS, "edit", "write", "apply_patch"])
-  return tools.filter((tool) => !tierDExclude.has(tool.id))
+  const allowed = TIER_TOOL_SURFACE[tierInfo.tier] ?? TIER_TOOL_SURFACE.B
+  return tools.filter((tool) => {
+    if (KNOWN_BUILTIN_TOOLS.has(tool.id)) {
+      return allowed.has(tool.id)
+    }
+    return true
+  })
 }
 
 // ---------------------------------------------------------------------------

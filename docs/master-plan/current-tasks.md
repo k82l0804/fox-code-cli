@@ -16,7 +16,7 @@
 
 - [ ] **2E-3. Localization Pipeline + Code Context Block** — `buildCodeContextBlock()` with 5k token envelope (map + localize spans + pinned bodies). Hierarchical localize prelude (BM25 over identifiers + graph). Cold-index non-blocking. Honest cache key. Repo map injection (more for weak models). Working-set pinning.
 
-- [ ] **2E-4. ACI Simplification — Tool Surface Matrix** — Canonical ACI matrix (S/A: `edit` + `rewrite_file(create)`; B: `edit` + `rewrite_file`; C/D: none as tools → 2E-6). Syntax gate on apply. Bounded `read` (200 lines + offset). Empty success formatting. `commit`/`write`/`apply_patch` off default surface.
+- [x] **2E-4. ACI Simplification — Tool Surface Matrix** — Canonical ACI matrix (S/A: `edit` + `rewrite_file(create)`; B: `edit` + `rewrite_file`; C/D: none as tools → 2E-6). Syntax gate on apply. Bounded `read` (200 lines + offset). Empty success formatting. `commit`/`write`/`apply_patch` off default surface.
 
 - [x] **2E-5. *(Merged into 2E-3)*** — Repo Map Injection + Working-Set Pinning. N/A — see 2E-3.
 
