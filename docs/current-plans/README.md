@@ -9,7 +9,16 @@
 
 | Plan | Task | Status |
 |------|------|--------|
-| TBD | 2F-3: Cheap-First Verify + Incremental Touch-Set | ⏳ Pending |
-| TBD | 2F-5: `/add` Working Set as First-Class Session Object | ⏳ Pending |
-| TBD | 2F-6: Project Command Graph as Session Law | ⏳ Pending |
-| TBD | 2F-7: Fold or Freeze `general`/`explore` Agents | ⏳ Pending |
+| [2F-3: Incremental Verify](./2026-09-25T16-30_2f3-incremental-verify.md) | Cheap-First Verify + Incremental Touch-Set | ⏳ Pending |
+| [2F-5: Working Set](./2026-09-25T16-30_2f5-working-set.md) | `/add` Working Set as First-Class Session Object | ⏳ Pending |
+| [2F-6: Project Commands](./2026-09-25T16-30_2f6-project-commands.md) | Project Command Graph as Session Law | ⏳ Pending |
+| [2F-7: Agent Fold/Freeze](./2026-09-25T16-30_2f7-fold-freeze-agents.md) | Fold or Freeze `general`/`explore` Agents | ⏳ Pending |
+
+## Dependency Order
+
+```
+2F-3 (incremental verify)
+  └─► 2F-5 (working set)
+        └─► 2F-6 (project commands)
+              └─► 2F-7 (agent fold/freeze)
+```
