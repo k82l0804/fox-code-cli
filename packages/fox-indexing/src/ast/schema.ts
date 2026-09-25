@@ -1,9 +1,11 @@
 /**
  * SQLite schema for AST symbol cache.
  *
- * Two tables:
- * - symbol_files: tracks indexed files and their git blob hashes
+ * Tables:
+ * - symbol_files: tracks indexed files, their git blob hashes, language, and docstrings
  * - symbols: the extracted symbol definitions
+ * - file_imports: file import dependencies for graph queries
+ * - symbol_calls: caller-to-callee invocation edges for graph queries
  *
  * Uses bun:sqlite directly (no Effect/Drizzle) for simplicity and
  * zero-dependency operation.
@@ -12,7 +14,7 @@ import { Database } from "bun:sqlite"
 import * as path from "path"
 import * as fs from "fs"
 
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
 const CREATE_TABLES = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -24,7 +26,8 @@ const CREATE_TABLES = `
     blob_hash   TEXT NOT NULL,
     language    TEXT NOT NULL,
     indexed_at  INTEGER NOT NULL,
-    symbol_count INTEGER NOT NULL DEFAULT 0
+    symbol_count INTEGER NOT NULL DEFAULT 0,
+    docstrings  TEXT DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS symbols (
@@ -38,9 +41,27 @@ const CREATE_TABLES = `
     parent_name TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS file_imports (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path   TEXT NOT NULL REFERENCES symbol_files(file_path) ON DELETE CASCADE,
+    import_path TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS symbol_calls (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path   TEXT NOT NULL REFERENCES symbol_files(file_path) ON DELETE CASCADE,
+    caller_name TEXT NOT NULL,
+    callee_name TEXT NOT NULL,
+    line        INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
   CREATE INDEX IF NOT EXISTS idx_symbols_kind ON symbols(kind);
   CREATE INDEX IF NOT EXISTS idx_symbols_file ON symbols(file_path);
+  CREATE INDEX IF NOT EXISTS idx_file_imports_file ON file_imports(file_path);
+  CREATE INDEX IF NOT EXISTS idx_file_imports_path ON file_imports(import_path);
+  CREATE INDEX IF NOT EXISTS idx_symbol_calls_caller ON symbol_calls(caller_name);
+  CREATE INDEX IF NOT EXISTS idx_symbol_calls_callee ON symbol_calls(callee_name);
 `
 
 export interface SymbolRow {
@@ -60,6 +81,7 @@ export interface SymbolFileRow {
   language: string
   indexed_at: number
   symbol_count: number
+  docstrings?: string
 }
 
 export class SymbolDatabase {
@@ -86,6 +108,8 @@ export class SymbolDatabase {
       | { version: number }
       | null
     if (!current || current.version < SCHEMA_VERSION) {
+      this.db.exec("DROP TABLE IF EXISTS symbol_calls")
+      this.db.exec("DROP TABLE IF EXISTS file_imports")
       this.db.exec("DROP TABLE IF EXISTS symbols")
       this.db.exec("DROP TABLE IF EXISTS symbol_files")
       this.db.exec("DROP TABLE IF EXISTS schema_version")
@@ -101,16 +125,22 @@ export class SymbolDatabase {
     return row?.blob_hash
   }
 
-  upsertFile(filePath: string, blobHash: string, language: string, symbolCount: number) {
+  upsertFile(filePath: string, blobHash: string, language: string, symbolCount: number, docstrings = "") {
     this.db.run(
-      `INSERT OR REPLACE INTO symbol_files (file_path, blob_hash, language, indexed_at, symbol_count)
-       VALUES (?, ?, ?, ?, ?)`,
-      [filePath, blobHash, language, Date.now(), symbolCount],
+      `INSERT OR REPLACE INTO symbol_files (file_path, blob_hash, language, indexed_at, symbol_count, docstrings)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [filePath, blobHash, language, Date.now(), symbolCount, docstrings],
     )
   }
 
-  deleteFileSymbols(filePath: string) {
+  deleteFileData(filePath: string) {
     this.db.run("DELETE FROM symbols WHERE file_path = ?", [filePath])
+    this.db.run("DELETE FROM file_imports WHERE file_path = ?", [filePath])
+    this.db.run("DELETE FROM symbol_calls WHERE file_path = ?", [filePath])
+  }
+
+  deleteFileSymbols(filePath: string) {
+    this.deleteFileData(filePath)
   }
 
   insertSymbols(
@@ -134,6 +164,91 @@ export class SymbolDatabase {
       }
     })
     tx()
+  }
+
+  insertImports(filePath: string, imports: string[]) {
+    if (imports.length === 0) return
+    const stmt = this.db.prepare("INSERT INTO file_imports (file_path, import_path) VALUES (?, ?)")
+    const tx = this.db.transaction(() => {
+      for (const imp of imports) {
+        stmt.run(filePath, imp)
+      }
+    })
+    tx()
+  }
+
+  insertCalls(filePath: string, calls: Array<{ callerName: string; calleeName: string; line: number }>) {
+    if (calls.length === 0) return
+    const stmt = this.db.prepare(
+      "INSERT INTO symbol_calls (file_path, caller_name, callee_name, line) VALUES (?, ?, ?, ?)",
+    )
+    const tx = this.db.transaction(() => {
+      for (const c of calls) {
+        stmt.run(filePath, c.callerName, c.calleeName, c.line)
+      }
+    })
+    tx()
+  }
+
+  getCallers(symbol: string): Array<{ filePath: string; name: string; line: number }> {
+    const rows = this.db
+      .query("SELECT file_path, caller_name, line FROM symbol_calls WHERE callee_name = ? ORDER BY file_path, line")
+      .all(symbol) as Array<{ file_path: string; caller_name: string; line: number }>
+    return rows.map((r) => ({
+      filePath: r.file_path,
+      name: r.caller_name,
+      line: r.line,
+    }))
+  }
+
+  getCallees(symbol: string): Array<{ filePath: string; name: string; line: number }> {
+    const rows = this.db
+      .query("SELECT file_path, callee_name, line FROM symbol_calls WHERE caller_name = ? ORDER BY file_path, line")
+      .all(symbol) as Array<{ file_path: string; callee_name: string; line: number }>
+    return rows.map((r) => ({
+      filePath: r.file_path,
+      name: r.callee_name,
+      line: r.line,
+    }))
+  }
+
+  getImporters(filePath: string): string[] {
+    const rows = this.db
+      .query("SELECT DISTINCT file_path, import_path FROM file_imports")
+      .all() as Array<{ file_path: string; import_path: string }>
+
+    const targetExt = path.extname(filePath)
+    const targetBase = path.basename(filePath, targetExt)
+    const targetNoExt = targetExt ? filePath.slice(0, filePath.length - targetExt.length) : filePath
+
+    const importingFiles = new Set<string>()
+
+    for (const r of rows) {
+      if (r.file_path === filePath) continue
+      const imp = r.import_path
+      const impExt = path.extname(imp)
+      const impBase = path.basename(imp, impExt)
+      const impNoExt = impExt ? imp.slice(0, imp.length - impExt.length) : imp
+
+      if (imp.startsWith("./") || imp.startsWith("../")) {
+        const fromDir = path.dirname(r.file_path)
+        const resolved = path.normalize(path.join(fromDir, impNoExt))
+        if (resolved === targetNoExt || targetNoExt.endsWith(resolved) || resolved.endsWith(targetNoExt)) {
+          importingFiles.add(r.file_path)
+        }
+      } else if (imp.startsWith("@/")) {
+        const aliasTarget = impNoExt.slice(2)
+        if (targetNoExt.endsWith(aliasTarget) || targetNoExt === `src/${aliasTarget}`) {
+          importingFiles.add(r.file_path)
+        }
+      } else {
+        if (impBase === targetBase || targetNoExt.endsWith(impNoExt) || targetNoExt.endsWith(`/${impNoExt}`)) {
+          importingFiles.add(r.file_path)
+        }
+      }
+    }
+
+    return Array.from(importingFiles)
   }
 
   lookupSymbols(query: string, opts?: { kind?: string; directory?: string; limit?: number }): SymbolRow[] {
@@ -181,6 +296,24 @@ export class SymbolDatabase {
     }))
   }
 
+  getAllCorpusEntries(): Array<{
+    filePath: string
+    symbols: SymbolRow[]
+    docstrings: string
+  }> {
+    const files = this.db.query("SELECT file_path, docstrings FROM symbol_files").all() as Array<{
+      file_path: string
+      docstrings: string | null
+    }>
+    return files.map((f) => ({
+      filePath: f.file_path,
+      docstrings: f.docstrings ?? "",
+      symbols: this.db
+        .query("SELECT * FROM symbols WHERE file_path = ? ORDER BY start_line")
+        .all(f.file_path) as SymbolRow[],
+    }))
+  }
+
   removeStaleFiles(currentFiles: Set<string>) {
     const indexed = this.db.query("SELECT file_path FROM symbol_files").all() as Array<{ file_path: string }>
     const stale = indexed.filter((row) => !currentFiles.has(row.file_path))
@@ -188,6 +321,8 @@ export class SymbolDatabase {
     const tx = this.db.transaction(() => {
       for (const row of stale) {
         this.db.run("DELETE FROM symbols WHERE file_path = ?", [row.file_path])
+        this.db.run("DELETE FROM file_imports WHERE file_path = ?", [row.file_path])
+        this.db.run("DELETE FROM symbol_calls WHERE file_path = ?", [row.file_path])
         this.db.run("DELETE FROM symbol_files WHERE file_path = ?", [row.file_path])
       }
     })

@@ -86,6 +86,8 @@ import { classifyIntent } from "@/foxcode/intent"
 import { Verification } from "@opencode-ai/core/verification"
 import { VerificationBaseline } from "@opencode-ai/core/verification-baseline"
 import { RepairBudgetTracker } from "@opencode-ai/core/repair-budget"
+import { buildCodeContextBlock, type CodeContextBlock } from "../code-context"
+import { getOrCreateIndexer } from "@/tool/lookup_symbols"
 
 export interface PromptLoopDeps {
   readonly sessions: Session.Interface
@@ -181,7 +183,12 @@ export function makePromptLoop(deps: PromptLoopDeps) {
       skills?: string | undefined
       instructions?: string[]
       mcpInstructions?: string | undefined
+      codeContextHash?: string
+      codeContextBlock?: string
     } = {}
+    let codeContextDirty = true
+    let codeContextCache: CodeContextBlock | undefined
+    let lastMutationCount = 0
     // Cache static tool definitions across loop steps (Blueprint 11.1).
     // Invalidated when agent, model, or provider changes.
     let toolDefCache: SessionTools.ToolDefinitionCache | undefined
@@ -207,6 +214,15 @@ export function makePromptLoop(deps: PromptLoopDeps) {
         processor.getJournal(sessionID).reset()
         processor.resetParseFailStreak(sessionID)
         lastVerificationStates.delete(sessionID)
+        codeContextDirty = true
+        lastMutationCount = 0
+      }
+
+      // Check if harness recorded new mutations since last turn to invalidate code-context cache
+      const currentJournal = processor.getJournal(sessionID)
+      if (currentJournal.entries.length !== lastMutationCount) {
+        codeContextDirty = true
+        lastMutationCount = currentJournal.entries.length
       }
 
       const lastAssistantMsg = msgs.findLast(
@@ -739,6 +755,23 @@ export function makePromptLoop(deps: PromptLoopDeps) {
           if (nextSize > REQUEST_PRUNE_BYTES)
             yield* Effect.logWarning("payload still large after pruning", { "session.id": sessionID, size: nextSize })
         }
+        // Phase 2E PR 3: Code Context Block injection (Tasks 2E-3 & 2E-5)
+        if (codeContextDirty || !codeContextCache) {
+          const indexer = getOrCreateIndexer(ctx.directory)
+          const taskText = lastUserMsg?.parts.find((p) => p.type === "text")?.text ?? ""
+          codeContextCache = buildCodeContextBlock({
+            task: taskText,
+            tier: effectiveTierInfo.tier,
+            indexer,
+            workingSet: [],
+            mutatedFiles: [...new Set(currentJournal.entries.map((e) => e.file))],
+            projectDir: ctx.directory,
+          })
+          codeContextDirty = false
+        }
+        sysCache.codeContextHash = codeContextCache.contentHash
+        sysCache.codeContextBlock = codeContextCache.content
+
         const system = [
           ...env,
           ...mem,
@@ -746,6 +779,7 @@ export function makePromptLoop(deps: PromptLoopDeps) {
           ...instructions,
           ...(mcpInstructions ? [mcpInstructions] : []),
           ...(skills ? [skills] : []),
+          ...(sysCache.codeContextBlock ? [sysCache.codeContextBlock] : []),
         ]
         const format = lastUser.format ?? { type: "text" as const }
         if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)

@@ -47,6 +47,18 @@ export const TIER_META: Record<ModelTier, TierMeta> = {
 }
 
 /**
+ * Repo map token budget allocated per model tier for buildCodeContextBlock().
+ * S/A/B receive 1000 tokens; C/D receive 1500 tokens (weak models need more pre-injected context).
+ */
+export const TIER_MAP_TOKEN_BUDGET: Record<ModelTier, number> = {
+  S: 1000,
+  A: 1000,
+  B: 1000,
+  C: 1500,
+  D: 1500,
+}
+
+/**
  * Provider IDs whose models default to Tier S when parameter count
  * cannot be determined. These are frontier API providers.
  */

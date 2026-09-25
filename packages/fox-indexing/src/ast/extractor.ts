@@ -458,3 +458,146 @@ export function extractSymbols(tree: Tree, language: string): ExtractedSymbol[] 
   const extractor = EXTRACTORS[language] ?? extractGeneric
   return extractor(tree)
 }
+
+export interface ExtractedFileGraph {
+  symbols: ExtractedSymbol[]
+  imports: string[]
+  calls: Array<{ callerName: string; calleeName: string; line: number }>
+  comments: string[]
+}
+
+function cleanImportPath(raw: string): string {
+  return raw.replace(/^['"`]/, "").replace(/['"`]$/, "").trim()
+}
+
+export function extractGraphAndSymbols(
+  tree: Tree,
+  language: string,
+  content?: string,
+): ExtractedFileGraph {
+  const symbols = extractSymbols(tree, language)
+  const imports: string[] = []
+  const calls: Array<{ callerName: string; calleeName: string; line: number }> = []
+  const comments: string[] = []
+
+  // 1. Extract comments from AST
+  function walkComments(node: SyntaxNode) {
+    if (node.type.includes("comment")) {
+      comments.push(node.text)
+    }
+    for (const child of children(node)) {
+      walkComments(child)
+    }
+  }
+  walkComments(tree.rootNode)
+
+  // 2. Extract imports from AST
+  function walkImports(node: SyntaxNode) {
+    if (node.type === "import_statement" || node.type === "export_statement") {
+      const source = node.childForFieldName("source")
+      if (source) {
+        const cleaned = cleanImportPath(source.text)
+        if (cleaned) imports.push(cleaned)
+      } else {
+        // Fallback: look for string literal child
+        for (const child of children(node)) {
+          if (child.type === "string" || child.type === "string_fragment") {
+            const cleaned = cleanImportPath(child.text)
+            if (cleaned) imports.push(cleaned)
+          }
+        }
+      }
+    } else if (node.type === "import_from_statement") {
+      const moduleName = node.childForFieldName("module_name")?.text
+      if (moduleName) imports.push(cleanImportPath(moduleName))
+    } else if (node.type === "call_expression") {
+      const fn = node.childForFieldName("function")?.text
+      if (fn === "require" || fn === "import") {
+        const args = node.childForFieldName("arguments")
+        if (args) {
+          const firstArg = children(args)[0]
+          if (firstArg) {
+            const cleaned = cleanImportPath(firstArg.text)
+            if (cleaned) imports.push(cleaned)
+          }
+        }
+      }
+    }
+    for (const child of children(node)) {
+      walkImports(child)
+    }
+  }
+  walkImports(tree.rootNode)
+
+  // 3. Extract calls from AST
+  function walkCalls(node: SyntaxNode, currentCaller?: string) {
+    let nextCaller = currentCaller
+    if (
+      node.type === "function_declaration" ||
+      node.type === "function_definition" ||
+      node.type === "generator_function_declaration" ||
+      node.type === "method_definition"
+    ) {
+      const name = nameOf(node)
+      if (name) nextCaller = name
+    } else if (node.type === "variable_declarator") {
+      const name = node.childForFieldName("name")?.text
+      const init = node.childForFieldName("value")
+      if (name && init && (init.type === "arrow_function" || init.type === "function_expression")) {
+        nextCaller = name
+      }
+    }
+
+    if (node.type === "call_expression" || node.type === "call") {
+      const fnNode = node.childForFieldName("function")
+      let calleeName: string | undefined
+      if (fnNode) {
+        if (fnNode.type === "identifier") {
+          calleeName = fnNode.text
+        } else if (fnNode.type === "member_expression" || fnNode.type === "attribute") {
+          calleeName = fnNode.childForFieldName("property")?.text ?? fnNode.childForFieldName("attribute")?.text
+        }
+      }
+      if (calleeName && nextCaller) {
+        calls.push({
+          callerName: nextCaller,
+          calleeName,
+          line: node.startPosition.row + 1,
+        })
+      }
+    }
+
+    for (const child of children(node)) {
+      walkCalls(child, nextCaller)
+    }
+  }
+  walkCalls(tree.rootNode)
+
+  // 4. Content regex fallbacks for imports & comments if content is provided
+  if (content) {
+    if (imports.length === 0) {
+      const importRegex = /(?:import\s+(?:[\w*\s{},$]+from\s+)?|require\s*\(\s*)['"]([^'"]+)['"]/g
+      let match: RegExpExecArray | null
+      while ((match = importRegex.exec(content)) !== null) {
+        if (match[1]) imports.push(match[1])
+      }
+    }
+
+    if (comments.length === 0) {
+      const commentRegex = /\/\/(.*)$|\/\*([\s\S]*?)\*\/|#(.*)$/gm
+      let match: RegExpExecArray | null
+      while ((match = commentRegex.exec(content)) !== null) {
+        const comment = (match[1] || match[2] || match[3] || "").trim()
+        if (comment) comments.push(comment)
+      }
+    }
+  }
+
+  return {
+    symbols,
+    imports: Array.from(new Set(imports)),
+    calls,
+    comments,
+  }
+}
+

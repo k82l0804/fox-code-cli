@@ -15,7 +15,7 @@ import * as crypto from "crypto"
 import { execSync } from "child_process"
 import { SymbolDatabase, type SymbolRow } from "./schema"
 import { languageForExtension, createParser, supportedExtensions } from "./grammars"
-import { extractSymbols, type ExtractedSymbol } from "./extractor"
+import { extractSymbols, extractGraphAndSymbols, type ExtractedSymbol } from "./extractor"
 
 
 export interface ScanResult {
@@ -197,15 +197,16 @@ export class AstIndexer {
         }
 
         const tree = parser.parse(content)
-        const symbols = extractSymbols(tree, language)
+        const extracted = extractGraphAndSymbols(tree, language, content)
         tree.delete()
 
         // Update the database atomically
-        this.db.deleteFileSymbols(file.filePath)
-        this.db.upsertFile(file.filePath, file.blobHash, language, symbols.length)
-        if (symbols.length > 0) {
+        this.db.deleteFileData(file.filePath)
+        const docstrings = extracted.comments.join("\n")
+        this.db.upsertFile(file.filePath, file.blobHash, language, extracted.symbols.length, docstrings)
+        if (extracted.symbols.length > 0) {
           this.db.insertSymbols(
-            symbols.map((s) => ({
+            extracted.symbols.map((s) => ({
               filePath: file.filePath,
               name: s.name,
               kind: s.kind,
@@ -215,6 +216,12 @@ export class AstIndexer {
               parentName: s.parentName,
             })),
           )
+        }
+        if (extracted.imports.length > 0) {
+          this.db.insertImports(file.filePath, extracted.imports)
+        }
+        if (extracted.calls.length > 0) {
+          this.db.insertCalls(file.filePath, extracted.calls)
         }
         indexed++
       } catch {
@@ -275,6 +282,45 @@ export class AstIndexer {
     }
 
     return lines.join("\n")
+  }
+
+  /**
+   * Find callers of a symbol.
+   */
+  callers(symbol: string): Array<{ filePath: string; name: string; line: number }> {
+    return this.db.getCallers(symbol)
+  }
+
+  /**
+   * Find functions called by a symbol.
+   */
+  callees(symbol: string): Array<{ filePath: string; name: string; line: number }> {
+    return this.db.getCallees(symbol)
+  }
+
+  /**
+   * Find files that import this file.
+   */
+  importers(filePath: string): string[] {
+    return this.db.getImporters(filePath)
+  }
+
+  /**
+   * Get all indexed files with symbols and docstrings for BM25 retrieval.
+   */
+  getCorpus(): Array<{
+    filePath: string
+    symbols: SymbolRow[]
+    docstrings: string
+  }> {
+    return this.db.getAllCorpusEntries()
+  }
+
+  /**
+   * Direct access to underlying SymbolDatabase.
+   */
+  get database(): SymbolDatabase {
+    return this.db
   }
 
   dispose() {

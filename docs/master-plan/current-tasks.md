@@ -14,7 +14,7 @@
 
 - [x] **2E-2. Verification as Harness Reflection** — Exit-time verification with baseline comparison (only new regressions block). Repair budget as hard cap. Fresh-verify skip. Flaky test retry. Parse-fail circuit breaker (3-strike rule — prevents Goose-style truncate→retry livelock). Unified `resolveExitCondition()`.
 
-- [ ] **2E-3. Localization Pipeline + Code Context Block** — `buildCodeContextBlock()` with 5k token envelope (map + localize spans + pinned bodies). Hierarchical localize prelude (BM25 over identifiers + graph). Cold-index non-blocking. Honest cache key. Repo map injection (more for weak models). Working-set pinning.
+- [x] **2E-3. Localization Pipeline + Code Context Block** — `buildCodeContextBlock()` with 5k token envelope (map + localize spans + pinned bodies). Hierarchical localize prelude (BM25 over identifiers + graph). Cold-index non-blocking. Honest cache key. Repo map injection (more for weak models). Working-set pinning.
 
 - [x] **2E-4. ACI Simplification — Tool Surface Matrix** — Canonical ACI matrix (S/A: `edit` + `rewrite_file(create)`; B: `edit` + `rewrite_file`; C/D: none as tools → 2E-6). Syntax gate on apply. Bounded `read` (200 lines + offset). Empty success formatting. `commit`/`write`/`apply_patch` off default surface.
 
