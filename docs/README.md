@@ -34,6 +34,8 @@ docs/
 │   ├── 2026-09-22T20-15_phase-2-handoff.md                   # Handoff for Phase 2 Autonomous Guardian & Loop
 │   ├── 2026-09-22T16-24_phase-1-remaining.md                 # Handoff for Phase 1 remaining items (Completed in CLI)
 │   └── 2026-09-22T15-16_competitive-features-session.md # Competitive features session brief
+├── prompts/                                 # Session prompts for autonomous runs & implementation
+│   └── README.md                            # Prompts directory index
 ├── reports/                                 # In-depth architectural & competitive reports
 │   ├── 2026-09-23T09-18_competitive-analysis-fox-aider-goose.md # Capability-Proportional Execution analysis
 │   ├── 2026-09-23T09-38_competitive-benchmark-aider-goose-kilo.md # Competitor Benchmark Report (Aider vs Goose vs Kilo)
