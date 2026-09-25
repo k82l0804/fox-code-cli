@@ -56,9 +56,24 @@ export function createJournal(): MutationJournal
 
 ### Integration point
 
-In [`processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts), after a mutation tool completes successfully (line ~643, inside the `MUTATION_TOOLS.has(value.name)` block), call `journal.record()` with the tool name and file paths extracted via existing `extractMutationFilePaths()` (line 92–110).
+In [`processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts), insert `journal.record()` **after** the post-mutation verification block completes (after line 719, inside the `if (Verification.MUTATION_TOOLS.has(value.name))` block at line 643, after oscillation + auto-verify have run). Call with the tool name and file paths extracted via existing `extractMutationFilePaths()` (lines 92–110). Record only when the tool completed successfully (no error in output).
 
-The journal is stored in `SessionProcessor.make`'s closure alongside existing `oscillationTrackers`, `repairBudgets`, `verificationBaselines` maps (lines 196–200). Key: `SessionID → MutationJournal`.
+The journal map is stored in `SessionProcessor.make`'s closure alongside the existing session-scoped maps (lines 196–200):
+
+```typescript
+// --- Autonomous Verification Layer: session-scoped state ---
+const oscillationTrackers = new Map<SessionID, Oscillation.OscillationTracker>()    // line 196
+const repairBudgets = new Map<SessionID, RepairBudgetTracker.RepairBudget>()         // line 197
+const verificationBaselines = new Map<SessionID, VerificationBaseline.BaselineSnapshot>() // line 198
+const turnCounters = new Map<SessionID, number>()                                    // line 200
+const mutationJournals = new Map<SessionID, MutationJournal>()                       // ADD HERE
+```
+
+Key: `SessionID → MutationJournal`.
+
+### Module exports
+
+`src/session/mutation-journal.ts` must export `MutationEntry`, `MutationJournal`, and `createJournal`. Import in `processor.ts` as `import { createJournal, type MutationJournal } from "./mutation-journal"`.
 
 ### What does NOT count as a mutation
 
@@ -159,6 +174,22 @@ Create a synthetic user message via `sessions.updateMessage()` with role "user",
 
 Stored per-session in a `Map<SessionID, number>` alongside existing counters (lines 196–200). After N reflections with no mutation, allow exit with a warning log. Reset on new user message.
 
+### Config key
+
+Read from `cfg.autonomous?.max_empty_exit_retries ?? 2`. Document in `fox.jsonc`:
+
+```jsonc
+{
+  "autonomous": {
+    // Maximum times the harness will re-prompt a model that exits without
+    // making any file changes on a code-change task. Default: 2.
+    "max_empty_exit_retries": 2,
+    // Maximum repair cycles after verification regressions. Default: 3.
+    // (Already exists: max_repair_turns)
+  }
+}
+```
+
 ---
 
 ## 3. Exit-Time Verification (2E-2)
@@ -219,20 +250,24 @@ After successful apply + (optional) green verification, the harness creates a gi
 
 ### Implementation
 
-In [`processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts), after a mutation tool succeeds AND post-mutation verification passes (or is skipped):
+In [`processor.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/processor.ts), after a mutation tool succeeds AND post-mutation verification passes (or is skipped). Insert after `journal.record()` (see §1 integration point).
 
 ```typescript
 async function harnessCommit(projectDir: string, files: string[], toolName: string): Promise<string | undefined> {
-  // Check for actual changes
+  // Stage the specific files first
+  await execGit(["add", ...files], projectDir)
+
+  // Check for actual staged changes
   const diffResult = await execGit(["diff", "--cached", "--quiet"], projectDir)
   if (diffResult.exitCode === 0) return undefined  // no changes → no commit
 
-  await execGit(["add", ...files], projectDir)
   const msg = `fox: ${toolName} ${files.map(f => path.basename(f)).join(", ")}`
   const result = await execGit(["commit", "-m", msg, "--no-verify"], projectDir)
   return result.stdout.match(/\b([0-9a-f]{7,})\b/)?.[1]  // return short hash
 }
 ```
+
+> **Note**: `git add` must come before `git diff --cached --quiet` — the original order checked the staging area before staging the files, which would always show no changes for unstaged edits.
 
 ### Harness commit tracker
 
@@ -252,7 +287,7 @@ If `git diff --cached --quiet` returns 0 (no changes), skip the commit. This is 
 
 ### Module: `src/session/control-plane.ts`
 
-One function that owns all exit decisions:
+One **pure function** that owns all exit decisions. Import `isCodeChangeTask()` from `src/session/control-plane.ts` — it lives here, not in `intent.ts`, because it combines intent + tool surface + override heuristic. Export both `resolveExitCondition` and `isCodeChangeTask` from this module.
 
 ```typescript
 export type ExitAction = "continue" | "break" | "rollback"
@@ -346,12 +381,20 @@ export function resolveExitCondition(state: ExitConditionState): ExitDecision {
 ## Verification Plan
 
 ### Unit tests (`test/`)
-1. `mutation-journal.test.ts` — record, isEmpty, reset, fileCount. Commit does not count.
+1. `mutation-journal.test.ts` — record, isEmpty, reset, fileCount. Commit does not count. Fence-parse source accepted.
 2. `control-plane.test.ts` — all 6 conditions individually + 4 combinations (see above).
 3. `exit-gate.test.ts` — mock session where model finishes without mutations on code-change task → reflection injected with correct tool name for tier. Non-code task exits normally.
 4. Intent override: "the rate limiter tests are failing" → `isCodeChangeTask` returns true.
+5. `isCodeChangeTask` with `intent === "research"` + no edit tools → returns false.
 
-### Smoke test
+### Full-stack smoke test
+- `test/exit-gate-smoke.test.ts` — runs the full loop against a tiny fixture repo with a fabricated session. Asserts:
+  - Code-change task with empty journal → reflection injected (not exit).
+  - Non-code task → clean exit.
+  - Verification fail → reflection injected with regression details.
+  - Budget exhaustion → exit with warning.
+
+### Typecheck + existing tests
 - `timeout 60s bun run test:smoke`
 
 ### Manual gate test

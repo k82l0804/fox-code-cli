@@ -125,13 +125,19 @@ When making code changes, write the complete updated file in a fenced code block
 Do not describe changes. Write the full file content directly.
 ```
 
-This replaces the tool instructions section for C/D (since they have no edit tools).
+This **replaces** the tool instructions section for C/D (since they have no edit tools). In `prepare.ts`, the existing tool-instruction block must be conditionally skipped when `tier === "C" || tier === "D"`, and the fence instructions inserted in its place. This prevents the model from seeing contradictory guidance (fence instructions + tool instructions).
 
 ### Dynamic fallback: `read` tool
 
 If a C/D model asks to read a file (produces text like "let me look at the file" without actually having `read` in tools), add `read` to the tool surface dynamically for that session:
 
 ```typescript
+const READ_FALLBACK_PATTERN = /\b(show|read|look at|view|open|display|cat|print)\s+(the\s+)?(file|contents|source|code)\b/i
+
+function needsReadFallback(assistantText: string): boolean {
+  return READ_FALLBACK_PATTERN.test(assistantText)
+}
+
 if (tierInfo.tier === "C" || tierInfo.tier === "D") {
   if (needsReadFallback(assistantText)) {
     // Add read tool to surface for this turn only
@@ -162,7 +168,7 @@ If `parseFencedBlocks()` returns empty AND `isCodeChangeTask === true`:
 | **Modify** | `src/session/processor.ts` | Hook fence-parse after C/D text completion |
 | **Modify** | `src/session/prompt/prepare.ts` | C/D system prompt: fence instructions |
 | **Modify** | `src/foxcode/model-tier.ts` | C/D tier config: `useFenceParse: true` |
-| **Modify** | `src/session/mutation-journal.ts` | Accept `source: "fence-parse"` entries |
+| **Modify** | `src/session/mutation-journal.ts` | Accept entries with any `source` string (free-form field, not enum). Fence-parse entries use `source: "fence-parse"`. |
 
 ## Tests
 
@@ -172,9 +178,9 @@ If `parseFencedBlocks()` returns empty AND `isCodeChangeTask === true`:
 4. Fence parser: multiple blocks in one message → array of all.
 5. Fence parser: block with no file path → skipped.
 6. Fence parser: malformed block → skipped, others still extracted.
-7. Integration: C/D model produces fenced block → harness applies it → journal records mutation → exit gate satisfied.
-8. Integration: C/D model produces prose only → exit gate fires → reflection injected.
-9. Integration: S/A model produces fenced blocks → **ignored** (S/A uses tool calls).
+7. Integration: C/D model produces fenced block → harness applies it → journal records mutation with `source: "fence-parse"` → exit gate satisfied.
+8. Integration: C/D model produces prose only → exit gate fires → reflection says "write the complete file in a fenced block".
+9. Integration: S/A model produces fenced blocks → **ignored** (S/A uses tool calls). Journal NOT updated.
 10. System prompt: C/D tier → fence instructions present, no edit tool schemas.
 11. System prompt: S/A tier → standard tool instructions, no fence instructions.
 12. `timeout 45s bun run typecheck` passes.

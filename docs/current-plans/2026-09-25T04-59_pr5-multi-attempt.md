@@ -43,10 +43,29 @@ Add `--attempts` flag (default 1). When N > 1:
 
 ```typescript
 async function createAttemptWorktree(projectDir: string, attemptIndex: number): Promise<string> {
-  const worktreePath = path.join(os.tmpdir(), `fox-attempt-${Date.now()}-${attemptIndex}`)
+  const worktreePath = path.join(os.tmpdir(), `fox-attempt-${process.pid}-${Date.now()}-${attemptIndex}`)
   await execGit(["worktree", "add", "--detach", worktreePath, "HEAD"], projectDir)
   return worktreePath
 }
+```
+
+> **Note**: PID is included in the directory name to prevent collisions when multiple concurrent `fox run --attempts` invocations run on the same machine.
+
+### Worktree cleanup safety
+
+Register a `process.on('exit')` handler (and `SIGINT`/`SIGTERM`) that calls `git worktree prune` for any dangling worktrees:
+
+```typescript
+const pendingWorktrees: string[] = []
+const cleanup = () => {
+  for (const wt of pendingWorktrees) {
+    try { fs.rmSync(wt, { recursive: true, force: true }) } catch {}
+  }
+  try { execSync(`git worktree prune`, { cwd: projectDir }) } catch {}
+}
+process.on('exit', cleanup)
+process.on('SIGINT', () => { cleanup(); process.exit(1) })
+process.on('SIGTERM', () => { cleanup(); process.exit(1) })
 ```
 
 ### Per-attempt timeout
@@ -64,6 +83,7 @@ Each attempt gets:
 - Its own session (fresh conversation, fresh mutation journal, fresh repair budget).
 - Same system prompt, same model, same tools.
 - Its own harness commits (in the worktree's detached HEAD).
+- The task (user message) is passed via environment: `FOX_WORKTREE_PATH` points to the attempt's worktree directory. The session reads `FOX_WORKTREE_PATH` (or falls back to `process.cwd()`) as its project root.
 
 ### Attempt result
 
@@ -123,7 +143,14 @@ for (let i = 0; i < attempts; i++) {
    b. Verification `allPassed` boolean (green > red, among equal regression count).
    c. `totalTokens` ascending (cheaper = tiebreaker).
 
-If all attempts are discarded (all empty or all worse): report failure with summary of what each attempt did. Do NOT apply any diff.
+If all attempts are discarded (all empty or all worse): report failure with summary of what each attempt did. Do NOT apply any diff. Emit user-facing message:
+
+```
+All 3 attempts failed — no changes applied.
+  Attempt 1: Empty (exit: empty exit retries exhausted)
+  Attempt 2: 2 new regressions (exit: repair budget exhausted)
+  Attempt 3: Empty (exit: max steps reached)
+```
 
 ### Selection for N≥5 (deferred to v2)
 
@@ -175,8 +202,8 @@ Winner: Attempt 2 — applied as patch onto HEAD.
 |--------|------|-------------|
 | **Create** | `src/session/attempt.ts` | Per-attempt execution with worktree isolation |
 | **Create** | `src/session/attempt-selector.ts` | Deterministic filter+rank selection |
-| **Modify** | `src/foxcode/cli/run-drain.ts` | `--attempts N` flag, orchestration |
-| **Modify** | `src/session/prompt/loop.ts` | Accept worktree path override |
+| **Modify** | `src/foxcode/cli/run-drain.ts` | `--attempts N` flag + `--attempt-timeout` flag, orchestration. Update `--help` output to document both flags. |
+| **Modify** | `src/session/prompt/loop.ts` | Accept worktree path override via `FOX_WORKTREE_PATH` env var |
 
 ## Tests
 

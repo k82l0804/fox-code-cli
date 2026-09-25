@@ -25,7 +25,21 @@
 
 ## 1. Canonical ACI Matrix
 
-Implement in [`src/foxcode/model-tier.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/foxcode/model-tier.ts) and [`src/tool/registry.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/tool/registry.ts):
+Implement in [`src/foxcode/model-tier.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/foxcode/model-tier.ts) and wire through [`src/session/tools.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/session/tools.ts) `resolveDefinitions()` (line 116). The `DefinitionInput` interface already has `tierInfo?: TierInfo` and `toolsFilterByTier?: boolean` fields (lines 111–113) — populate these from the resolved tier.
+
+Add the canonical mapping to `model-tier.ts`:
+
+```typescript
+export const TIER_TOOL_SURFACE: Record<ModelTier, Set<string>> = {
+  S: new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash", "lookup_symbols"]),
+  A: new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash", "lookup_symbols"]),
+  B: new Set(["edit", "rewrite_file", "read", "grep", "glob", "lsp", "bash"]),
+  C: new Set(["grep", "bash"]),
+  D: new Set(["grep", "bash"]),
+}
+```
+
+All tool registrations must use `Tool.make(...)` via `Tools.Service.register(...)` (architectural rule #1).
 
 | Tier | Edit tools | Explore tools | Shell |
 |------|-----------|---------------|-------|
@@ -76,8 +90,8 @@ Use tree-sitter parse (available via `@foxcode/indexing`). If tree-sitter gramma
 
 ### Modify [`src/tool/read.ts`](file:///home/k82l0804/workarea/fox/fox-code-cli/src/tool/read.ts)
 
-- Add `offset` parameter to tool schema (default 0).
-- Cap output at **200 lines** per call (configurable via `max_read_lines`).
+- Add `offset` parameter to tool schema (default 0). Schema extension: `{ path: string, offset?: number }`.
+- Cap output at **200 lines** per call (configurable via `cfg.autonomous?.max_read_lines ?? 200`).
 - Add hard **byte cap** of 50KB (catches minified bundles).
 - Always include line numbers.
 - When truncated, append: `"... N more lines (M bytes), use offset=K to continue"`
@@ -122,15 +136,17 @@ Any tool result that produces no output returns `"Command completed successfully
 | **Modify** | `src/tool/read.ts` | 200-line cap, offset param, byte cap |
 | **Modify** | `src/tool/grep.ts` | Summary mode default + `context` param |
 | **Modify** | `src/tool/shell.ts` | Empty output → success message |
-| **Modify** | `src/tool/write.ts` | Deprecation: redirect to `rewrite_file(create:true)` |
+| **Modify** | `src/tool/write.ts` | Deprecation: internal redirect to `rewrite_file(create:true)`. Keep the file but mark the tool as `@deprecated` in its schema description. If a model calls `write`, the handler silently delegates to `rewrite_file` with `create: true`. |
 
 ## Tests
 
 1. Tier routing: S/A → sees `edit`, `rewrite_file`, `read`, `grep`, `glob`, `lsp`, `bash`. Does NOT see: `apply_patch`, `write`, `commit`.
 2. Tier C/D → sees `grep`, `bash` only.
-3. Syntax gate: edit introduces new parse error → rejected. File already invalid + error count unchanged → accepted.
-4. Read pagination: request 200+ line file → capped, offset param returns next chunk, byte cap catches minified.
-5. Grep summary: broad search → file+count+preview. `context=true` → full hunks.
-6. Empty output: `bash exit 0` with no stdout → "Command completed successfully with no output."
-7. `rewrite_file(create: true)` on non-existent file → creates it.
-8. `timeout 45s bun run typecheck` passes.
+3. **Tier-routing prompt serialization**: serialise the full LLM request payload for each tier, parse the `tools` section, and assert the exact tool name set matches `TIER_TOOL_SURFACE[tier]`.
+4. Syntax gate: edit introduces new parse error → rejected. File already invalid + error count unchanged → accepted.
+5. Read pagination: request 200+ line file → capped, offset param returns next chunk, byte cap catches minified.
+6. Grep summary: broad search → file+count+preview. `context=true` → full hunks.
+7. Empty output: `bash exit 0` with no stdout → "Command completed successfully with no output."
+8. `rewrite_file(create: true)` on non-existent file → creates it.
+9. `write` tool call → silently delegates to `rewrite_file(create:true)`, returns success.
+10. `timeout 45s bun run typecheck` passes.
