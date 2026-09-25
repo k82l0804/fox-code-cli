@@ -110,8 +110,22 @@ export namespace FoxRunDrain {
       },
       async wait(sdk: FoxClient, directory?: string) {
         const drainClient: any = (sdk as any).foxcode ?? (sdk as any).kilocode
-        const result = await race(drainClient.drainSession({ sessionID, directory, token }, { signal: abort.signal }))
-        if (result.error || result.data !== true) throw new Error("Server did not acknowledge session completion")
+        let result = await race(drainClient.drainSession({ sessionID, directory, token }, { signal: abort.signal }))
+        if ((result.error || result.data !== true) && (sdk as any).client) {
+          result = await race(
+            (sdk as any).client.post({
+              url: "/foxcode/session/{sessionID}/drain",
+              path: { sessionID },
+              query: { directory },
+              body: { token },
+              headers: { "Content-Type": "application/json" },
+              signal: abort.signal,
+            }),
+          )
+        }
+        if (result.error || result.data !== true) {
+          throw new Error("Server did not acknowledge session completion")
+        }
         await race(acknowledged.promise)
       },
       close() {

@@ -623,7 +623,7 @@ SFT on Fox-format successful trajectories becomes rational **after** 2E+2F produ
 
 - [ ] **15b. Autonomous Intake Gate (`--auto` Refusal / Scaffold)** — Asking for `--auto` requests permission to run unattended. If the plan contract is ambiguous, unbounded, or missing binary acceptance criteria, the gate **refuses** `--auto` and prints an Assisted Scaffold with `[REQUIRED]` and `[MISSING]` markers. No unconstrained runs.
 
-- [ ] **15c. Structured Wake-Up Audit Generator** — Standardized diagnostic briefing emitted whenever execution halts or ends (`done`, `blocked`, `failed-safe`, `needs-review`). Emits: terminal state, active plan, completed steps, modified files, verification results, rollback SHA, suggested prompt.
+- [ ] **15c. Structured Wake-Up Audit Generator** — Extends the basic `formatWakeUpAudit()` shipped in PR 1 (2E-2) with Plan Contract integration, structured file/notification output, and configurable detail levels. PR 1's version emits a simple log-line diagnostic on `break`/`rollback`; this task produces a full machine-readable briefing with: terminal state, active Plan Contract reference, completed steps vs. plan milestones, modified files, verification results, rollback SHA, and suggested prompt.
 
 ### Phase 3B — Asymmetric Pre-Commit Reviewer (A2 Gate)
 

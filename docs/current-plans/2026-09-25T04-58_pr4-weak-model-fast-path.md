@@ -184,3 +184,5 @@ If `parseFencedBlocks()` returns empty AND `isCodeChangeTask === true`:
 10. System prompt: C/D tier → fence instructions present, no edit tool schemas.
 11. System prompt: S/A tier → standard tool instructions, no fence instructions.
 12. `timeout 45s bun run typecheck` passes.
+
+> **Refinement pass**: Completed 2026-09-25. No issues found.

@@ -51,7 +51,7 @@ All tool registrations must use `Tool.make(...)` via `Tools.Service.register(...
 - `apply_patch` — stays in codebase for internal harness use, removed from tool schemas
 - `write` — subsumed into `rewrite_file` with `create: true` flag
 - `commit` — harness-side only (PR 1's 2F-1)
-- `fetch_repo_map` — for C/D, removed (map injected in prefix by PR 3)
+- `fetch_repo_map` — excluded from ALL tiers. PR 3 injects the repo map via `buildCodeContextBlock()` in the system prefix; exposing it as a tool is redundant and wastes schema tokens.
 - `lookup_symbols` — for C/D, removed (reserved for S/A opt-in)
 
 ### `rewrite_file` gets `create: true`
@@ -150,3 +150,5 @@ Any tool result that produces no output returns `"Command completed successfully
 8. `rewrite_file(create: true)` on non-existent file → creates it.
 9. `write` tool call → silently delegates to `rewrite_file(create:true)`, returns success.
 10. `timeout 45s bun run typecheck` passes.
+
+> **Refinement pass**: Completed 2026-09-25. Fixed: clarified `fetch_repo_map` exclusion applies to ALL tiers (not just C/D).

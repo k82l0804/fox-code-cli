@@ -199,3 +199,5 @@ Full `/add`/`/drop` as first-class session object deferred to 2F-5.
 9. Cold-index: generate starts without blocking; block marked `partial`.
 10. Localize not run on Ask/explain tasks.
 11. "the rate limiter tests are failing" → localizes to `rate_limiter.ts`.
+
+> **Refinement pass**: Completed 2026-09-25. No issues found.
